@@ -1,0 +1,92 @@
+version: '3.7'
+networks:
+ traefik-public:
+   external: true
+ traefik:
+   external: true
+services:
+  postgres:
+    image: kartoza/postgis:14-3.1
+    networks:
+      - traefik-public
+    ports:
+      - 5446:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    secrets:
+      - source: postgres_db_password
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - traefik.enable=false
+        - com.centurylinklabs.watchtower.enable=false
+  pgadmin4:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${MAINTAINER_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - traefik-public
+    volumes:
+      - pgadmin_data:/pgadmin
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pgadmin4-http.entrypoints=web"
+        - "traefik.http.routers.pgadmin4-http.rule=Host(`pgadmin.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pgadmin4.entrypoints=websecure"
+        - "traefik.http.routers.pgadmin4.rule=Host(`pgadmin.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pgadmin4-http.middlewares=pgadmin4-https@docker"
+        - "traefik.http.middlewares.pgadmin4-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.pgadmin4.tls=true"
+        - "traefik.http.routers.pgadmin4.tls.certresolver=le"
+        - "traefik.http.services.pgadmin4.loadbalancer.server.port=80"
+  influx:   
+    image: influxdb
+    networks:
+      - traefik 
+    volumes:     
+      - influx:/var/lib/influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${ORG}
+      - PRE_CREATE_DB=cadvisor
+    deploy: 
+      replicas: 1      
+      placement:
+         constraints:
+           - node.role == manager
+      labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=traefik"
+  redis:
+    image: redis:latest
+    ports:
+      - 6379:6379
+    networks:
+      - traefik
+    deploy: 
+      replicas: 1
+      labels:
+          - "traefik.enable=false"
+          - "traefik.docker.network=traefik"
+volumes:
+  postgres_data: {}
+  pgadmin_data: {}
+  influx: {}
+secrets:
+  postgres_db_password:
+    file: ./secrets/postgres/postgres_db_password
