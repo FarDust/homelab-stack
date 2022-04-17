@@ -1,0 +1,7 @@
+---
+listen_admin: 0.0.0.0:8080
+listen_jaeger: 0.0.0.0:6831
+reporters:
+  apdex:
+    satisfied: 100ms
+    tolerating: 0.5s

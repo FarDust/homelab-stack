@@ -1,0 +1,5 @@
+GF_USERS_ALLOW_SIGN_UP=false
+GF_LOG_FILTERS=rendering:debug
+GF_UNIFIED_ALERTING_ENABLED=true
+GF_ALERTING_ENABLED=false
+GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-image-renderer

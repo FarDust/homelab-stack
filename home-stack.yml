@@ -1,0 +1,61 @@
+version: '3.8'
+networks:
+ traefik-public:
+   external: true
+ traefik:
+   external: true
+services:
+  homeassistant:
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    configs:
+      - source: assistant_config_file
+        target: /config/configuration.yaml
+      - source: assistant_secrets_file
+        target: /config/secrets.yaml
+    volumes:
+      - assistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - traefik
+    environment:
+      - TZ=America/Santiago
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.udp.routers.homeassistant.entrypoints=dnscrypt-udp"
+        - "traefik.udp.routers.homeassistant.service=homeassistant@docker"
+        - "traefik.udp.services.homeassistant.loadbalancer.server.port=5353/udp"
+        - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.local.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.homeassistant.service=homeassistant@docker"
+        - "traefik.http.routers.homeassistant-http.entrypoints=web"
+        - "traefik.http.routers.homeassistant-http.rule=Host(`homeassistant.local.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.homeassistant.entrypoints=websecure"
+        - "traefik.http.routers.homeassistant-http.middlewares=homeassistant-https@docker"
+        - "traefik.http.middlewares.homeassistant-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.homeassistant.tls=true"
+        - "traefik.http.routers.homeassistant.tls.certresolver=le-dns"
+        - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+        - "traefik.docker.network=traefik"
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - /var/hacluster/mosquitto:/mosquitto
+    deploy:
+      replicas: 1
+volumes:
+  assistant_config: {}
+configs:
+  assistant_secrets_file:
+    name: assistant_secrets.yaml-${CONFIG_VERSION:-0}
+    file: ./configs/homeassistant/secrets.yaml
+  assistant_config_file:
+    name: configuration.yaml-${CONFIG_VERSION:-0}
+    file: ./configs/homeassistant/configuration.yaml
