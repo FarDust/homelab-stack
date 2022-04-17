@@ -1,3 +1,4 @@
 secrets/*
 .env
 !.keep
+secrets.yaml

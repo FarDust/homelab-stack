@@ -1,12 +1,12 @@
-version: '3.7'
+version: "3.9"
 networks:
- traefik-public:
-   external: true
- traefik:
-   external: true
+  traefik-public:
+    external: true
+  traefik:
+    external: true
 services:
   traefik:
-    image: traefik:v2.6
+    image: traefik:latest
     command:
       - "--log.level=DEBUG"
       - "--api.insecure=true"
@@ -25,6 +25,11 @@ services:
       - "--certificatesResolvers.le.acme.email=${MAINTAINER_EMAIL}"
       - "--certificatesResolvers.le.acme.storage=/letsencrypt/acme.json"
       - "--certificatesResolvers.le.acme.httpChallenge.entryPoint=web"
+      - "--certificatesResolvers.le-dns.acme.dnschallenge=true"
+      - "--certificatesResolvers.le-dns.acme.storage=/letsencrypt/cloudflare.json"
+      - "--certificatesResolvers.le-dns.acme.email=${MAINTAINER_EMAIL}"
+      - "--certificatesResolvers.le-dns.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesResolvers.le-dns.acme.dnschallenge.delaybeforecheck=0"
       - "--tracing.jaeger=true"
       - "--tracing.jaeger.samplingServerURL=http://jaeger:5778/sampling"
       - "--metrics.prometheus=true"
@@ -45,7 +50,7 @@ services:
       - target: 5353
         published: 5353
         protocol: udp
-        mode: ingress
+        mode: host
       - target: 443
         published: 443
         protocol: tcp
@@ -57,6 +62,13 @@ services:
     networks:
       - traefik
       - traefik-public
+    secrets:
+      - source: cloudflare_dns_api_token
+      - source: cloudflare_zone_api_token
+    environment:
+      - CF_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_dns_api_token
+      - CF_ZONE_API_TOKEN_FILE=/run/secrets/cloudflare_zone_api_token
+      - CLOUDFLARE_TTL=60
     volumes:
       # To persist certificates
       - traefik-certificates:/letsencrypt
@@ -68,53 +80,58 @@ services:
         constraints:
           - node.role == manager
       update_config:
-        parallelism: 1
+        parallelism: 5
         delay: 10s
       restart_policy:
         condition: on-failure
   jaeger:
     image: jaegertracing/all-in-one
-    volumes:
-      - ./jaeger-traefik.yml:/etc/jaeger-traefik.yml:ro
+    configs:
+      - source: jaeger_trafik_config
+        target: /etc/jaeger-traefik.yml
     networks:
       - traefik
     deploy:
       placement:
         constraints: [node.role == manager]
       labels:
-       - "traefik.enable=true"
-       - "traefik.docker.network=traefik"
-       - "traefik.http.routers.jaeger.rule=Host(`jaeger.${LOCAL_DOMAIN:-home}`)"
-       - "traefik.http.routers.jaeger.service=jaeger@docker"
-       - "traefik.http.routers.jaeger.entrypoints=web"
-       - "traefik.http.services.jaeger.loadbalancer.server.port=16686"
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik"
+        - "traefik.http.routers.jaeger.rule=Host(`jaeger.${LOCAL_DOMAIN:-home}`)"
+        - "traefik.http.routers.jaeger.service=jaeger@docker"
+        - "traefik.http.routers.jaeger.entrypoints=web"
+        - "traefik.http.services.jaeger.loadbalancer.server.port=16686"
   prometheus:
     image: prom/prometheus
     networks:
       - traefik-public
       - traefik
     volumes:
-      - ./prometheus/:/etc/prometheus/
       - prometheus_data:/prometheus
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+      - source: prometheus_rules
+        target: /etc/prometheus/alert.rules
     secrets:
       - source: monitoring_watchtower_auth_token
         target: watchtower_auth_token
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
     deploy:
       labels:
-       - "traefik.enable=true"
-       - "traefik.http.routers.prometheus.service=prometheus@docker"
-       - "traefik.http.routers.prometheus.rule=Host(`prometheus.${LOCAL_DOMAIN:-home}`)"
-       - "traefik.http.routers.prometheus.entrypoints=web"
-       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
-       - "traefik.docker.network=traefik-public"
+        - "traefik.enable=true"
+        - "traefik.http.routers.prometheus.service=prometheus@docker"
+        - "traefik.http.routers.prometheus.rule=Host(`prometheus.${LOCAL_DOMAIN:-home}`)"
+        - "traefik.http.routers.prometheus.entrypoints=web"
+        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+        - "traefik.docker.network=traefik-public"
       placement:
         constraints:
-        - node.role==manager
+          - node.role==manager
       restart_policy:
         condition: on-failure
   grafana:
@@ -123,10 +140,15 @@ services:
       - prometheus
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - grafana_dashboards:/etc/grafana/provisioning/dashboards
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasource.yml
+      - source: grafana_dashboards
+        target: /etc/grafana/provisioning/dashboards/dashboard.yml
     secrets:
       - source: google_oauth_secret
-      - source: grafana_admin_password 
+      - source: grafana_admin_password
       - source: sendgrid_smtp_password
       - source: storage_postgres_db_password
         target: postgres_db_password
@@ -146,21 +168,20 @@ services:
       - GF_AUTH_GOOGLE_ALLOW_SIGN_UP=false
       - GF_RENDERING_SERVER_URL=http://renderer:8081/render
       - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
-      - GF_LOG_FILTERS=rendering:debug
       - GF_DATABASE_TYPE=postgres
       - GF_DATABASE_HOST=${GF_DATABASE_HOST:-"postgres:5432"}
       - GF_DATABASE_USER=${POSTGRES_USER:-postgres}
       - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
       - GF_DATABASE_NAME=${POSTGRES_DB:-postgres}
-      - GF_UNIFIED_ALERTING_ENABLED=true
-      - GF_ALERTING_ENABLED=false
     env_file:
-      - ./grafana/config.monitoring
+      - ./configs/grafana/config.monitoring
     networks:
       - traefik-public
       - traefik
     user: "104"
     deploy:
+      mode: replicated
+      replicas: 3
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN_NAME}`)"
@@ -176,7 +197,7 @@ services:
         - "traefik.docker.network=traefik-public"
       placement:
         constraints:
-          - node.role == manager
+          - node.platform.os == linux
       restart_policy:
         condition: on-failure
   agent:
@@ -209,10 +230,22 @@ services:
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 volumes:
- portainerdata:
- traefik-certificates:
- prometheus_data: {}
- grafana_data: {}
+  portainerdata:
+  traefik-certificates:
+  prometheus_data: {}
+  grafana_data: {}
+  grafana_dashboards: {}
+configs:
+  grafana_datasources:
+    file: ./configs/grafana/provisioning/datasources/datasource.yml
+  grafana_dashboards:
+    file: ./configs/grafana/provisioning/dashboards/dashboard.yml
+  prometheus_config:
+    file: ./configs/prometheus/prometheus.yml
+  prometheus_rules:
+    file: ./configs/prometheus/alert.rules
+  jaeger_trafik_config:
+    file: ./configs/jaeger-traefik.yml
 secrets:
   grafana_admin_password:
     file: ./secrets/grafana/admin_password
@@ -220,6 +253,10 @@ secrets:
     file: ./secrets/google/google_oauth_secret
   sendgrid_smtp_password:
     file: ./secrets/sendgrid/smtp_password
+  cloudflare_dns_api_token:
+    file: ./secrets/cloudflare/dns_api_token
+  cloudflare_zone_api_token:
+    file: ./secrets/cloudflare/zone_api_token
   storage_postgres_db_password:
     external: true
   monitoring_watchtower_auth_token:

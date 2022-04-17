@@ -62,7 +62,9 @@ services:
       update_config:
         order: start-first
       placement:
-        constraints: [node.platform.os == linux]
+        constraints:
+         - node.platform.os == linux
+         - node.platform.arch != aarch64
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=traefik"
