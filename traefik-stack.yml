@@ -50,7 +50,7 @@ services:
       - target: 5353
         published: 5353
         protocol: udp
-        mode: host
+        mode: ingress
       - target: 443
         published: 443
         protocol: tcp
@@ -68,7 +68,7 @@ services:
     environment:
       - CF_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_dns_api_token
       - CF_ZONE_API_TOKEN_FILE=/run/secrets/cloudflare_zone_api_token
-      - CLOUDFLARE_TTL=60
+      - CLOUDFLARE_TTL=120
     volumes:
       # To persist certificates
       - traefik-certificates:/letsencrypt
@@ -135,7 +135,7 @@ services:
       restart_policy:
         condition: on-failure
   grafana:
-    image: grafana/grafana-oss:latest
+    image: grafana/grafana:latest
     depends_on:
       - prometheus
     volumes:
@@ -237,14 +237,19 @@ volumes:
   grafana_dashboards: {}
 configs:
   grafana_datasources:
+    name: grafana_datasources-${CONFIG_VERSION:-0}
     file: ./configs/grafana/provisioning/datasources/datasource.yml
   grafana_dashboards:
+    name: grafana_dashboards-${CONFIG_VERSION:-0}
     file: ./configs/grafana/provisioning/dashboards/dashboard.yml
   prometheus_config:
+    name: prometheus_config-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/prometheus.yml
   prometheus_rules:
+    name: prometheus_rules-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/alert.rules
   jaeger_trafik_config:
+    name: jaeger_trafik_config-${CONFIG_VERSION:-0}
     file: ./configs/jaeger-traefik.yml
 secrets:
   grafana_admin_password:

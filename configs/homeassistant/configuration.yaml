@@ -1,4 +1,3 @@
-
 # Loads default set of integrations. Do not remove.
 default_config:
 
@@ -12,7 +11,3 @@ http:
     - !secret docker_CDIR_block
 recorder:
   db_url: !secret database_connection_url
-
-automation: !include automations.yaml
-script: !include scripts.yaml
-scene: !include scenes.yaml

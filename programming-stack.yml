@@ -1,0 +1,36 @@
+version: "3.9"
+networks:
+  traefik:
+    external: true
+services:
+  jupyter-tensorflow:
+    image: jupyter/tensorflow-notebook
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN}
+    networks:
+      - traefik
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik"
+        - "traefik.http.routers.tensorflow.rule=Host(`jupyter.tensorflow.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.tensorflow.service=tensorflow@docker"
+        - "traefik.http.routers.tensorflow-http.entrypoints=web"
+        - "traefik.http.routers.tensorflow-http.rule=Host(`jupyter.tensorflow.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.tensorflow.entrypoints=websecure"
+        - "traefik.http.routers.tensorflow-http.middlewares=tensorflow-https@docker"
+        - "traefik.http.middlewares.tensorflow-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.tensorflow.tls=true"
+        - "traefik.http.routers.tensorflow.tls.certresolver=le-dns"
+        - "traefik.http.services.tensorflow.loadbalancer.server.port=8888"

@@ -124,7 +124,7 @@ services:
       --http-api-metrics
     environment:
       - TZ=America/Santiago
-      - WATCHTOWER_HTTP_API_TOKEN=/run/secrets/watchtower_auth_token
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN?err}
     deploy:
       mode: global
       restart_policy:

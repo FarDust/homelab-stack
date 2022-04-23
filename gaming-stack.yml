@@ -1,0 +1,152 @@
+version: '3.9'
+x-common:
+  database:
+    &db-environment
+    # Do not remove the "&db-password" from the end of the line below, it is important
+    # for Panel functionality.
+    MYSQL_PASSWORD: &db-password "${MYSQL_PASSWORD}"
+    MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+  panel:
+    &panel-environment
+    APP_URL: "https://gaming.${DOMAIN_NAME}"
+    # A list of valid timezones can be found here: http://php.net/manual/en/timezones.php
+    APP_TIMEZONE: "America/Santiago"
+    APP_SERVICE_AUTHOR: "${MAINTAINER_EMAIL}"
+    # Uncomment the line below and set to a non-empty value if you want to use Let's Encrypt
+    # to generate an SSL certificate for the Panel.
+    # LE_EMAIL: ""
+  mail:
+    &mail-environment
+    MAIL_FROM: "noreply@${DOMAIN_NAME}"
+    MAIL_DRIVER: "smtp"
+    MAIL_HOST: "mail"
+    MAIL_PORT: "1025"
+    MAIL_USERNAME: ""
+    MAIL_PASSWORD: ""
+    MAIL_ENCRYPTION: "true"
+
+services:
+  database:
+    image: mariadb:10.5
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - default
+    volumes:
+      - "/srv/pterodactyl/database:/var/lib/mysql"
+    environment:
+      <<: *db-environment
+      MYSQL_DATABASE: "panel"
+      MYSQL_USER: "pterodactyl"
+    deploy:
+      placement:
+          constraints:
+            - node.role == manager
+      restart_policy:
+        condition: on-failure
+  cache:
+    image: redis:alpine
+    networks:
+      - default
+    deploy:
+      placement:
+          constraints:
+            - node.role == manager
+      restart_policy:
+        condition: on-failure
+  panel:
+    image: ghcr.io/pterodactyl/panel:latest
+    networks:
+      - default
+      - traefik-public
+    volumes:
+      - "/srv/pterodactyl/var/:/app/var/"
+      - "/srv/pterodactyl/nginx/:/etc/nginx/http.d/"
+      - "/srv/pterodactyl/certs/:/etc/letsencrypt/"
+      - "/srv/pterodactyl/logs/:/app/storage/logs"
+      - "/srv/pterodactyl/certbot/www/:/var/www/certbot"
+    environment:
+      <<: [*panel-environment, *mail-environment]
+      DB_PASSWORD: *db-password
+      APP_ENV: "production"
+      APP_ENVIRONMENT_ONLY: "false"
+      CACHE_DRIVER: "redis"
+      SESSION_DRIVER: "redis"
+      QUEUE_DRIVER: "redis"
+      REDIS_HOST: "cache"
+      DB_HOST: "database"
+    deploy:
+      mode: global
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pterodactyl-panel.rule=Host(`gaming.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pterodactyl-panel.service=pterodactyl-panel@docker"
+        - "traefik.http.routers.pterodactyl-panel-http.entrypoints=web"
+        - "traefik.http.routers.pterodactyl-panel-http.rule=Host(`gaming.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pterodactyl-panel.entrypoints=websecure"
+        - "traefik.http.routers.pterodactyl-panel-http.middlewares=pterodactyl-panel-https@docker"
+        - "traefik.http.middlewares.pterodactyl-panel-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.pterodactyl-panel.tls=true"
+        - "traefik.http.routers.pterodactyl-panel.tls.certresolver=le-dns"
+        - "traefik.http.services.pterodactyl-panel.loadbalancer.server.port=80"
+        - "traefik.docker.network=traefik-public"
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+  wings:
+    image: ghcr.io/pterodactyl/wings:latest
+    networks:
+      - wings0
+      - traefik-public
+    ports:
+      - "2022:2022"
+    tty: true
+    environment:
+      TZ: "UTC"
+      WINGS_UID: 988
+      WINGS_GID: 988
+      WINGS_USERNAME: pterodactyl
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/lib/docker/containers/:/var/lib/docker/containers/"
+      - "/etc/pterodactyl/:/etc/pterodactyl/"
+      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
+      - "/var/log/pterodactyl/:/var/log/pterodactyl/"
+      - "/tmp/pterodactyl/:/tmp/pterodactyl/"
+      - "/etc/ssl/certs:/etc/ssl/certs:ro"
+    deploy:
+      mode: global
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pterodactyl-wings.rule=Host(`wings.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pterodactyl-wings.service=pterodactyl-wings@docker"
+        - "traefik.http.routers.pterodactyl-wings-http.entrypoints=web"
+        - "traefik.http.routers.pterodactyl-wings-http.rule=Host(`wings.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pterodactyl-wings.entrypoints=websecure"
+        - "traefik.http.routers.pterodactyl-wings-http.middlewares=pterodactyl-wings-https@docker"
+        - "traefik.http.middlewares.pterodactyl-wings-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.pterodactyl-wings.tls=true"
+        - "traefik.http.routers.pterodactyl-wings.tls.certresolver=le-dns"
+        - "traefik.http.services.pterodactyl-wings.loadbalancer.server.port=443"
+        - "traefik.docker.network=traefik-public"
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+networks:
+  traefik-public:
+    external: true
+  wings0:
+    name: wings0
+    driver: overlay
+    ipam:
+      config:
+        - subnet: 172.66.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: wings0
+  default:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
