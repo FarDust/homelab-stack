@@ -1,0 +1,51 @@
+version: "3.9"
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+services:
+# from: https://github.com/ArchiveBox/good-karma-kit/blob/main/docker-compose.yml
+  boinc:
+      # Set up your active project and resources in the Web UI
+      # https://boinc.berkeley.edu/
+      # https://hub.docker.com/r/linuxserver/boinc
+      image: ghcr.io/linuxserver/boinc
+      networks:
+        - traefik
+      volumes:
+        - boinc_data:/config
+      deploy:
+        mode: replicated
+        replicas: 1
+        placement:
+          constraints:
+            - node.platform.os == linux
+        update_config:
+          parallelism: 2
+          delay: 10s
+        restart_policy:
+          condition: on-failure
+        resources:
+          limits:
+            cpus: "0.5"
+            memory: 1024M
+          reservations:
+            memory: 128M
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=traefik"
+          - "traefik.http.routers.boinc.rule=Host(`boinc.${LOCAL_DOMAIN}`)"
+          - "traefik.http.routers.boinc.service=boinc@docker"
+          - "traefik.http.routers.boinc-http.entrypoints=web"
+          - "traefik.http.routers.boinc-http.rule=Host(`boinc.${LOCAL_DOMAIN}`)"
+          - "traefik.http.routers.boinc.entrypoints=websecure"
+          - "traefik.http.routers.boinc-http.middlewares=boinc-https@docker"
+          - "traefik.http.middlewares.boinc-https.redirectscheme.scheme=https"
+          - "traefik.http.routers.boinc.tls=true"
+          - "traefik.http.routers.boinc.tls.certresolver=le-dns"
+          - "traefik.http.services.boinc.loadbalancer.server.port=8080"
+          - "com.centurylinklabs.watchtower.scope=goodkarmakit"
+volumes:
+  boinc_data:
+    name: boinc_data

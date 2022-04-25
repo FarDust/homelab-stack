@@ -9,7 +9,9 @@ services:
     image: traefik:latest
     command:
       - "--log.level=DEBUG"
-      - "--api.insecure=true"
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--ping=true"
       - "--pilot.token=${TRAEFIK_COPILOT_TOKEN}"
       - "--providers.docker=true"
       - "--providers.docker.swarmMode=true"
@@ -32,8 +34,19 @@ services:
       - "--certificatesResolvers.le-dns.acme.dnschallenge.delaybeforecheck=0"
       - "--tracing.jaeger=true"
       - "--tracing.jaeger.samplingServerURL=http://jaeger:5778/sampling"
+      - "--tracing.jaeger.localAgentHostPort=jaeger:6831"
+      - "--tracing.jaeger.collector.endpoint=http://jaeger:14268/api/traces?format=jaeger.thrift"
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+      - "--providers.redis.endpoints=${REDIS_ENDPOINT:-redis}:6379"
+      - "--providers.file.directory=/etc/traefik/configs/"
+      - "--accesslog=true"
+    healthcheck:
+      test: "wget --spider http://localhost:8080/ping || exit 1"
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     ports:
       - target: 8080
         published: 8080
@@ -62,6 +75,9 @@ services:
     networks:
       - traefik
       - traefik-public
+    configs:
+      - source: traefik_conf
+        target: /etc/traefik/configs/static.yml
     secrets:
       - source: cloudflare_dns_api_token
       - source: cloudflare_zone_api_token
@@ -72,6 +88,7 @@ services:
     volumes:
       # To persist certificates
       - traefik-certificates:/letsencrypt
+      - traefik-configs:/etc/traefik/configs
       # So that Traefik can listen to the Docker events
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     deploy:
@@ -138,6 +155,12 @@ services:
     image: grafana/grafana:latest
     depends_on:
       - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "http://localhost:3000/ping", "-q", "--tries", "1", "-O", "/dev/null"]
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     volumes:
       - grafana_data:/var/lib/grafana
       - grafana_dashboards:/etc/grafana/provisioning/dashboards
@@ -174,11 +197,10 @@ services:
       - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
       - GF_DATABASE_NAME=${POSTGRES_DB:-postgres}
     env_file:
-      - ./configs/grafana/config.monitoring
+      - ../configs/grafana/config.monitoring
     networks:
       - traefik-public
       - traefik
-    user: "104"
     deploy:
       mode: replicated
       replicas: 3
@@ -231,37 +253,41 @@ services:
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 volumes:
   portainerdata:
+  traefik-configs: {}
   traefik-certificates:
   prometheus_data: {}
   grafana_data: {}
   grafana_dashboards: {}
 configs:
+  traefik_conf:
+    name: traefik_conf-${CONFIG_VERSION:-0}
+    file: ../configs/traefik/static_conf.yml
   grafana_datasources:
     name: grafana_datasources-${CONFIG_VERSION:-0}
-    file: ./configs/grafana/provisioning/datasources/datasource.yml
+    file: ../configs/grafana/provisioning/datasources/datasource.yml
   grafana_dashboards:
     name: grafana_dashboards-${CONFIG_VERSION:-0}
-    file: ./configs/grafana/provisioning/dashboards/dashboard.yml
+    file: ../configs/grafana/provisioning/dashboards/dashboard.yml
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
-    file: ./configs/prometheus/prometheus.yml
+    file: ../configs/prometheus/prometheus.yml
   prometheus_rules:
     name: prometheus_rules-${CONFIG_VERSION:-0}
-    file: ./configs/prometheus/alert.rules
+    file: ../configs/prometheus/alert.rules
   jaeger_trafik_config:
     name: jaeger_trafik_config-${CONFIG_VERSION:-0}
-    file: ./configs/jaeger-traefik.yml
+    file: ../configs/jaeger-traefik.yml
 secrets:
   grafana_admin_password:
-    file: ./secrets/grafana/admin_password
+    file: ../secrets/grafana/admin_password
   google_oauth_secret:
-    file: ./secrets/google/google_oauth_secret
+    file: ../secrets/google/google_oauth_secret
   sendgrid_smtp_password:
-    file: ./secrets/sendgrid/smtp_password
+    file: ../secrets/sendgrid/smtp_password
   cloudflare_dns_api_token:
-    file: ./secrets/cloudflare/dns_api_token
+    file: ../secrets/cloudflare/dns_api_token
   cloudflare_zone_api_token:
-    file: ./secrets/cloudflare/zone_api_token
+    file: ../secrets/cloudflare/zone_api_token
   storage_postgres_db_password:
     external: true
   monitoring_watchtower_auth_token:

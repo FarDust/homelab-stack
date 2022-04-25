@@ -63,10 +63,10 @@ volumes:
 configs:
   assistant_secrets_file:
     name: assistant_secrets.yaml-${CONFIG_VERSION:-0}
-    file: ./configs/homeassistant/secrets.yaml
+    file: ../configs/homeassistant/secrets.yaml
   assistant_config_file:
     name: configuration.yaml-${CONFIG_VERSION:-0}
-    file: ./configs/homeassistant/configuration.yaml
+    file: ../configs/homeassistant/configuration.yaml
   mosquitto_config:
     name: mosquitto.conf-${CONFIG_VERSION:-0}
-    file: ./configs/mosquitto/mosquitto.conf
+    file: ../configs/mosquitto/mosquitto.conf

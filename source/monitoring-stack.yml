@@ -182,4 +182,4 @@ volumes:
   netdatacache: {}
 secrets:
   watchtower_auth_token:
-    file: ./secrets/watchtower/auth_token
+    file: ../secrets/watchtower/auth_token

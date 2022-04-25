@@ -90,4 +90,4 @@ volumes:
   influx: {}
 secrets:
   postgres_db_password:
-    file: ./secrets/postgres/postgres_db_password
+    file: ../secrets/postgres/postgres_db_password

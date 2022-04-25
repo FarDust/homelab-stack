@@ -82,7 +82,7 @@ services:
         max_attempts: 3
       labels:
         - "traefik.enable=true"
-        - "traefik.udp.routers.dnscrypt-server.entrypoints=discovery-udp"
+        - "traefik.udp.routers.dnscrypt-server.entrypoints=dnscrypt-udp"
         - "traefik.udp.routers.dnscrypt-server.service=dnscrypt-server@docker"
         - "traefik.udp.services.dnscrypt-server.loadbalancer.server.port=443/udp"
         - "traefik.http.routers.dnscrypt-server.entrypoints=websecure"
@@ -125,4 +125,4 @@ volumes:
   dnscrypt_keys: {}
 secrets:
   pihole_webpassword:
-    file: ./secrets/pihole/webpassword
+    file: ../secrets/pihole/webpassword
