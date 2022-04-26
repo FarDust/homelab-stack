@@ -15,6 +15,7 @@ services:
         target: /config/secrets.yaml
     volumes:
       # - assistant_config:/config
+      - assitant_storage:/config/.storage
       - /etc/localtime:/etc/localtime:ro
     networks:
       - traefik
@@ -59,7 +60,7 @@ services:
     deploy:
       replicas: 1
 volumes:
-  assistant_config: {}
+  assitant_storage: {}
 configs:
   assistant_secrets_file:
     name: assistant_secrets.yaml-${CONFIG_VERSION:-0}

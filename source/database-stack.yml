@@ -71,7 +71,7 @@ services:
          constraints:
            - node.role == manager
       labels:
-          - "traefik.enable=true"
+          - "traefik.enable=false"
           - "traefik.docker.network=traefik"
   redis:
     image: redis:latest

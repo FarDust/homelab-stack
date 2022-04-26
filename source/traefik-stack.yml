@@ -78,6 +78,8 @@ services:
     configs:
       - source: traefik_conf
         target: /etc/traefik/configs/static.yml
+      - source: traefik_tls
+        target: /etc/traefik/configs/tls.yml
     secrets:
       - source: cloudflare_dns_api_token
       - source: cloudflare_zone_api_token
@@ -89,6 +91,7 @@ services:
       # To persist certificates
       - traefik-certificates:/letsencrypt
       - traefik-configs:/etc/traefik/configs
+      - root-certificates:/etc/ssl/traefik:ro
       # So that Traefik can listen to the Docker events
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     deploy:
@@ -101,6 +104,27 @@ services:
         delay: 10s
       restart_policy:
         condition: on-failure
+  traefik-me-certificates:
+    # Allow the usage of *.traefik.me domains with TLS
+    image: alpine
+    command: sh -c "mkdir -p /etc/ssl/traefik/traefik-me
+      && cd /etc/ssl/traefik/traefik-me/
+      && wget traefik.me/cert.pem -O cert.pem
+      && wget traefik.me/privkey.pem -O privkey.pem"
+    volumes:
+      - root-certificates:/etc/ssl/traefik
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 5
+        delay: 10s
+      restart_policy:
+        condition: any
+        delay: 72h
+        window: 72h
   jaeger:
     image: jaegertracing/all-in-one
     configs:
@@ -255,6 +279,7 @@ volumes:
   portainerdata:
   traefik-configs: {}
   traefik-certificates:
+  root-certificates: {}
   prometheus_data: {}
   grafana_data: {}
   grafana_dashboards: {}
@@ -262,6 +287,9 @@ configs:
   traefik_conf:
     name: traefik_conf-${CONFIG_VERSION:-0}
     file: ../configs/traefik/static_conf.yml
+  traefik_tls:
+    name: traefik_tls-${CONFIG_VERSION:-0}
+    file: ../configs/traefik/tls.yml
   grafana_datasources:
     name: grafana_datasources-${CONFIG_VERSION:-0}
     file: ../configs/grafana/provisioning/datasources/datasource.yml
