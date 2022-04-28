@@ -113,7 +113,6 @@ services:
       - "/etc/pterodactyl/:/etc/pterodactyl/"
       - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
       - "/var/log/pterodactyl/:/var/log/pterodactyl/"
-      - "/tmp/pterodactyl/:/tmp/pterodactyl/"
       - "/etc/ssl/certs:/etc/ssl/certs:ro"
     deploy:
       mode: global
@@ -135,6 +134,29 @@ services:
           - node.role == manager
       restart_policy:
         condition: on-failure
+  factorio:
+    image:  factoriotools/factorio:stable
+    networks:
+      - traefik-public
+    volumes:
+      - "factorio-data:/factorio"
+    deploy:
+      mode: global
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.udp.routers.factorio.entrypoints=gameserver-udp"
+        - "traefik.udp.routers.factorio.service=factorio@docker"
+        - "traefik.udp.services.factorio.loadbalancer.server.port=34197/udp"
+        - "traefik.tcp.routers.factorio.entrypoints=gameserver"
+        - "traefik.tcp.routers.factorio.rule=HostSNI(`*`)"
+        - "traefik.tcp.routers.factorio.service=factorio@docker"
+        - "traefik.tcp.services.factorio.loadbalancer.server.port=27015"
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
 networks:
   traefik-public:
     external: true
@@ -150,3 +172,5 @@ networks:
     ipam:
       config:
         - subnet: 172.20.0.0/16
+volumes:
+  factorio-data: {}

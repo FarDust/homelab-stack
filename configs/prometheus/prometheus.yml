@@ -107,3 +107,14 @@ scrape_configs:
           - "tasks.grafana"
         type: "A"
         port: 3000
+
+  - job_name: 'pihole'
+
+    scrape_interval: 5s
+    scrape_timeout: 5s
+
+    dns_sd_configs:
+      - names:
+          - "tasks.pihole-exporter"
+        type: "A"
+        port: 9617
