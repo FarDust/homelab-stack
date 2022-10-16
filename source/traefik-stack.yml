@@ -12,7 +12,6 @@ services:
       - "--api=true"
       - "--api.dashboard=true"
       - "--ping=true"
-      - "--pilot.token=${TRAEFIK_COPILOT_TOKEN}"
       - "--providers.docker=true"
       - "--providers.docker.swarmMode=true"
       - "--providers.docker.exposedbydefault=false"
