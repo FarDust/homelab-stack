@@ -1,0 +1,32 @@
+api:
+  insecure: true
+  dashboard: true
+http:
+  routers:
+    dashboard-http:
+      entrypoints: web
+      rule: Host(`dashboard.traefik.me`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
+      service: api@internal
+      middlewares:
+        - dashboard-https
+    dashboard:
+      entrypoints: websecure
+      rule: Host(`dashboard.traefik.me`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
+      middlewares:
+        - dashboard-redirect
+        - dashboard-strip-prefix
+      service: api@internal
+      tls: true
+  middlewares:
+    dashboard-https:
+      redirectscheme:
+        scheme: https
+    dashboard-redirect:
+      redirectregex:
+        regex: ^(https:\/\/(\[[\w:.]+\]|[\w\._-]+)(:\d+)?)\/$
+        replacement: ${1}/dashboard/
+    dashboard-strip-prefix:
+      stripPrefix:
+        prefixes:
+          - /dashboard
+          - /dashboard/

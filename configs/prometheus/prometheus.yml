@@ -34,16 +34,36 @@ scrape_configs:
     scrape_interval: 5s
 
     static_configs:
-      - targets: ["localhost:9090", "cadvisor:8080", "node-exporter:9100"]
+      - targets: ["localhost:9090"]
+
+  - job_name: "cadvisor"
+    scrape_interval: 5s
+
+    dns_sd_configs:
+      - names:
+          - "tasks.cadvisor"
+        type: "A"
+        port: 8080
+
+  - job_name: "node-exporter"
+    scrape_interval: 5s
+
+    dns_sd_configs:
+      - names:
+          - "tasks.node-exporter"
+        type: "A"
+        port: 9100
 
   - job_name: "speedtest"
     scrape_interval: 15m
     scrape_timeout: 120s
-    static_configs:
-      - targets: ["speedtest:9090"]
+    dns_sd_configs:
+      - names:
+          - "tasks.speedtest"
+        type: "A"
+        port: 9090
 
   - job_name: "traefik"
-
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
 
@@ -59,8 +79,11 @@ scrape_configs:
     params:
       format: [prometheus]
 
-    static_configs:
-      - targets: ["netdata:19999"]
+    dns_sd_configs:
+      - names:
+          - "tasks.netdata"
+        type: "A"
+        port: 19999
 
   - job_name: watchtower
     scrape_interval: 5s
@@ -68,13 +91,30 @@ scrape_configs:
     authorization:
       type: Bearer
       credentials_file: /run/secrets/watchtower_auth_token
-    static_configs:
-      - targets:
-        - 'watchtower:8080'
+    dns_sd_configs:
+      - names:
+          - "tasks.watchtower"
+        type: "A"
+        port: 8080
+
   - job_name: 'grafana'
 
     scrape_interval: 15s
     scrape_timeout: 5s
 
-    static_configs:
-      - targets: ['grafana:3000']
+    dns_sd_configs:
+      - names:
+          - "tasks.grafana"
+        type: "A"
+        port: 3000
+
+  - job_name: 'pihole'
+
+    scrape_interval: 5s
+    scrape_timeout: 5s
+
+    dns_sd_configs:
+      - names:
+          - "tasks.pihole-exporter"
+        type: "A"
+        port: 9617

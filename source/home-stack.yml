@@ -1,9 +1,10 @@
-version: '3.8'
+version: "3.8"
 networks:
- traefik-public:
-   external: true
- traefik:
-   external: true
+  local:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
 services:
   homeassistant:
     image: "ghcr.io/home-assistant/home-assistant:stable"
@@ -13,36 +14,44 @@ services:
       - source: assistant_secrets_file
         target: /config/secrets.yaml
     volumes:
-      - assistant_config:/config
+      # - assistant_config:/config
+      - assitant_storage:/config/.storage
       - /etc/localtime:/etc/localtime:ro
     networks:
       - traefik
+      - local
     environment:
       - TZ=America/Santiago
     deploy:
       mode: replicated
-      replicas: 3
+      replicas: 1
       placement:
         constraints:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.udp.routers.homeassistant.entrypoints=dnscrypt-udp"
+        - "traefik.docker.network=traefik"
+        # UDP traffic
+        - "traefik.udp.routers.homeassistant.entrypoints=discovery-udp"
         - "traefik.udp.routers.homeassistant.service=homeassistant@docker"
         - "traefik.udp.services.homeassistant.loadbalancer.server.port=5353/udp"
-        - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.local.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.homeassistant.service=homeassistant@docker"
         - "traefik.http.routers.homeassistant-http.entrypoints=web"
-        - "traefik.http.routers.homeassistant-http.rule=Host(`homeassistant.local.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.homeassistant-http.rule=Host(`homeassistant.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.homeassistant.entrypoints=websecure"
         - "traefik.http.routers.homeassistant-http.middlewares=homeassistant-https@docker"
         - "traefik.http.middlewares.homeassistant-https.redirectscheme.scheme=https"
         - "traefik.http.routers.homeassistant.tls=true"
         - "traefik.http.routers.homeassistant.tls.certresolver=le-dns"
         - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
-        - "traefik.docker.network=traefik"
   mosquitto:
     image: eclipse-mosquitto
+    configs:
+      - source: mosquitto_config
+        target: /mosquitto/config/mosquitto.conf
+    networks:
+      - local
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -51,11 +60,14 @@ services:
     deploy:
       replicas: 1
 volumes:
-  assistant_config: {}
+  assitant_storage: {}
 configs:
   assistant_secrets_file:
     name: assistant_secrets.yaml-${CONFIG_VERSION:-0}
-    file: ./configs/homeassistant/secrets.yaml
+    file: ../configs/homeassistant/secrets.yaml
   assistant_config_file:
     name: configuration.yaml-${CONFIG_VERSION:-0}
-    file: ./configs/homeassistant/configuration.yaml
+    file: ../configs/homeassistant/configuration.yaml
+  mosquitto_config:
+    name: mosquitto.conf-${CONFIG_VERSION:-0}
+    file: ../configs/mosquitto/mosquitto.conf

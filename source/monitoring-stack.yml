@@ -32,11 +32,8 @@ services:
       placement:
         constraints: [node.role == manager]
       labels:
-        - "traefik.enable=true"
+        - "traefik.enable=false"
         - "traefik.docker.network=traefik"
-        - "traefik.http.routers.node-exporter.service=node-exporter@docker"
-        - "traefik.http.routers.node-exporter.entrypoints=web"
-        - "traefik.http.services.node-exporter.loadbalancer.server.port=9100"
   cadvisor:
     image: google/cadvisor:latest
     hostname: "{{.Node.ID}}"
@@ -69,8 +66,9 @@ services:
         - "traefik.enable=true"
         - "traefik.docker.network=traefik"
         - "traefik.http.routers.cadvisor.service=cadvisor@docker"
-        - "traefik.http.routers.cadvisor.rule=Host(`cadvisor.${LOCAL_DOMAIN:-home}`)" # Set in pihole DNS server
-        - "traefik.http.routers.cadvisor.entrypoints=web"
+        - "traefik.http.routers.cadvisor.rule=Host(`cadvisor.traefik.me`)" # Set in pihole DNS server
+        - "traefik.http.routers.cadvisor.entrypoints=websecure"
+        - "traefik.http.routers.cadvisor.tls=true"
         - "traefik.http.services.cadvisor.loadbalancer.server.port=8080"
       resources:
         limits:
@@ -124,7 +122,7 @@ services:
       --http-api-metrics
     environment:
       - TZ=America/Santiago
-      - WATCHTOWER_HTTP_API_TOKEN=/run/secrets/watchtower_auth_token
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN?err}
     deploy:
       mode: global
       restart_policy:
@@ -176,10 +174,18 @@ services:
         - "traefik.http.routers.netdata.service=netdata@docker"
         - "traefik.http.services.netdata.loadbalancer.server.port=19999"
         - "traefik.docker.network=traefik"
+  pihole-exporter:
+    image: ekofr/pihole-exporter:latest
+    networks:
+      - traefik
+    environment:
+      - PIHOLE_TOKEN=${PIHOLE_TOKEN?err}
+      - PIHOLE_HOSTNAME=${PIHOLE_HOST:-pihole}
+      - PORT=${PIHOLE_PORT:-9617}
 volumes:
   netdataconfig: {}
   netdatalib: {}
   netdatacache: {}
 secrets:
   watchtower_auth_token:
-    file: ./secrets/watchtower/auth_token
+    file: ../secrets/watchtower/auth_token
