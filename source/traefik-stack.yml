@@ -1,14 +1,22 @@
 version: "3.9"
+x-common:
+  authelia-database:
+    &db-environment
+    POSTGRES_DB: &db-database authelia
+    POSTGRES_USER: &db-user "authelia"
+    POSTGRES_PASSWORD_FILE: &db-password /run/secrets/authelia_db_password
 networks:
   traefik-public:
     external: true
   traefik:
     external: true
+  authelia-db:
+    driver: overlay
 services:
   traefik:
     image: traefik:latest
     command:
-      - "--log.level=DEBUG"
+      - "--log.level=INFO"
       - "--api=true"
       - "--api.dashboard=true"
       - "--ping=true"
@@ -144,6 +152,129 @@ services:
         condition: any
         delay: 72h
         window: 72h
+  authelia-users:
+    # This will load users once per stack startup
+    image: alpine
+    command:
+      - sh
+      - -c
+      - cat $$AUTHELIA_USERS_FILE > /config/users.yml
+    secrets:
+      - source: authelia_default_users
+    volumes:
+      - authelia-configs:/config
+    environment:
+      AUTHELIA_USERS_FILE: /run/secrets/authelia_default_users
+    deploy:
+      mode: replicated
+      replicas: 1
+  authelia:
+    image: authelia/authelia
+    depends_on:
+      - authelia-db
+      - authelia-redis
+    networks:
+      - traefik-public
+      - authelia-db
+    secrets:
+      - source: authelia_jwt_secret
+      - source: authelia_duo_secret_key
+      - source: authelia_duo_integration_key
+      - source: authelia_session_secret
+      - source: authelia_db_password
+      - source: authelia_encryption_key
+      - source: authelia_redis_password
+      - source: sendgrid_smtp_password
+    configs:
+      - source: authelia_config
+        target: /config/configuration.yml
+    volumes:
+      - authelia-configs:/config
+    environment:
+      TZ: ${USER_TIMEZONE}
+      AUTHELIA_JWT_SECRET_FILE: /run/secrets/authelia_jwt_secret
+      AUTHELIA_DEFAULT_REDIRECTION_URL: http://${REDIRECT_SUBDOMAIN}.${DOMAIN_NAME}
+      AUTHELIA_DUO_API_HOSTNAME: ${AUTHELIA_DUO_API_HOSTNAME}
+      AUTHELIA_DUO_API_INTEGRATION_KEY_FILE: /run/secrets/authelia_duo_integration_key
+      AUTHELIA_DUO_API_SECRET_KEY_FILE: /run/secrets/authelia_duo_secret_key
+      AUTHELIA_STORAGE_POSTGRES_DATABASE: *db-database
+      AUTHELIA_STORAGE_POSTGRES_USERNAME: *db-user
+      AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE: *db-password
+      AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: /run/secrets/authelia_encryption_key
+      AUTHELIA_SESSION_DOMAIN: ${DOMAIN_NAME}
+      AUTHELIA_SESSION_SECRET_FILE: /run/secrets/authelia_session_secret
+      AUTHELIA_SESSION_REDIS_PASSWORD_FILE: /run/secrets/authelia_redis_password
+      AUTHELIA_NOTIFIER_SMTP_USERNAME: ${SMTP_USER}
+      AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE: /run/secrets/sendgrid_smtp_password
+      AUTHELIA_NOTIFIER_SMTP_SENDER: Authelia <${AUTHELIA_SMTP_FROM}>
+      AUTHELIA_NOTIFIER_SMTP_STARTUP_CHECK_ADDRESS: ${MAINTAINER_EMAIL}
+      AUTHELIA_TOTP_ISSUER: ${DOMAIN_NAME}
+    deploy:
+      mode: replicated
+      replicas: 3
+      restart_policy:
+        condition: any
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.authelia.rule=Host(`${AUTHELIA_PREFIX}.${DOMAIN_NAME}`)'
+        - 'traefik.http.routers.authelia.entryPoints=websecure'
+        - 'traefik.http.routers.authelia.tls=true'
+        - "traefik.http.routers.authelia.tls.certresolver=le-dns"
+        - "traefik.http.services.authelia.loadbalancer.server.port=9091"
+        - 'traefik.http.middlewares.authelia.forwardAuth.address=http://authelia:9091/api/verify?rd=https%3A%2F%2Fauth.${DOMAIN_NAME}%2F'
+        - 'traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader=true'
+        - 'traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email'
+        - 'traefik.http.middlewares.authelia-basic.forwardAuth.address=http://authelia:9091/api/verify?auth=basic'
+        - 'traefik.http.middlewares.authelia-basic.forwardAuth.trustForwardHeader=true'
+        - 'traefik.http.middlewares.authelia-basic.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email'
+        - 'traefik.docker.network=traefik-public'
+  authelia-db:
+    image: postgres:14-alpine
+    networks:
+      - authelia-db
+    configs:
+      - source: authelia_postgres_init
+        target: /docker-entrypoint-initdb.d/init.sql
+    volumes:
+      - authelia-data:/var/lib/postgresql/data
+    environment:
+      << : *db-environment
+    secrets:
+      - source: authelia_db_password
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - 'traefik.enable=false'
+  authelia-redis:
+    image: redis:7-alpine
+    command:
+      - /bin/ash
+      - -c
+      - redis-server --requirepass $$(cat $$REDIS_PASSWORD_FILE)
+    networks:
+      - authelia-db
+    volumes:
+      - authelia-redis-config:/usr/local/etc/redis
+    secrets:
+      - source: authelia_redis_password
+    environment:
+      REDIS_PASSWORD_FILE: /run/secrets/authelia_redis_password
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - 'traefik.enable=false'
   jaeger:
     image: jaegertracing/all-in-one
     configs:
@@ -255,6 +386,7 @@ services:
         - "traefik.http.routers.grafana-http.rule=Host(`grafana.${DOMAIN_NAME}`)"
         - "traefik.http.routers.grafana.entrypoints=websecure"
         - "traefik.http.routers.grafana-http.middlewares=grafana-https@docker"
+        - 'traefik.http.routers.grafana.middlewares=authelia@docker'
         - "traefik.http.middlewares.grafana-https.redirectscheme.scheme=https"
         - "traefik.http.routers.grafana.tls=true"
         - "traefik.http.routers.grafana.tls.certresolver=le"
@@ -290,6 +422,7 @@ services:
         constraints: [node.role == manager]
       labels:
         - "traefik.enable=true"
+        - 'traefik.http.routers.portainer.middlewares=authelia@docker'
         - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN_NAME}`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
@@ -297,6 +430,9 @@ services:
 volumes:
   portainerdata:
   traefik-configs: {}
+  authelia-configs: {}
+  authelia-data: {}
+  authelia-redis-config: {}
   traefik-certificates:
   root-certificates: {}
   prometheus_data: {}
@@ -309,6 +445,12 @@ configs:
   traefik_tls:
     name: traefik_tls-${CONFIG_VERSION:-0}
     file: ../configs/traefik/tls.yml
+  authelia_config:
+    name: authelia_config-${CONFIG_VERSION:-0}
+    file: ../configs/authelia/configuration.yml
+  authelia_postgres_init:
+    name: authelia_postgres_init-${CONFIG_VERSION:-0}
+    file: ../configs/authelia/postgres_init.sql
   grafana_datasources:
     name: grafana_datasources-${CONFIG_VERSION:-0}
     file: ../configs/grafana/provisioning/datasources/datasource.yml
@@ -325,6 +467,30 @@ configs:
     name: jaeger_trafik_config-${CONFIG_VERSION:-0}
     file: ../configs/jaeger-traefik.yml
 secrets:
+  authelia_default_users:
+    name: authelia_default_users-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/users.yml
+  authelia_jwt_secret:
+    name: authelia_jwt_secret-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/jwt_secret
+  authelia_duo_secret_key:
+    name: authelia_duo_secret_key-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/duo_secret_key
+  authelia_duo_integration_key:
+    name: authelia_duo_integration_key-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/duo_integration_key
+  authelia_session_secret:
+    name: authelia_session_secret-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/session_secret
+  authelia_db_password:
+    name: authelia_db_password-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/postgres_password
+  authelia_encryption_key:
+    name: authelia_encryption_key-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/encryption_key
+  authelia_redis_password:
+    name: authelia_redis_password-${CONFIG_VERSION:-0}
+    file: ../secrets/authelia/redis_password
   grafana_admin_password:
     file: ../secrets/grafana/admin_password
   google_oauth_secret:
