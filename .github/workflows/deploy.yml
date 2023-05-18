@@ -17,7 +17,7 @@ jobs:
         with:
           authkey: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
           version: 1.40.0
-          args: --advertise-tags tag:deploy
+          args: --advertise-tags tag:deploy-job
 
       - name: 🔌 Check tailscale connectivity
         run: tailscale ping ${{ secrets.TS_DEPLOY_HOST }} | grep -q "OK"
