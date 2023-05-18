@@ -1,0 +1,69 @@
+name: 🚀 Deploy Workflow
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy_traefik:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Check out code
+        uses: actions/checkout@v2
+
+      - name: 🐇 Tailscale
+        uses: tailscale/github-action@v1
+        env:
+          TS_EXPERIMENT_OAUTH_AUTHKEY: true
+        with:
+          authkey: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          version: 1.40.0
+          args: --advertise-tags tag:deploy
+
+      - name: 🔌 Check tailscale connectivity
+        run: tailscale ping ${{ secrets.TS_DEPLOY_HOST }} | grep -q "OK"
+
+      - name: 🔑 Authenticate
+        uses: google-github-actions/auth@v0
+        id: auth
+        with:
+          workload_identity_provider: ${{ secrets.GCP_AUTH_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: 📜 Retrieve secrets from GCP Secret Manager
+        id: get-secrets
+        uses: google-github-actions/get-secretmanager-secrets@v0
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          secrets: |
+            secret-1
+            secret-2
+
+      - name: 📂 Create temporary folder for Traefik stack
+        run: mkdir -p ./temp-deploy/traefik
+
+      - name: 📝 Write secrets to files
+        run: |
+          echo "${{ steps.get-secrets.outputs.secret-1 }}" > ./temp-deploy/traefik/secret-1.txt
+          echo "${{ steps.get-secrets.outputs.secret-2 }}" > ./temp-deploy/traefik/secret-2.txt
+
+      - name: 📥 Copy repository data to temporary folder
+        run: cp -R ./ ./temp-deploy/traefik
+
+      - name: 📥 Copy files to target computer
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: scp -r ./temp-deploy/traefik/* ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:/tmp/deploy/traefik/
+
+      - name: 🚀 Deploy Traefik stack
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "docker stack deploy -c /tmp/deploy/traefik/traefik-stack.yml traefik"
