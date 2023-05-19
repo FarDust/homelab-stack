@@ -108,7 +108,7 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          MACHINE_IP="$(tailscale ip -6 ${{ secrets.TS_DEPLOY_HOST }})"
+          MACHINE_IP="$(tailscale ip -4 ${{ secrets.TS_DEPLOY_HOST }})"
           ssh-keyscan $MACHINE_IP >> ~/.ssh/known_hosts
           printf "%s" "$SSH_KEY" > ~/.ssh/key
           chmod 600 ~/.ssh/key
