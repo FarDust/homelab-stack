@@ -1,4 +1,4 @@
-version: "3.7"
+version: "3.9"
 networks:
   traefik-public:
     external: true
@@ -6,7 +6,7 @@ networks:
     external: true
 services:
   node-exporter:
-    image: stefanprodan/swarmprom-node-exporter:v0.16.0
+    image: quay.io/prometheus/node-exporter:latest
     environment:
       - NODE_ID={{.Node.ID}}
     networks:
@@ -15,10 +15,10 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
-      - /etc/hostname:/etc/nodename
     command:
       - "--path.sysfs=/host/sys"
       - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
       - "--collector.textfile.directory=/etc/node-exporter/"
       - "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)"
       - "--no-collector.ipvs"
@@ -26,6 +26,7 @@ services:
       mode: global
       resources:
         limits:
+          cpus: "0.1"
           memory: 128M
         reservations:
           memory: 64M
