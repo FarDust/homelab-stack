@@ -103,21 +103,25 @@ jobs:
           echo "${{ steps.get-secrets.outputs.google-google_oauth_token }}" > ./secrets/google/google_oauth_secret
           echo "${{ steps.get-secrets.outputs.sendgrid-smtp_password }}" > ./secrets/sendgrid/smtp_password
 
-      - name: 📥 Copy files to target computer
-        uses: appleboy/ssh-action@master
+      - name: 🔒 Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          MACHINE_IP="$(tailscale ip -6 ${{ secrets.TS_DEPLOY_HOST }})"
+          ssh-keyscan $MACHINE_IP >> ~/.ssh/known_hosts
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+
+      - name: 🔐 Remove SSH credentials (Post Action)
+        uses: webiny/action-post-run@3.0.0
         with:
-          host: ${{ secrets.TS_DEPLOY_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+          run: |
+            rm -f ~/.ssh/key
+
+      - name: 📥 Copy files to target computer
+        run: scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
 
       - name: 🚀 Deploy Traefik stack
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.TS_DEPLOY_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
+        run: |
             ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
