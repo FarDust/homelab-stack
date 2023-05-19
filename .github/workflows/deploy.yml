@@ -109,8 +109,8 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> ~/.ssh/known_hosts
-          printf "%s" "$SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          printf "%s" "$SSH_KEY" > ~/.ssh/id_ecdsa
+          chmod 600 ~/.ssh/id_ecdsa
 
       - name: 🔐 Remove SSH credentials (Post Action)
         uses: webiny/action-post-run@3.0.0
