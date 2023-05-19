@@ -7,6 +7,9 @@ jobs:
   deploy_traefik:
     runs-on: ubuntu-latest
     environment: prod
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     env:
       DEPLOY_FOLDER: /tmp/deploy/traefik
     steps:
@@ -32,7 +35,7 @@ jobs:
       - name: 🗑️ Remove Tailscale Machine (Post-Action)
         uses: webiny/action-post-run@3.0.0
         with:
-          run: tailscale logout --operator=$USER
+          run: sudo tailscale logout
 
       - name: 🔌 Check Tailscale Connectivity
         run: |
