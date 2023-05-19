@@ -12,6 +12,8 @@ jobs:
       id-token: 'write'
     env:
       DEPLOY_FOLDER: /tmp/deploy/traefik
+      STACK_NAME: personal-stack
+      STACK_FILE: traefik-stack.yml
     steps:
       - name: 📥 Check out code
         uses: actions/checkout@v2
@@ -118,4 +120,4 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/traefik-stack.yml traefik"
+            ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
