@@ -110,7 +110,7 @@ jobs:
           mkdir -p ~/.ssh
           MACHINE_IP="$(tailscale ip -6 ${{ secrets.TS_DEPLOY_HOST }})"
           ssh-keyscan $MACHINE_IP >> ~/.ssh/known_hosts
-          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/key
+          printf "%s" "$SSH_KEY" > ~/.ssh/key
           chmod 600 ~/.ssh/key
 
       - name: 🔐 Remove SSH credentials (Post Action)
