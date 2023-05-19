@@ -6,6 +6,7 @@ on:
 jobs:
   deploy_traefik:
     runs-on: ubuntu-latest
+    environment: prod
     env:
       DEPLOY_FOLDER: /tmp/deploy/traefik
     steps:
