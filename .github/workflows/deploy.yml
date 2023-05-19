@@ -34,10 +34,13 @@ jobs:
         with:
           run: tailscale logout --operator=$USER
 
-      - name: 🔌 Check tailscale connectivity
+      - name: 🔌 Check Tailscale Connectivity
         run: |
-          tailscale ping gabriel-pc > /dev/null
-          echo "Host reached!"
+          if tailscale ping ${{ secrets.TS_DEPLOY_HOST }} >/dev/null 2>&1; then
+            echo "Host Reached! ✅"
+          else
+            echo "Host Not Reachable! ❌"
+          fi
 
       - name: 🔑 Authenticate
         uses: google-github-actions/auth@v0
