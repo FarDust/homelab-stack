@@ -6,9 +6,16 @@ on:
 jobs:
   deploy_traefik:
     runs-on: ubuntu-latest
+    env:
+      REMOTE_TEMP_FOLDER: ./temp-deploy/traefik
+      DEPLOY_FOLDER: /tmp/deploy/traefik
     steps:
       - name: 📥 Check out code
         uses: actions/checkout@v2
+
+      - name: 📝 Save version
+        id: get-version
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: 🐇 Tailscale
         uses: tailscale/github-action@v1
@@ -33,21 +40,42 @@ jobs:
         id: get-secrets
         uses: google-github-actions/get-secretmanager-secrets@v0
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
           secrets: |
-            secret-1
-            secret-2
+            authelia-duo_integration_key:${{ secrets.GCP_PROJECT_ID }}/authelia-duo_integration_key
+            authelia-duo_secret_key:${{ secrets.GCP_PROJECT_ID }}/authelia-duo_secret_key
+            authelia-jwt_secret:${{ secrets.GCP_PROJECT_ID }}/authelia-jwt_secret
+            authelia-postgres_password:${{ secrets.GCP_PROJECT_ID }}/authelia-postgres_password
+            authelia-redis_password:${{ secrets.GCP_PROJECT_ID }}/authelia-redis_password
+            authelia-session_secret:${{ secrets.GCP_PROJECT_ID }}/authelia-session_secret
+            authelia-encryption_key:${{ secrets.GCP_PROJECT_ID }}/authelia-encryption_key
+            authelia-users:${{ secrets.GCP_PROJECT_ID }}/authelia-users
+            cloudflare-dns_api_token:${{ secrets.GCP_PROJECT_ID }}/cloudflare-dns_api_token
+            cloudflare-zone_api_token:${{ secrets.GCP_PROJECT_ID }}/cloudflare-zone_api_token
+            grafana-admin_password:${{ secrets.GCP_PROJECT_ID }}/grafana-admin_password
+            google-google_oauth_token:${{ secrets.GCP_PROJECT_ID }}/google-google_oauth_token
+            sendgrind-smtp_password:${{ secrets.GCP_PROJECT_ID }}/sendgrid/smtp_password
 
       - name: 📂 Create temporary folder for Traefik stack
-        run: mkdir -p ./temp-deploy/traefik
+        run: mkdir -p $REMOTE_TEMP_FOLDER
 
       - name: 📝 Write secrets to files
         run: |
-          echo "${{ steps.get-secrets.outputs.secret-1 }}" > ./temp-deploy/traefik/secret-1.txt
-          echo "${{ steps.get-secrets.outputs.secret-2 }}" > ./temp-deploy/traefik/secret-2.txt
+          echo "${{ steps.get-secrets.outputs.authelia-duo_integration_key }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/duo_integration_key
+          echo "${{ steps.get-secrets.outputs.authelia-duo_secret_key }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/duo_secret_key
+          echo "${{ steps.get-secrets.outputs.authelia-jwt_secret }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/jwt_secret
+          echo "${{ steps.get-secrets.outputs.authelia-postgres_password }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/postgres_password
+          echo "${{ steps.get-secrets.outputs.authelia-redis_password }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/redis_password
+          echo "${{ steps.get-secrets.outputs.authelia-session_secret }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/session_secret
+          echo "${{ steps.get-secrets.outputs.authelia-encryption_key }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/encryption_key
+          echo "${{ steps.get-secrets.outputs.authelia-users }}" > $REMOTE_TEMP_FOLDER/secrets/authelia/users.yml
+          echo "${{ steps.get-secrets.outputs.cloudflare-dns_api_token }}" > $REMOTE_TEMP_FOLDER/secrets/cloudflare/dns_api_token
+          echo "${{ steps.get-secrets.outputs.cloudflare-zone_api_token }}" > $REMOTE_TEMP_FOLDER/secrets/cloudflare/zone_api_token
+          echo "${{ steps.get-secrets.outputs.grafana-admin_password }}" > $REMOTE_TEMP_FOLDER/secrets/grafana/admin_password
+          echo "${{ steps.get-secrets.outputs.google-google_oauth_token }}" > $REMOTE_TEMP_FOLDER/secrets/google/google_oauth_secret
+          echo "${{ steps.get-secrets.outputs.sendgrind-smtp_password }}" > $REMOTE_TEMP_FOLDER/secrets/sendgrid/smtp_password
 
       - name: 📥 Copy repository data to temporary folder
-        run: cp -R ./ ./temp-deploy/traefik
+        run: cp -R ./ $REMOTE_TEMP_FOLDER
 
       - name: 📥 Copy files to target computer
         uses: appleboy/ssh-action@master
@@ -56,7 +84,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script: scp -r ./temp-deploy/traefik/* ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:/tmp/deploy/traefik/
+          script: scp -r $REMOTE_TEMP_FOLDER/* ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:$DEPLOY_FOLDER/
 
       - name: 🚀 Deploy Traefik stack
         uses: appleboy/ssh-action@master
@@ -66,4 +94,4 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "docker stack deploy -c /tmp/deploy/traefik/traefik-stack.yml traefik"
+            ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }}  && docker stack deploy -c $DEPLOY_FOLDER/traefik-stack.yml traefik"
