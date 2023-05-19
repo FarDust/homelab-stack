@@ -69,7 +69,7 @@ jobs:
             cloudflare-zone_api_token:${{ secrets.GCP_PROJECT_ID }}/cloudflare-zone_api_token
             grafana-admin_password:${{ secrets.GCP_PROJECT_ID }}/grafana-admin_password
             google-google_oauth_token:${{ secrets.GCP_PROJECT_ID }}/google-google_oauth_token
-            sendgrind-smtp_password:${{ secrets.GCP_PROJECT_ID }}/sendgrid/smtp_password
+            sendgrind-smtp_password:${{ secrets.GCP_PROJECT_ID }}/sendgrid-smtp_password
 
       - name: 📂 Create temporary folders for Traefik stack
         run: |
