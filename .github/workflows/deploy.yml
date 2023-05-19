@@ -29,6 +29,11 @@ jobs:
           version: 1.40.0
           args: --advertise-tags tag:deploy-job
 
+      - name: 🗑️ Remove Tailscale Machine (Post-Action)
+        uses: webiny/action-post-run@3.0.0
+        with:
+          run: tailscale logout
+
       - name: 🔌 Check tailscale connectivity
         run: tailscale ping ${{ secrets.TS_DEPLOY_HOST }} | grep -q "OK"
 
