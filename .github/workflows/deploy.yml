@@ -104,36 +104,39 @@ jobs:
           echo "${{ steps.get-secrets.outputs.sendgrid-smtp_password }}" > ./secrets/sendgrid/smtp_password
 
       - name: 🔒 Setup SSH
+        id: setup_ssh
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KEY_FILE: ~/.ssh/id_ecdsa
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          echo "$SSH_KEY" | tr -d '\r\n' > $SSH_KEY_FILE
+          chmod 600 $SSH_KEY_FILE
 
-          if ! ssh-keygen -y -f <(echo "$SSH_KEY") >/dev/null 2>&1; then
-            echo "Invalid PEM format for SSH key"
+          if ! ssh-keygen -e -f $SSH_KEY_FILE -m pem > /dev/null 2>&1; then
+            echo "Invalid OpenSSH format for SSH key"
             exit 1
           fi
 
-          echo "$SSH_KEY" | tr -d '\r\n' > ~/.ssh/id_ecdsa
-          chmod 600 ~/.ssh/id_ecdsa
+          echo "::set-output name=ssh_key_file::$SSH_KEY_FILE"
 
       - name: 🔐 Remove SSH credentials (Post Action)
         uses: webiny/action-post-run@3.0.0
         with:
           run: |
-            rm -f ~/.ssh/id_ecdsa
+            rm -f ${{ steps.setup_ssh.outputs.ssh_key_file }}
 
       - name: 🧪 Test SSH connection
         env:
           SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
           SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
         run: |
-          ssh -i ~/.ssh/id_ecdsa $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
 
       - name: 📥 Copy files to target computer
         run: scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
 
       - name: 🚀 Deploy Traefik stack
         run: |
-            ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
+          ssh ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
