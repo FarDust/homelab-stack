@@ -109,14 +109,27 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> ~/.ssh/known_hosts
-          printf "%s" "$SSH_KEY" > ~/.ssh/id_ecdsa
+
+          if ! ssh-keygen -y -f <(echo "$SSH_KEY") >/dev/null 2>&1; then
+            echo "Invalid PEM format for SSH key"
+            exit 1
+          fi
+
+          echo "$SSH_KEY" | tr -d '\r\n' > ~/.ssh/id_ecdsa
           chmod 600 ~/.ssh/id_ecdsa
 
       - name: 🔐 Remove SSH credentials (Post Action)
         uses: webiny/action-post-run@3.0.0
         with:
           run: |
-            rm -f ~/.ssh/key
+            rm -f ~/.ssh/id_ecdsa
+
+      - name: 🧪 Test SSH connection
+        env:
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/id_ecdsa $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
 
       - name: 📥 Copy files to target computer
         run: scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
