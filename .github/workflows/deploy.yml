@@ -114,7 +114,10 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > $SSH_KEY_FILE
           chmod 600 $SSH_KEY_FILE
 
-          ssh-keygen -e -f $SSH_KEY_FILE -m pem
+          ssh-keygen -e -f $SSH_KEY_FILE -m pem > /dev/null 2>&1; then
+            echo "Invalid OpenSSH format for SSH key"
+            exit 1
+          fi
 
           echo "::set-output name=ssh_key_file::$SSH_KEY_FILE"
 
