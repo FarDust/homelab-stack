@@ -120,7 +120,7 @@ jobs:
             exit 1
           fi
 
-          echo "::set-output name=ssh_key_file::${{ env.SSH_KEY_FILE }}"
+          echo "::set-output name=ssh_key_file::$SSH_KEY_FILE"
 
       - name: 🔐 Remove SSH credentials (Post Action)
         uses: webiny/action-post-run@3.0.0
