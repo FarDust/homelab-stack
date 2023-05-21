@@ -132,11 +132,14 @@ jobs:
           SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
           SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
         run: |
-          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
      
       - name: 📁 Create deploy directory
+        env:
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
         run: |
-          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST \
           "mkdir -p /tmp/deploy/traefik/"
           
       - name: 📥 Copy files to target computer
@@ -145,4 +148,4 @@ jobs:
 
       - name: 🚀 Deploy Traefik stack
         run: |
-          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
