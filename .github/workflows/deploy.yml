@@ -144,12 +144,13 @@ jobs:
           
       - name: 📥 Copy files to target computer
         run: |
-          scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+          scp -rp ./. ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+          
       - name: 🗑️ Clear Remote Machine (Post-Action)
         uses: webiny/action-post-run@3.0.0
         with:
           run: |
-            ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "docker stack rm $STACK_NAME && rm -rf $DEPLOY_FOLDER"
+            ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "rm -rf $DEPLOY_FOLDER"
 
       - name: 🚀 Deploy Traefik stack
         run: |
