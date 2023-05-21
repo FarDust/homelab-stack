@@ -133,7 +133,12 @@ jobs:
           SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
         run: |
           ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
-
+     
+      - name: 📁 Create deploy directory
+        run: |
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
+          "mkdir -p /tmp/deploy/traefik/"
+          
       - name: 📥 Copy files to target computer
         run: |
           scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
