@@ -115,10 +115,7 @@ jobs:
           echo $SSH_KEY > $SSH_KEY_FILE
           chmod 600 $SSH_KEY_FILE
 
-          if ! ssh-keygen -e -f $SSH_KEY_FILE -m pem > /dev/null 2>&1; then
-            echo "Invalid OpenSSH format for SSH key"
-            exit 1
-          fi
+          ssh-keygen -e -f $SSH_KEY_FILE -m pem
 
           echo "::set-output name=ssh_key_file::$SSH_KEY_FILE"
 
