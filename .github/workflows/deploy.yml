@@ -106,13 +106,12 @@ jobs:
       - name: 🔒 Setup SSH
         id: setup_ssh
         env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_KEY_FILE: .ssh/id_ecdsa
         run: |
           mkdir -p $HOME/.ssh
           ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> $HOME/.ssh/known_hosts
           export SSH_KEY_FILE=$HOME/$SSH_KEY_FILE
-          echo $SSH_KEY > $SSH_KEY_FILE
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > $SSH_KEY_FILE
           chmod 600 $SSH_KEY_FILE
 
           ssh-keygen -e -f $SSH_KEY_FILE -m pem
