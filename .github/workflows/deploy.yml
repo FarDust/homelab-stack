@@ -85,7 +85,7 @@ jobs:
       - name: ⬇️ Fetch Docker environment variables from Doppler
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: doppler secrets download --format=env --no-file >> ./.env
+        run: doppler secrets download -p personal-docker-stack  -c prd_traefik_stack --format=env --no-file > ./.env
 
       - name: 📝 Write secrets to files
         run: |
@@ -145,7 +145,12 @@ jobs:
       - name: 📥 Copy files to target computer
         run: |
           scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+      - name: 🗑️ Clear Remote Machine (Post-Action)
+        uses: webiny/action-post-run@3.0.0
+        with:
+          run: |
+            ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "docker stack rm $STACK_NAME && rm -rf $DEPLOY_FOLDER"
 
       - name: 🚀 Deploy Traefik stack
         run: |
-          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "set -e && export CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
