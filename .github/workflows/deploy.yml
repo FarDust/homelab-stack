@@ -107,11 +107,12 @@ jobs:
         id: setup_ssh
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KEY_FILE: ${{ github.workspace }}/.ssh/id_ecdsa
+          SSH_KEY_FILE: .ssh/id_ecdsa
         run: |
-          mkdir -p ${{ github.workspace }}/.ssh
-          ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> ${{ github.workspace }}/.ssh/known_hosts
-          echo "$SSH_KEY" | tr -d '\r\n' > $SSH_KEY_FILE
+          mkdir -p $HOME/.ssh
+          ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> $HOME/.ssh/known_hosts
+          export SSH_KEY_FILE=$HOME/$SSH_KEY_FILE
+          echo $SSH_KEY > $SSH_KEY_FILE
           chmod 600 $SSH_KEY_FILE
 
           if ! ssh-keygen -e -f $SSH_KEY_FILE -m pem > /dev/null 2>&1; then
@@ -119,7 +120,7 @@ jobs:
             exit 1
           fi
 
-          echo "::set-output name=ssh_key_file::${{ env.SSH_KEY_FILE }}"
+          echo "::set-output name=ssh_key_file::$SSH_KEY_FILE"
 
       - name: 🔐 Remove SSH credentials (Post Action)
         uses: webiny/action-post-run@3.0.0
@@ -132,15 +133,12 @@ jobs:
           SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
           SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
         run: |
-          SSH_KEY_FILE=${{ steps.setup_ssh.outputs.ssh_key_file }}
-          ssh -i $SSH_KEY_FILE $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
 
       - name: 📥 Copy files to target computer
         run: |
-          SSH_KEY_FILE=${{ steps.setup_ssh.outputs.ssh_key_file }}
-          rsync -avz --exclude='.ssh' ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+          scp -r ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
 
       - name: 🚀 Deploy Traefik stack
         run: |
-          SSH_KEY_FILE=${{ steps.setup_ssh.outputs.ssh_key_file }}
-          ssh -i $SSH_KEY_FILE ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export $(cat $DEPLOY_FOLDER/.env)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
