@@ -85,8 +85,17 @@ jobs:
       - name: ⬇️ Fetch Docker environment variables from Doppler
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: doppler secrets download -p personal-docker-stack  -c prd_traefik_stack --format=env --no-file > ./.env
-
+        run: doppler secrets download -p personal-docker-stack  -c prd_traefik_stack --format=env --no-file > .env
+      
+      - name: 📄 Check .env file
+        run: |
+          if [ -f .env ]; then
+            echo ".env file found"
+          else
+            echo ".env file not found"
+            exit 1
+          fi
+      
       - name: 📝 Write secrets to files
         run: |
           echo "${{ steps.get-secrets.outputs.authelia-duo_integration_key }}" > ./secrets/authelia/duo_integration_key
