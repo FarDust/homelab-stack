@@ -167,4 +167,4 @@ jobs:
 
       - name: 🚀 Deploy Traefik stack
         run: |
-          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "set -e && export CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export \$(cat $DEPLOY_FOLDER/env_vars)  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "set -e && export CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export \$(cat $DEPLOY_FOLDER/env_vars | tr -d '"')  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
