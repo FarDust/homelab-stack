@@ -144,7 +144,7 @@ jobs:
           
       - name: 📥 Copy files to target computer
         run: |
-          scp -rp ./. ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+          rsync -avz ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
           
       - name: 🗑️ Clear Remote Machine (Post-Action)
         uses: webiny/action-post-run@3.0.0
