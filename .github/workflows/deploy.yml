@@ -98,19 +98,19 @@ jobs:
       
       - name: 📝 Write secrets to files
         run: |
-          echo "${{ steps.get-secrets.outputs.authelia-duo_integration_key }}" | tr -d '\n' > ./secrets/authelia/duo_integration_key
-          echo "${{ steps.get-secrets.outputs.authelia-duo_secret_key }}" | tr -d '\n' > ./secrets/authelia/duo_secret_key
-          echo "${{ steps.get-secrets.outputs.authelia-jwt_secret }}" | tr -d '\n' > ./secrets/authelia/jwt_secret
-          echo "${{ steps.get-secrets.outputs.authelia-postgres_password }}" | tr -d '\n' > ./secrets/authelia/postgres_password
-          echo "${{ steps.get-secrets.outputs.authelia-redis_password }}" | tr -d '\n' > ./secrets/authelia/redis_password
-          echo "${{ steps.get-secrets.outputs.authelia-session_secret }}" | tr -d '\n' > ./secrets/authelia/session_secret
-          echo "${{ steps.get-secrets.outputs.authelia-encryption_key }}" | tr -d '\n' > ./secrets/authelia/encryption_key
-          echo "${{ steps.get-secrets.outputs.authelia-users }}" > ./secrets/authelia/users.yml
-          echo "${{ steps.get-secrets.outputs.cloudflare-dns_api_token }}" | tr -d '\n' > ./secrets/cloudflare/dns_api_token
-          echo "${{ steps.get-secrets.outputs.cloudflare-zone_api_token }}" | tr -d '\n' > ./secrets/cloudflare/zone_api_token
-          echo "${{ steps.get-secrets.outputs.grafana-admin_password }}" | tr -d '\n' > ./secrets/grafana/admin_password
-          echo "${{ steps.get-secrets.outputs.google-google_oauth_token }}" | tr -d '\n' > ./secrets/google/google_oauth_secret
-          echo "${{ steps.get-secrets.outputs.sendgrid-smtp_password }}" | tr -d '\n' > ./secrets/sendgrid/smtp_password
+          echo '${{ steps.get-secrets.outputs.authelia-duo_integration_key }}' | tr -d '\n' > ./secrets/authelia/duo_integration_key
+          echo '${{ steps.get-secrets.outputs.authelia-duo_secret_key }}' | tr -d '\n' > ./secrets/authelia/duo_secret_key
+          echo '${{ steps.get-secrets.outputs.authelia-jwt_secret }}' | tr -d '\n' > ./secrets/authelia/jwt_secret
+          echo '${{ steps.get-secrets.outputs.authelia-postgres_password }}' | tr -d '\n' > ./secrets/authelia/postgres_password
+          echo '${{ steps.get-secrets.outputs.authelia-redis_password }}' | tr -d '\n' > ./secrets/authelia/redis_password
+          echo '${{ steps.get-secrets.outputs.authelia-session_secret }}' | tr -d '\n' > ./secrets/authelia/session_secret
+          echo '${{ steps.get-secrets.outputs.authelia-encryption_key }}' | tr -d '\n' > ./secrets/authelia/encryption_key
+          echo '${{ steps.get-secrets.outputs.authelia-users }}' > ./secrets/authelia/users.yml
+          echo '${{ steps.get-secrets.outputs.cloudflare-dns_api_token }}' | tr -d '\n' > ./secrets/cloudflare/dns_api_token
+          echo '${{ steps.get-secrets.outputs.cloudflare-zone_api_token }}' | tr -d '\n' > ./secrets/cloudflare/zone_api_token
+          echo '${{ steps.get-secrets.outputs.grafana-admin_password }}' | tr -d '\n' > ./secrets/grafana/admin_password
+          echo '${{ steps.get-secrets.outputs.google-google_oauth_token }}' | tr -d '\n' > ./secrets/google/google_oauth_secret
+          echo '${{ steps.get-secrets.outputs.sendgrid-smtp_password }}' | tr -d '\n' > ./secrets/sendgrid/smtp_password
 
       - name: 🔒 Setup SSH
         id: setup_ssh
