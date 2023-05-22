@@ -150,7 +150,11 @@ jobs:
         run: |
           ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST \
           "mkdir -p /tmp/deploy/traefik/"
-          
+      
+      - name: 📄 List files
+        run: |
+          ls -al
+      
       - name: 📥 Copy files to target computer
         run: |
           rsync -avz --include='.env' --exclude='.*' ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
