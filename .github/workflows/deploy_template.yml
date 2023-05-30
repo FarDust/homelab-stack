@@ -3,10 +3,13 @@ on:
     inputs:
       deploy-folder:
        required: True
+       type: string
       stack-name:
        required: True
+       type: string
       stack-file:
        required: True
+       type: string
 jobs:
   deploy:
     runs-on: ubuntu-latest
