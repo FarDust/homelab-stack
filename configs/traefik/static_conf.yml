@@ -1,6 +1,11 @@
 api:
   insecure: true
   dashboard: true
+experimental:
+  plugins:
+    sablier:
+      moduleName: "github.com/acouvreur/sablier"
+      version: "v1.3.0"
 http:
   routers:
     dashboard-http:
@@ -30,3 +35,16 @@ http:
         prefixes:
           - /dashboard
           - /dashboard/
+    load-manager:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier:10000
+          names: whoami,dashy
+          sessionDuration: 1m
+
+          # Dynamic strategy, provides the waiting webui
+          dynamic:
+            displayName: Sablier - Load Manager
+            showDetails: true
+            theme: hacker-terminal
+            refreshFrequency: 5s

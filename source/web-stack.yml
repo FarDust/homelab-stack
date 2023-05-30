@@ -7,10 +7,11 @@ services:
       - traefik-public
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 0
       placement:
         constraints: [node.role == manager]
       labels:
+        - traefik.docker.lbswarm=true
         - traefik.enable=true
         - traefik.http.routers.whoami-http.entrypoints=web
         - traefik.http.routers.whoami-http.rule=Host(`whoami.${LOCAL_DOMAIN}`)
@@ -29,7 +30,9 @@ services:
     volumes:
       - dashyconfig:/app/public/
     deploy:
+      replicas: 0
       labels:
+        - traefik.docker.lbswarm=true
         - traefik.enable=true
         - traefik.http.routers.dashy-http.entrypoints=web
         - traefik.http.routers.dashy-http.rule=Host(`dashy.${LOCAL_DOMAIN}`)
