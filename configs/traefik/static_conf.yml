@@ -41,6 +41,7 @@ http:
           sablierUrl: http://sablier:10000
           names: whoami,dashy
           sessionDuration: 1m
+          group: default
 
           # Dynamic strategy, provides the waiting webui
           dynamic:
