@@ -130,7 +130,7 @@ services:
         parallelism: 5
         delay: 10s
       restart_policy:
-        condition: on-failure
+        condition: any
   traefik-me-certificates:
     # Allow the usage of *.traefik.me domains with TLS
     image: alpine
