@@ -13,6 +13,8 @@ services:
       labels:
         - traefik.docker.lbswarm=true
         - traefik.enable=true
+        - sablier.enable=true
+        - sablier.group=default
         - traefik.http.routers.whoami-http.entrypoints=web
         - traefik.http.routers.whoami-http.rule=Host(`whoami.${LOCAL_DOMAIN}`)
         - traefik.http.routers.whoami.entrypoints=websecure
@@ -34,6 +36,8 @@ services:
       labels:
         - traefik.docker.lbswarm=true
         - traefik.enable=true
+        - sablier.enable=true
+        - sablier.group=default
         - traefik.http.routers.dashy-http.entrypoints=web
         - traefik.http.routers.dashy-http.rule=Host(`dashy.${LOCAL_DOMAIN}`)
         - traefik.http.routers.dashy.entrypoints=websecure
