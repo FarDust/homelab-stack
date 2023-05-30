@@ -1,0 +1,13 @@
+name: 🚀 Deploy Services Workflow
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy_web:
+    uses: ./.github/workflows/deploy_template.yml
+    with:
+      deploy-folder: /tmp/deploy/web
+      stack-name: web
+      stack-file: web-stack.yml
+    secrets: inherit

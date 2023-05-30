@@ -1,0 +1,123 @@
+on:
+  workflow_call:
+    inputs:
+      deploy-folder:
+       required: True
+      stack-name:
+       required: True
+      stack-file:
+       required: True
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    env:
+      DEPLOY_FOLDER: ${{ inputs.deploy-folder }}
+      STACK_NAME: ${{ inputs.stack-name }}
+      STACK_FILE: ${{ inputs.stack-file }}
+    steps:
+      - name: 📥 Check out code
+        uses: actions/checkout@v2
+
+      - name: 📥 Install Doppler CLI
+        uses: dopplerhq/cli-action@v2
+
+      - name: 📝 Save version
+        id: get-version
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 🐇 Tailscale
+        uses: tailscale/github-action@8b804aa882ac3429b804a2a22f9803a2101a0db9
+        env:
+          TS_EXPERIMENT_OAUTH_AUTHKEY: true
+        with:
+          authkey: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          version: 1.40.0
+          args: --advertise-tags tag:deploy-job
+
+      - name: 🗑️ Remove Tailscale Machine (Post-Action)
+        uses: webiny/action-post-run@3.0.0
+        with:
+          run: sudo tailscale logout
+
+      - name: 🔌 Check Tailscale Connectivity
+        run: |
+          if tailscale ping ${{ secrets.TS_DEPLOY_HOST }} >/dev/null 2>&1; then
+            echo "Host Reached! ✅"
+          else
+            echo "Host Not Reachable! ❌"
+          fi
+
+      - name: ⬇️ Fetch Docker environment variables from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: doppler secrets download -p personal-docker-stack  -c prd_traefik_stack --format=env --no-file > env_vars
+
+      - name: 📄 Check .env file
+        run: |
+          if [ -f env_vars ]; then
+            echo ".env file found"
+          else
+            echo ".env file not found"
+            exit 1
+          fi
+
+      - name: 🔒 Setup SSH
+        id: setup_ssh
+        env:
+          SSH_KEY_FILE: .ssh/id_ecdsa
+        run: |
+          mkdir -p $HOME/.ssh
+          ssh-keyscan ${{ secrets.TS_DEPLOY_HOST }} >> $HOME/.ssh/known_hosts
+          export SSH_KEY_FILE=$HOME/$SSH_KEY_FILE
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > $SSH_KEY_FILE
+          chmod 600 $SSH_KEY_FILE
+
+          if ! ssh-keygen -e -f $SSH_KEY_FILE -m pem > /dev/null 2>&1; then
+            echo "Invalid OpenSSH format for SSH key"
+            exit 1
+          fi
+
+          echo "::set-output name=ssh_key_file::$SSH_KEY_FILE"
+
+      - name: 🔐 Remove SSH credentials (Post Action)
+        uses: webiny/action-post-run@3.0.0
+        with:
+          run: |
+            rm -f ${{ steps.setup_ssh.outputs.ssh_key_file }}
+
+      - name: 🧪 Test SSH connection
+        env:
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
+        run: |
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
+
+      - name: 📁 Create deploy directory
+        env:
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
+        run: |
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST \
+          "mkdir -p /tmp/deploy/traefik/"
+
+      - name: 📄 List files
+        run: |
+          ls -al
+
+      - name: 📥 Copy files to target computer
+        run: |
+          rsync -avz ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
+
+      - name: 🗑️ Clear Remote Machine (Post-Action)
+        uses: webiny/action-post-run@3.0.0
+        with:
+          run: |
+            ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "rm -rf $DEPLOY_FOLDER"
+
+      - name: 🚀 Deploy Traefik stack
+        run: |
+          ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }} "set -e && export CONFIG_VERSION=${{ steps.get-version.outputs.sha_short }} && export \$(cat $DEPLOY_FOLDER/env_vars | tr -d '\"')  && docker stack deploy -c $DEPLOY_FOLDER/source/$STACK_FILE $STACK_NAME"
