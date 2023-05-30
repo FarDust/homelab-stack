@@ -39,7 +39,6 @@ http:
       plugin:
         sablier:
           sablierUrl: http://sablier:10000
-          names: whoami,dashy
           sessionDuration: 1m
           group: default
 
@@ -47,5 +46,5 @@ http:
           dynamic:
             displayName: Sablier - Load Manager
             showDetails: true
-            theme: hacker-terminal
+            theme: shuffle
             refreshFrequency: 5s
