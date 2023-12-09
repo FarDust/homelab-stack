@@ -54,15 +54,6 @@ scrape_configs:
         type: "A"
         port: 9100
 
-  - job_name: "speedtest"
-    scrape_interval: 60m
-    scrape_timeout: 120s
-    dns_sd_configs:
-      - names:
-          - "tasks.speedtest"
-        type: "A"
-        port: 9090
-
   - job_name: "traefik"
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
@@ -107,14 +98,3 @@ scrape_configs:
           - "tasks.grafana"
         type: "A"
         port: 3000
-
-  - job_name: 'pihole'
-
-    scrape_interval: 5s
-    scrape_timeout: 5s
-
-    dns_sd_configs:
-      - names:
-          - "tasks.pihole-exporter"
-        type: "A"
-        port: 9617
