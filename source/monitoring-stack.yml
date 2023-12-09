@@ -175,14 +175,6 @@ services:
         - "traefik.http.routers.netdata.service=netdata@docker"
         - "traefik.http.services.netdata.loadbalancer.server.port=19999"
         - "traefik.docker.network=traefik"
-  pihole-exporter:
-    image: ekofr/pihole-exporter:latest
-    networks:
-      - traefik
-    environment:
-      - PIHOLE_TOKEN=${PIHOLE_TOKEN?err}
-      - PIHOLE_HOSTNAME=${PIHOLE_HOST:-pihole}
-      - PORT=${PIHOLE_PORT:-9617}
 volumes:
   netdataconfig: {}
   netdatalib: {}
