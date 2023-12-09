@@ -373,7 +373,7 @@ services:
       - GF_RENDERING_SERVER_URL=http://renderer:8081/render
       - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
       - GF_DATABASE_TYPE=postgres
-      - GF_DATABASE_HOST=${GF_DATABASE_HOST:-"postgres:5432"}
+      - GF_DATABASE_HOST=${GF_DATABASE_HOST:-postgres:5432}
       - GF_DATABASE_USER=${POSTGRES_USER:-postgres}
       - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
       - GF_DATABASE_NAME=${POSTGRES_DB:-postgres}
