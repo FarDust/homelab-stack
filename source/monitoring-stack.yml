@@ -93,21 +93,6 @@ services:
           memory: 128M
         reservations:
           memory: 64M
-  speedtest:
-    image: ghcr.io/danopstech/speedtest_exporter:latest
-    networks:
-      - traefik
-    deploy:
-      mode: global
-      placement:
-        constraints: [node.role == manager]
-      resources:
-        limits:
-          memory: 1024M
-        reservations:
-          memory: 64M
-      labels:
-        - "traefik.enable=false"
   watchtower:
     image: containrrr/watchtower
     networks:
@@ -138,12 +123,16 @@ services:
       labels:
         - "traefik.enable=false"
   netdata:
-    image: netdata/netdata
+    image: netdata/netdata:edge
+    pid: host
     hostname: "{{.Node.ID}}"
     networks:
       - traefik
     cap_add:
       - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
     environment:
       - NETDATA_CLAIM_TOKEN=${NETDATA_TOKEN?err}
       - NETDATA_CLAIM_URL=https://app.netdata.cloud
@@ -154,9 +143,13 @@ services:
       - netdatacache:/var/cache/netdata
       - /etc/passwd:/host/etc/passwd:ro
       - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro
+      - /etc/hostname:/etc/hostname:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
       mode: global
       restart_policy:
