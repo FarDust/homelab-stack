@@ -21,7 +21,7 @@ services:
       - "--api.dashboard=true"
       - "--ping=true"
       - "--providers.docker=true"
-      - "--providers.docker.swarmMode=true"
+      - "--providers.swarm=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.watch"
       - "--entryPoints.web.address=:80"
@@ -51,10 +51,6 @@ services:
       - "--certificatesResolvers.le-dns.acme.email=${MAINTAINER_EMAIL}"
       - "--certificatesResolvers.le-dns.acme.dnschallenge.provider=cloudflare"
       - "--certificatesResolvers.le-dns.acme.dnschallenge.delaybeforecheck=0"
-      - "--tracing.jaeger=true"
-      - "--tracing.jaeger.samplingServerURL=http://jaeger:5778/sampling"
-      - "--tracing.jaeger.localAgentHostPort=jaeger:6831"
-      - "--tracing.jaeger.collector.endpoint=http://jaeger:14268/api/traces?format=jaeger.thrift"
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
       - "--providers.redis.endpoints=${REDIS_ENDPOINT:-redis}:6379"
@@ -282,23 +278,6 @@ services:
           - node.role == manager
       labels:
         - 'traefik.enable=false'
-  jaeger:
-    image: jaegertracing/all-in-one
-    configs:
-      - source: jaeger_trafik_config
-        target: /etc/jaeger-traefik.yml
-    networks:
-      - traefik
-    deploy:
-      placement:
-        constraints: [node.role == manager]
-      labels:
-        - "traefik.enable=true"
-        - "traefik.docker.network=traefik"
-        - "traefik.http.routers.jaeger.rule=Host(`jaeger.${LOCAL_DOMAIN:-home}`)"
-        - "traefik.http.routers.jaeger.service=jaeger@docker"
-        - "traefik.http.routers.jaeger.entrypoints=web"
-        - "traefik.http.services.jaeger.loadbalancer.server.port=16686"
   prometheus:
     image: prom/prometheus
     networks:
