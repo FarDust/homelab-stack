@@ -200,7 +200,7 @@ services:
     environment:
       TZ: ${USER_TIMEZONE}
       AUTHELIA_JWT_SECRET_FILE: /run/secrets/authelia_jwt_secret
-      AUTHELIA_DEFAULT_REDIRECTION_URL: http://${REDIRECT_SUBDOMAIN}.${DOMAIN_NAME}
+      AUTHELIA_DEFAULT_REDIRECTION_URL: https://${REDIRECT_SUBDOMAIN}.${DOMAIN_NAME}
       AUTHELIA_DUO_API_HOSTNAME: ${AUTHELIA_DUO_API_HOSTNAME}
       AUTHELIA_DUO_API_INTEGRATION_KEY_FILE: /run/secrets/authelia_duo_integration_key
       AUTHELIA_DUO_API_SECRET_KEY_FILE: /run/secrets/authelia_duo_secret_key
