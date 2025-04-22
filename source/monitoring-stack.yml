@@ -34,7 +34,7 @@ services:
         constraints: [node.role == manager]
       labels:
         - "traefik.enable=false"
-        - "traefik.docker.network=traefik"
+        - "traefik.swarm.network=traefik"
   cadvisor:
     image: google/cadvisor:latest
     hostname: "{{.Node.ID}}"
@@ -65,8 +65,8 @@ services:
          - node.platform.arch != aarch64
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik"
-        - "traefik.http.routers.cadvisor.service=cadvisor@docker"
+        - "traefik.swarm.network=traefik"
+        - "traefik.http.routers.cadvisor.service=cadvisor@swarm"
         - "traefik.http.routers.cadvisor.rule=Host(`cadvisor.traefik.me`)" # Set in pihole DNS server
         - "traefik.http.routers.cadvisor.entrypoints=websecure"
         - "traefik.http.routers.cadvisor.tls=true"
@@ -165,9 +165,9 @@ services:
         - "traefik.enable=true"
         - "traefik.http.routers.netdata.rule=Host(`netdata.${LOCAL_DOMAIN:-home}`)"
         - "traefik.http.routers.netdata.entrypoints=web"
-        - "traefik.http.routers.netdata.service=netdata@docker"
+        - "traefik.http.routers.netdata.service=netdata@swarm"
         - "traefik.http.services.netdata.loadbalancer.server.port=19999"
-        - "traefik.docker.network=traefik"
+        - "traefik.swarm.network=traefik"
 volumes:
   netdataconfig: {}
   netdatalib: {}

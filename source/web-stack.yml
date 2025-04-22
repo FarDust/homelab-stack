@@ -7,11 +7,11 @@ services:
       - traefik-public
     deploy:
       mode: replicated
-      replicas: 0
+      replicas: 1
       placement:
         constraints: [node.role == manager]
       labels:
-        - traefik.docker.lbswarm=true
+        - traefik.swarm.lbswarm=true
         - traefik.enable=true
         - sablier.enable=true
         - sablier.group=default
@@ -19,7 +19,7 @@ services:
         - traefik.http.routers.whoami-http.rule=Host(`whoami.${LOCAL_DOMAIN}`)
         - traefik.http.routers.whoami.entrypoints=websecure
         - traefik.http.routers.whoami.rule=Host(`whoami.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.whoami-http.middlewares=whoami-https@docker
+        - traefik.http.routers.whoami-http.middlewares=whoami-https@swarm
         - traefik.http.middlewares.whoami-https.redirectscheme.scheme=https
         - traefik.http.routers.whoami.tls=true
         - traefik.http.routers.whoami.tls.certresolver=le-dns
@@ -32,9 +32,9 @@ services:
     volumes:
       - dashyconfig:/app/public/
     deploy:
-      replicas: 0
+      replicas: 1
       labels:
-        - traefik.docker.lbswarm=true
+        - traefik.swarm.lbswarm=true
         - traefik.enable=true
         - sablier.enable=true
         - sablier.group=default
@@ -42,7 +42,7 @@ services:
         - traefik.http.routers.dashy-http.rule=Host(`dashy.${LOCAL_DOMAIN}`)
         - traefik.http.routers.dashy.entrypoints=websecure
         - traefik.http.routers.dashy.rule=Host(`dashy.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.dashy-http.middlewares=dashy-https@docker
+        - traefik.http.routers.dashy-http.middlewares=dashy-https@swarm
         - traefik.http.middlewares.dashy-https.redirectscheme.scheme=https
         - traefik.http.routers.dashy.tls=true
         - traefik.http.routers.dashy.tls.certresolver=le-dns
