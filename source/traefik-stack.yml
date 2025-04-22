@@ -449,9 +449,6 @@ configs:
   prometheus_rules:
     name: prometheus_rules-${CONFIG_VERSION:-0}
     file: ../configs/prometheus/alert.rules
-  jaeger_trafik_config:
-    name: jaeger_trafik_config-${CONFIG_VERSION:-0}
-    file: ../configs/jaeger-traefik.yml
 secrets:
   authelia_default_users:
     name: authelia_default_users-${CONFIG_VERSION:-0}
