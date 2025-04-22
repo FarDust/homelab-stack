@@ -13,7 +13,7 @@ services:
     ports:
       - 5446:5432
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
     secrets:
       - source: postgres_db_password
     environment:
@@ -47,7 +47,7 @@ services:
         - "traefik.http.routers.pgadmin4-http.rule=Host(`pgadmin.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pgadmin4.entrypoints=websecure"
         - "traefik.http.routers.pgadmin4.rule=Host(`pgadmin.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.pgadmin4-http.middlewares=pgadmin4-https@docker"
+        - "traefik.http.routers.pgadmin4-http.middlewares=pgadmin4-https@swarm"
         - "traefik.http.middlewares.pgadmin4-https.redirectscheme.scheme=https"
         - "traefik.http.routers.pgadmin4.tls=true"
         - "traefik.http.routers.pgadmin4.tls.certresolver=le"
@@ -72,7 +72,7 @@ services:
            - node.role == manager
       labels:
           - "traefik.enable=false"
-          - "traefik.docker.network=traefik"
+          - "traefik.swarm.network=traefik"
   redis:
     image: redis:latest
     ports:
@@ -83,7 +83,7 @@ services:
       replicas: 1
       labels:
           - "traefik.enable=false"
-          - "traefik.docker.network=traefik"
+          - "traefik.swarm.network=traefik"
 volumes:
   postgres_data: {}
   pgadmin_data: {}
