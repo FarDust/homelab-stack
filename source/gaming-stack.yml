@@ -57,7 +57,7 @@ services:
     image: ghcr.io/pterodactyl/panel:latest
     networks:
       - default
-      - traefik-public
+      - traefik
     volumes:
       - "/srv/pterodactyl/var/:/app/var/"
       - "/srv/pterodactyl/nginx/:/etc/nginx/http.d/"
@@ -77,28 +77,34 @@ services:
     deploy:
       mode: global
       labels:
+        - "traefik.swarm.lbswarm=true"
         - "traefik.enable=true"
+        - "sablier.enable=true"
+        - "sablier.group=gaming"
         - "traefik.http.routers.pterodactyl-panel.rule=Host(`gaming.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.pterodactyl-panel.service=pterodactyl-panel@docker"
+        - "traefik.http.routers.pterodactyl-panel.service=pterodactyl-panel@swarm"
+        - "traefik.http.routers.pterodactyl-panel.middlewares=load-gaming@file"
         - "traefik.http.routers.pterodactyl-panel-http.entrypoints=web"
         - "traefik.http.routers.pterodactyl-panel-http.rule=Host(`gaming.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-panel.entrypoints=websecure"
-        - "traefik.http.routers.pterodactyl-panel-http.middlewares=pterodactyl-panel-https@docker"
+        - "traefik.http.routers.pterodactyl-panel-http.middlewares=pterodactyl-panel-https@swarm"
         - "traefik.http.middlewares.pterodactyl-panel-https.redirectscheme.scheme=https"
         - "traefik.http.routers.pterodactyl-panel.tls=true"
         - "traefik.http.routers.pterodactyl-panel.tls.certresolver=le-dns"
         - "traefik.http.services.pterodactyl-panel.loadbalancer.server.port=80"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.docker.network=traefik"
       placement:
         constraints:
           - node.role == manager
       restart_policy:
         condition: on-failure
+        delay: 5m
+        window: 10m
   wings:
     image: ghcr.io/pterodactyl/wings:latest
     networks:
       - wings0
-      - traefik-public
+      - traefik
     ports:
       - "2022:2022"
     tty: true
@@ -119,38 +125,40 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.pterodactyl-wings.rule=Host(`wings.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.pterodactyl-wings.service=pterodactyl-wings@docker"
+        - "traefik.http.routers.pterodactyl-wings.service=pterodactyl-wings@swarm"
         - "traefik.http.routers.pterodactyl-wings-http.entrypoints=web"
         - "traefik.http.routers.pterodactyl-wings-http.rule=Host(`wings.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-wings.entrypoints=websecure"
-        - "traefik.http.routers.pterodactyl-wings-http.middlewares=pterodactyl-wings-https@docker"
+        - "traefik.http.routers.pterodactyl-wings-http.middlewares=pterodactyl-wings-https@swarm"
         - "traefik.http.middlewares.pterodactyl-wings-https.redirectscheme.scheme=https"
         - "traefik.http.routers.pterodactyl-wings.tls=true"
         - "traefik.http.routers.pterodactyl-wings.tls.certresolver=le-dns"
         - "traefik.http.services.pterodactyl-wings.loadbalancer.server.port=443"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik"
       placement:
         constraints:
           - node.role == manager
       restart_policy:
         condition: on-failure
+        delay: 5m
+        window: 10m
   factorio:
     image:  factoriotools/factorio:stable
     networks:
-      - traefik-public
+      - traefik
     volumes:
       - "factorio-data:/factorio"
     deploy:
       mode: global
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik"
         - "traefik.udp.routers.factorio.entrypoints=gameserver-udp"
-        - "traefik.udp.routers.factorio.service=factorio@docker"
+        - "traefik.udp.routers.factorio.service=factorio@swarm"
         - "traefik.udp.services.factorio.loadbalancer.server.port=34197/udp"
         - "traefik.tcp.routers.factorio.entrypoints=gameserver"
         - "traefik.tcp.routers.factorio.rule=HostSNI(`*`)"
-        - "traefik.tcp.routers.factorio.service=factorio@docker"
+        - "traefik.tcp.routers.factorio.service=factorio@swarm"
         - "traefik.tcp.services.factorio.loadbalancer.server.port=27015"
       placement:
         constraints:
@@ -158,7 +166,7 @@ services:
       restart_policy:
         condition: on-failure
 networks:
-  traefik-public:
+  traefik:
     external: true
   wings0:
     name: wings0

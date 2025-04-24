@@ -29,7 +29,7 @@ http:
 
           # Dynamic strategy, provides the waiting webui
           dynamic:
-            displayName: Sablier - Load Manager
+            displayName: Sablier - Web Load Manager 🌐
             showDetails: true
             theme: shuffle
             refreshFrequency: 5s
@@ -43,4 +43,15 @@ http:
             displayName: Mantenimiento 🛠️
             showDetails: true
             theme: hacker-terminal
+            refreshFrequency: 10s
+    load-gaming:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier-app:10000
+          sessionDuration: 5m
+          group: gaming
+          dynamic:
+            displayName: Gaming Platform 🎮
+            showDetails: true
+            theme: shuffle
             refreshFrequency: 10s
