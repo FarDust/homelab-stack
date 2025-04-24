@@ -4,24 +4,25 @@ api:
 experimental:
   plugins:
     sablier:
-      moduleName: "github.com/acouvreur/sablier"
-      version: "v1.3.0"
+      moduleName: "github.com/sablierapp/sablier"
+      version: "v1.8.5"
 http:
   routers:
     dashboard-http:
       entrypoints: web
-      rule: Host(`dashboard.traefik.me`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
+      rule: Host(`dashboard.${LOCAL_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
       service: api@internal
       middlewares:
         - dashboard-https
     dashboard:
       entrypoints: websecure
-      rule: Host(`dashboard.traefik.me`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
+      rule: Host(`dashboard.${LOCAL_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
       middlewares:
         - dashboard-redirect
         - dashboard-strip-prefix
       service: api@internal
-      tls: true
+      tls:
+        certresolver: le-dns
   middlewares:
     dashboard-https:
       redirectscheme:
@@ -48,3 +49,14 @@ http:
             showDetails: true
             theme: shuffle
             refreshFrequency: 5s
+    load-maintenance:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier:10000
+          sessionDuration: 10m
+          group: maintenance
+          dynamic:
+            displayName: Mantenimiento 🛠️
+            showDetails: true
+            theme: hacker-terminal
+            refreshFrequency: 10s

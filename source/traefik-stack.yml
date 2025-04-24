@@ -23,6 +23,7 @@ services:
       - "--providers.swarm=true"
       - "--providers.swarm.watch"
       - "--providers.swarm.exposedbydefault=false"
+      - "--providers.swarm.allowEmptyServices=true"
       - "--entryPoints.web.address=:80"
       - "--entryPoints.websecure.address=:443"
       - "--entryPoints.dns.address=:53"
@@ -53,6 +54,8 @@ services:
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
       - "--providers.redis.endpoints=${REDIS_ENDPOINT:-redis}:6379"
+      - "--experimental.plugins.sablier.moduleName=github.com/sablierapp/sablier"
+      - "--experimental.plugins.sablier.version=v1.8.5"
       - "--providers.file.directory=/etc/traefik/configs/"
       - "--accesslog=true"
     healthcheck:
@@ -109,10 +112,12 @@ services:
       - CF_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_dns_api_token
       - CF_ZONE_API_TOKEN_FILE=/run/secrets/cloudflare_zone_api_token
       - CLOUDFLARE_TTL=120
+      - LOCAL_DOMAIN=${LOCAL_DOMAIN:-traefik.me}
     volumes:
       # To persist certificates
       - traefik-certificates:/letsencrypt
       - traefik-configs:/etc/traefik/configs
+      
       - root-certificates:/etc/ssl/traefik:ro
       # So that Traefik can listen to the Docker events
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
@@ -147,13 +152,37 @@ services:
         condition: any
         delay: 72h
         window: 72h
-  sablier:
-    image: acouvreur/sablier:1.3.0
+  sablier-worker:
+    image: sablierapp/sablier:1.8.5
+    command:
+      - start
+      - --provider.name=swarm
+      - --server.port=10000
     healthcheck:
       test: ["sablier", "health"]
       interval: 1m30s
     networks:
-      - traefik
+      traefik:
+        aliases:
+          - sablier-app
+      traefik-public:
+        aliases:
+          - sablier-app
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    deploy:
+      mode: replicated
+      replicas: 1
+      labels:
+        - 'traefik.enable=true'
+        - "traefik.http.routers.sablier.rule=Host(`sablier.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.sablier.entrypoints=web"
+        - "traefik.http.routers.sablier.service=sablier"
+        - "traefik.http.services.sablier.loadbalancer.server.port=10000"
+        - "traefik.http.routers.sablier.middlewares=authelia@swarm"
+        - "traefik.http.routers.sablier.tls=true"
+        - "traefik.http.routers.sablier.tls.certresolver=le-dns"
+        - "traefik.swarm.network=traefik-public"
   authelia-users:
     # This will load users once per stack startup
     image: alpine
@@ -170,6 +199,8 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      restart_policy:
+        condition: none
   authelia:
     image: authelia/authelia
     depends_on:
@@ -364,6 +395,8 @@ services:
       mode: replicated
       replicas: 3
       labels:
+        - "sablier.enable=true"
+        - "sablier.group=maintenance"
         - "traefik.enable=true"
         - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN_NAME}`)"
         - "traefik.http.routers.grafana.service=grafana@swarm"
@@ -371,17 +404,18 @@ services:
         - "traefik.http.routers.grafana-http.rule=Host(`grafana.${DOMAIN_NAME}`)"
         - "traefik.http.routers.grafana.entrypoints=websecure"
         - "traefik.http.routers.grafana-http.middlewares=grafana-https@swarm"
-        - 'traefik.http.routers.grafana.middlewares=authelia@swarm'
+        - 'traefik.http.routers.grafana.middlewares=authelia@swarm,load-maintenance@file'
         - "traefik.http.middlewares.grafana-https.redirectscheme.scheme=https"
         - "traefik.http.routers.grafana.tls=true"
         - "traefik.http.routers.grafana.tls.certresolver=le"
         - "traefik.http.services.grafana.loadbalancer.server.port=3000"
         - "traefik.swarm.network=traefik-public"
+        - "traefik.docker.lbswarm=true"
       placement:
         constraints:
           - node.platform.os == linux
       restart_policy:
-        condition: any
+        condition: none
   agent:
     image: portainer/agent:latest
     volumes:
@@ -406,12 +440,17 @@ services:
       placement:
         constraints: [node.role == manager]
       labels:
+        - "sablier.enable=true"
+        - "sablier.group=maintenance"
         - "traefik.enable=true"
-        - 'traefik.http.routers.portainer.middlewares=authelia@swarm'
+        - 'traefik.http.routers.portainer.middlewares=authelia@swarm,load-maintenance@file'
         - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN_NAME}`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+        - "traefik.docker.lbswarm=true"
+      restart_policy:
+          condition: none
 volumes:
   portainerdata:
   traefik-configs: {}
