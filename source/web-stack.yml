@@ -7,7 +7,7 @@ services:
       - traefik-public
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 0
       placement:
         constraints: [node.role == manager]
       labels:
@@ -19,6 +19,7 @@ services:
         - traefik.http.routers.whoami-http.rule=Host(`whoami.${LOCAL_DOMAIN}`)
         - traefik.http.routers.whoami.entrypoints=websecure
         - traefik.http.routers.whoami.rule=Host(`whoami.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.whoami.middlewares=load-manager@file
         - traefik.http.routers.whoami-http.middlewares=whoami-https@swarm
         - traefik.http.middlewares.whoami-https.redirectscheme.scheme=https
         - traefik.http.routers.whoami.tls=true
@@ -29,10 +30,11 @@ services:
     networks:
       - traefik
       - traefik-public
+    command: npm run start
     volumes:
       - dashyconfig:/app/public/
     deploy:
-      replicas: 1
+      replicas: 0
       labels:
         - traefik.swarm.lbswarm=true
         - traefik.enable=true
@@ -42,11 +44,12 @@ services:
         - traefik.http.routers.dashy-http.rule=Host(`dashy.${LOCAL_DOMAIN}`)
         - traefik.http.routers.dashy.entrypoints=websecure
         - traefik.http.routers.dashy.rule=Host(`dashy.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.dashy.middlewares=load-manager@file
         - traefik.http.routers.dashy-http.middlewares=dashy-https@swarm
         - traefik.http.middlewares.dashy-https.redirectscheme.scheme=https
         - traefik.http.routers.dashy.tls=true
         - traefik.http.routers.dashy.tls.certresolver=le-dns
-        - traefik.http.services.dashy.loadbalancer.server.port=80
+        - traefik.http.services.dashy.loadbalancer.server.port=8080
 networks:
   traefik-public:
     external: true
@@ -54,4 +57,6 @@ networks:
     external: true
 volumes:
   dashyconfig:
+    driver: local
+  dashy:
     driver: local

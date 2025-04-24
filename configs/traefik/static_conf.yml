@@ -7,22 +7,6 @@ experimental:
       moduleName: "github.com/sablierapp/sablier"
       version: "v1.8.5"
 http:
-  routers:
-    dashboard-http:
-      entrypoints: web
-      rule: Host(`dashboard.${LOCAL_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
-      service: api@internal
-      middlewares:
-        - dashboard-https
-    dashboard:
-      entrypoints: websecure
-      rule: Host(`dashboard.${LOCAL_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))
-      middlewares:
-        - dashboard-redirect
-        - dashboard-strip-prefix
-      service: api@internal
-      tls:
-        certresolver: le-dns
   middlewares:
     dashboard-https:
       redirectscheme:
@@ -39,24 +23,35 @@ http:
     load-manager:
       plugin:
         sablier:
-          sablierUrl: http://sablier:10000
+          sablierUrl: http://sablier-app:10000
           sessionDuration: 1m
           group: default
 
           # Dynamic strategy, provides the waiting webui
           dynamic:
-            displayName: Sablier - Load Manager
+            displayName: Sablier - Web Load Manager 🌐
             showDetails: true
             theme: shuffle
             refreshFrequency: 5s
     load-maintenance:
       plugin:
         sablier:
-          sablierUrl: http://sablier:10000
+          sablierUrl: http://sablier-app:10000
           sessionDuration: 10m
           group: maintenance
           dynamic:
             displayName: Mantenimiento 🛠️
             showDetails: true
             theme: hacker-terminal
+            refreshFrequency: 10s
+    load-gaming:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier-app:10000
+          sessionDuration: 5m
+          group: gaming
+          dynamic:
+            displayName: Gaming Platform 🎮
+            showDetails: true
+            theme: shuffle
             refreshFrequency: 10s
