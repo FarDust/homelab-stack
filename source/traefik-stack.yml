@@ -357,7 +357,7 @@ services:
       - prometheus
     # ! Removing because not sure why the traefik service cannot configure the router with the healthcheck
     # ! The command wget  http://grafana:3000/api/health is working inside the container, so we keep this to
-    # ! review it later. Its bettter to have a healthcheck when we had the time to test it weull
+    # ! review it later. It's better to have a healthcheck when we have the time to test it well
     # healthcheck:
     #   test: ["CMD", "wget", "http://localhost:3000/api/health", "-q", "--tries", "1", "-O", "/dev/null"]
     #   interval: 1m30s
