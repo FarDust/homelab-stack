@@ -56,8 +56,8 @@ services:
   panel:
     image: ghcr.io/pterodactyl/panel:latest
     networks:
+      - traefik-public
       - default
-      - traefik
     volumes:
       - "/srv/pterodactyl/var/:/app/var/"
       - "/srv/pterodactyl/nginx/:/etc/nginx/http.d/"
@@ -83,7 +83,7 @@ services:
         - "sablier.group=gaming"
         - "traefik.http.routers.pterodactyl-panel.rule=Host(`gaming.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-panel.service=pterodactyl-panel@swarm"
-        - "traefik.http.routers.pterodactyl-panel.middlewares=load-gaming@file"
+        #- "traefik.http.routers.pterodactyl-panel.middlewares=load-gaming@file"
         - "traefik.http.routers.pterodactyl-panel-http.entrypoints=web"
         - "traefik.http.routers.pterodactyl-panel-http.rule=Host(`gaming.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-panel.entrypoints=websecure"
@@ -92,7 +92,6 @@ services:
         - "traefik.http.routers.pterodactyl-panel.tls=true"
         - "traefik.http.routers.pterodactyl-panel.tls.certresolver=le-dns"
         - "traefik.http.services.pterodactyl-panel.loadbalancer.server.port=80"
-        - "traefik.docker.network=traefik"
       placement:
         constraints:
           - node.role == manager
@@ -104,7 +103,7 @@ services:
     image: ghcr.io/pterodactyl/wings:latest
     networks:
       - wings0
-      - traefik
+      - traefik-public
     ports:
       - "2022:2022"
     tty: true
@@ -134,7 +133,7 @@ services:
         - "traefik.http.routers.pterodactyl-wings.tls=true"
         - "traefik.http.routers.pterodactyl-wings.tls.certresolver=le-dns"
         - "traefik.http.services.pterodactyl-wings.loadbalancer.server.port=443"
-        - "traefik.swarm.network=traefik"
+        - "traefik.swarm.network=traefik-public"
       placement:
         constraints:
           - node.role == manager
@@ -145,7 +144,7 @@ services:
   factorio:
     image:  factoriotools/factorio:stable
     networks:
-      - traefik
+      - traefik-public
     volumes:
       - "factorio-data:/factorio"
     deploy:
@@ -166,7 +165,7 @@ services:
       restart_policy:
         condition: on-failure
 networks:
-  traefik:
+  traefik-public:
     external: true
   wings0:
     name: wings0
