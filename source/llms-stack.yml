@@ -1,0 +1,143 @@
+services:
+  auto-gpt:
+    image: significantgravitas/auto-gpt:latest-dev
+    entrypoint: /bin/bash
+    command: 
+      - -c
+      - "poetry install && poetry run python -m autogpt serve"
+    networks:
+      - traefik
+    volumes:
+      - auto-gpt-data:/app/data
+      - auto-gpt-logs:/app/logs
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY?err}
+    deploy:
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.autogpt-http.entrypoints=web
+        - traefik.http.routers.autogpt-http.rule=Host(`autogpt.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.autogpt.entrypoints=websecure
+        - traefik.http.routers.autogpt.rule=Host(`autogpt.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.autogpt-http.middlewares=autogpt-https@swarm
+        - traefik.http.middlewares.autogpt-https.redirectscheme.scheme=https
+        - traefik.http.routers.autogpt.tls=true
+        - traefik.http.routers.autogpt.tls.certresolver=le-dns
+        - traefik.http.services.autogpt.loadbalancer.server.port=8000
+  ollama:
+    image: ollama/ollama
+    entrypoint: /bin/bash
+    command: 
+      - -c
+      - "ollama serve & SERVER_PID=$! && echo 'Ollama server started with PID: '$SERVER_PID && sleep 5 && (ollama pull gemma3:1b && ollama pull llama3.2:1b && ollama pull phi4-mini && ollama pull mistral && ollama pull moondream && ollama pull neural-chat && ollama pull starling-lm && ollama pull llama2-uncensored && ollama pull llava && ollama pull codellama && ollama pull deepseek-r1 && ollama pull granite3.2 && ollama pull llama3.1 && ollama pull nomic-embed-text && echo 'Models installed successfully' &) && wait $SERVER_PID"
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 4.5G
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.ollama-http.entrypoints=web
+        - traefik.http.routers.ollama-http.rule=Host(`ollama.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ollama.entrypoints=websecure
+        - traefik.http.routers.ollama.rule=Host(`ollama.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ollama-http.middlewares=ollama-https@swarm
+        - traefik.http.middlewares.ollama-https.redirectscheme.scheme=https
+        - traefik.http.routers.ollama.tls=true
+        - traefik.http.routers.ollama.tls.certresolver=le-dns
+        - traefik.http.services.ollama.loadbalancer.server.port=11434
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_THREAD=2
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - traefik
+  anythingllm:
+    image: mintplexlabs/anythingllm
+    networks:
+      - traefik
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - STORAGE_DIR=/app/server/storage
+      - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET?err}
+      - LLM_PROVIDER=ollama
+      - OLLAMA_BASE_PATH=http://ollama:11434
+      - OLLAMA_MODEL_PREF=phi
+      - OLLAMA_MODEL_TOKEN_LIMIT=2048
+      - EMBEDDING_ENGINE=ollama
+      - EMBEDDING_BASE_PATH=http://ollama:11434
+      - EMBEDDING_MODEL_PREF=nomic-embed-text:latest
+      - EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+      - VECTOR_DB=lancedb
+      - WHISPER_PROVIDER=local
+      - TTS_PROVIDER=native
+      - PASSWORDMINCHAR=8
+    volumes:
+      - anythingllm_storage:/app/server/storage
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.anythingllm-http.entrypoints=web
+        - traefik.http.routers.anythingllm-http.rule=Host(`anythingllm.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.anythingllm.entrypoints=websecure
+        - traefik.http.routers.anythingllm.rule=Host(`anythingllm.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.anythingllm-http.middlewares=anythingllm-https@swarm
+        - traefik.http.middlewares.anythingllm-https.redirectscheme.scheme=https
+        - traefik.http.routers.anythingllm.tls=true
+        - traefik.http.routers.anythingllm.tls.certresolver=le-dns
+        - traefik.http.services.anythingllm.loadbalancer.server.port=3001
+  localai:
+    image: localai/localai:latest-cpu
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 4G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.localai-http.entrypoints=web
+        - traefik.http.routers.localai-http.rule=Host(`localai.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.localai.entrypoints=websecure
+        - traefik.http.routers.localai.rule=Host(`localai.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.localai-http.middlewares=localai-https@swarm
+        - traefik.http.middlewares.localai-https.redirectscheme.scheme=https
+        - traefik.http.routers.localai.tls=true
+        - traefik.http.routers.localai.tls.certresolver=le-dns
+        - traefik.http.services.localai.loadbalancer.server.port=8080
+    volumes:
+      - localai_data:/usr/share/local-ai/models
+networks:
+  traefik:
+    external: true
+volumes:
+  auto-gpt-data:
+    driver: local
+  auto-gpt-logs:
+    driver: local
+  ollama_data:
+    driver: local
+  anythingllm_storage:
+    driver: local
+  localai_data:
+    driver: local
