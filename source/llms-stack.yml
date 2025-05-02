@@ -69,18 +69,31 @@ services:
     environment:
       - STORAGE_DIR=/app/server/storage
       - JWT_SECRET=${ANYTHINGLLM_JWT_SECRET?err}
+      # Configure both LiteLLM and Ollama as LLM providers
       - LLM_PROVIDER=ollama
+      # LiteLLM configuration (for accessing all models via proxy)
+      - LITELLM_BASE_PATH=http://litellm:4000
+      - LITELLM_MODEL_PREF=mistral
+      - LITELLM_MODEL_TOKEN_LIMIT=4096
+      - LITELLM_API_KEY=${LITELLM_MASTER_KEY?err}
+    # Ollama configuration (direct access)
       - OLLAMA_BASE_PATH=http://ollama:11434
-      - OLLAMA_MODEL_PREF=phi
+      - OLLAMA_MODEL_PREF=phi4-mini
       - OLLAMA_MODEL_TOKEN_LIMIT=2048
+      # Embedding configuration remains unchanged
       - EMBEDDING_ENGINE=ollama
       - EMBEDDING_BASE_PATH=http://ollama:11434
       - EMBEDDING_MODEL_PREF=nomic-embed-text:latest
       - EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
-      - VECTOR_DB=lancedb
+      - VECTOR_DB=qdrant
+      - QDRANT_ENDPOINT=${QDRANT_ENDPOINT?err}
+      - QDRANT_API_KEY=${QDRANT_API_KEY?err}
       - WHISPER_PROVIDER=local
       - TTS_PROVIDER=native
       - PASSWORDMINCHAR=8
+      - OPEN_AI_KEY=${ANYTHINGLLM_OPENAI_API_KEY?err}
+      - OPEN_MODEL_PREF='gpt-4o-mini'
+      - DATA_DIRECTORY=/storage
     volumes:
       - anythingllm_storage:/app/server/storage
     deploy:
@@ -88,6 +101,16 @@ services:
       placement:
         constraints:
           - node.platform.os == linux
+          - node.platform.arch == x86_64
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
       labels:
         - traefik.enable=true
         - traefik.http.routers.anythingllm-http.entrypoints=web
@@ -103,6 +126,10 @@ services:
     image: localai/localai:latest-cpu
     networks:
       - traefik
+    environment:
+      - LOCALAI_P2P=true
+      - LOCALAI_FEDERATED=true
+      - FEDERATED_SERVER=true
     deploy:
       replicas: 1
       resources:
@@ -127,6 +154,44 @@ services:
         - traefik.http.services.localai.loadbalancer.server.port=8080
     volumes:
       - localai_data:/usr/share/local-ai/models
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    networks:
+      - traefik
+    environment:
+      - PORT=4000
+      - LITELLM_MODEL_CONFIG=/app/config/config.yaml
+      - PROXY_LOG_LEVEL=DEBUG
+      - OPENAI_API_KEY=${OPENAI_API_KEY?err}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY?err}
+      - STORE_MODEL_IN_DB=False
+    volumes:
+      - litellm_logs:/app/logs
+    configs:
+      - source: litellm_config
+        target: /app/config/config.yaml
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.litellm-http.entrypoints=web
+        - traefik.http.routers.litellm-http.rule=Host(`litellm.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.litellm.entrypoints=websecure
+        - traefik.http.routers.litellm.rule=Host(`litellm.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.litellm-http.middlewares=litellm-https@swarm
+        - traefik.http.middlewares.litellm-https.redirectscheme.scheme=https
+        - traefik.http.routers.litellm.tls=true
+        - traefik.http.routers.litellm.tls.certresolver=le-dns
+        - traefik.http.services.litellm.loadbalancer.server.port=4000
 networks:
   traefik:
     external: true
@@ -141,3 +206,9 @@ volumes:
     driver: local
   localai_data:
     driver: local
+  litellm_logs:
+    driver: local
+configs:
+  litellm_config:
+    name: litellm_config-${CONFIG_VERSION:-0}
+    file: ../configs/litellm/config.yaml
