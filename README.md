@@ -32,8 +32,6 @@ This repository contains a comprehensive Docker Swarm stack for self-hosting var
   - [Automated CI/CD Deployment](#automated-cicd-deployment-using-github-actions)
   - [Verification and Troubleshooting](#verification-and-troubleshooting)
   - [Post-Deployment Setup](#post-deployment-setup)
-  - [Maintenance Operations](#maintenance-operations)
-  - [Notes on LLM Stack Usage](#notes-on-llm-stack-usage)
 
 ## Architecture
 
@@ -52,6 +50,112 @@ The stack is separated into logical service groups:
 - `dns-stack.yml`: DNS services
 - `llms-stack.yml`: Local large language models
 - And many more specialized stacks for specific use cases
+
+### Reverse Proxy Architecture
+
+The core of this homelab stack is the Traefik reverse proxy, which provides:
+
+1. **Central Entry Point**: All traffic to services flows through Traefik, allowing for:
+   - Unified SSL/TLS termination
+   - Consistent authentication via Authelia
+   - Standardized routing rules
+   - Load balancing across service replicas
+
+2. **Automatic SSL Certificate Management**:
+   - Let's Encrypt integration for auto-renewing certificates
+   - DNS challenge for wildcard certificates via Cloudflare
+   - Certificate management for internal services
+
+3. **Service Discovery**:
+   - Docker Swarm integration for automatic service detection
+   - Dynamic configuration updates without restarts
+   - Health checking and automatic failover
+
+4. **Routing Configuration**:
+   Each service in the stack includes Traefik labels that define:
+   - Which host/domain the service is available at
+   - Whether authentication is required
+   - SSL certificate requirements
+   - Redirection rules (HTTP to HTTPS)
+   - Load balancing configuration
+
+The typical request flow works like this:
+
+```
+Client → Traefik (Entry Point) → [Optional: Authelia Auth] → Target Service → Response
+```
+
+Key components in this flow:
+
+- **Entry Points**: `web` (HTTP/80) and `websecure` (HTTPS/443)
+- **Middlewares**: Authentication, redirections, headers, etc.
+- **Routers**: Match the request to the appropriate service
+- **Services**: The actual backend services handling requests
+
+Traefik also provides a dashboard for monitoring and managing routes at `dashboard.local.yourdomain.com`.
+
+### Testing Your Deployment with Curl
+
+For those new to homelab setups, here are some useful curl commands to test your deployment:
+
+#### 1. Check if Traefik is Running
+
+```bash
+# Test Traefik's health endpoint
+curl -kI https://dashboard.local.yourdomain.com/ping
+```
+
+A successful response will return a `200 OK` status.
+
+#### 2. Test a Protected Service
+
+```bash
+# Try accessing a protected service (will be redirected to Authelia)
+curl -kI https://grafana.yourdomain.com
+```
+
+You'll see a redirection to the Authelia authentication page.
+
+#### 3. Test an API Service (LLM Stack)
+
+```bash
+# Test Ollama API endpoint
+curl -k https://ollama.yourdomain.com/api/tags
+
+# Test a basic prompt with Ollama (if models are loaded)
+curl -k -X POST https://ollama.yourdomain.com/api/generate -d '{
+  "model": "phi4-mini",
+  "prompt": "What is Docker Swarm?",
+  "stream": false
+}'
+```
+
+#### 4. Testing with Authentication
+
+```bash
+# Store authentication cookies in a file
+curl -k -c cookies.txt -X POST https://auth.yourdomain.com/api/firstfactor \
+  -H "Content-Type: application/json" \
+  -d '{"username":"your_username","password":"your_password"}'
+
+# Use the cookies to access a protected service
+curl -k -b cookies.txt https://grafana.yourdomain.com
+```
+
+#### Troubleshooting with Curl
+
+If you're having issues with a service, try these commands:
+
+```bash
+# Check HTTP status with full headers
+curl -kI https://service.yourdomain.com
+
+# Test connections with verbose output
+curl -kv https://service.yourdomain.com
+
+# Test with a specific Host header (for virtual hosting)
+curl -k -H "Host: service.yourdomain.com" https://your-server-ip
+```
 
 ### Stack Dependencies
 
@@ -536,28 +640,6 @@ The stack is designed to be forked and maintained with secrets managed through:
    - Use tools like GitGuardian to prevent accidental credential exposure
    - Implement secret scanning in CI/CD pipelines
 
-### Backup Automation
-
-Set up automated backup scripts using Docker cron jobs:
-
-```yaml
-services:
-  backup-service:
-    image: alpine
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${BACKUP_DESTINATION}:/backups
-    command: >
-      sh -c "apk add --no-cache docker-cli bash curl && 
-      echo '0 2 * * * /backup.sh' > /etc/crontabs/root && 
-      crond -f"
-    environment:
-      - BACKUP_RETENTION=7
-    deploy:
-      placement:
-        constraints: [node.role == manager]
-```
-
 ### Disaster Recovery Procedures
 
 In case of system failure, follow these steps to restore your homelab:
@@ -575,27 +657,6 @@ In case of system failure, follow these steps to restore your homelab:
    - For database corruption, restore from the latest backup
    - For configuration issues, revert to a previous version from GCS
 
-3. **Testing Recovery**:
-   - Regularly perform recovery drills
-   - Validate backup integrity monthly
-   - Document recovery time objectives (RTO) for each service
-
-### Version Control
-
-Maintain all configuration and stack files in a Git repository:
-
-1. **Repository Structure**:
-   - Keep your fork of this repository public for community contributions
-   - Use branch protection rules for the main branch
-   - Implement pull request reviews for changes
-
-2. **Security Scanning**:
-   - Configure GitGuardian or similar tools to prevent credential leaks
-   - Implement secret scanning in your CI/CD pipeline
-   - Regularly audit access controls
-
-> **Important**: When forking this repository, ensure you review and update all secrets and credentials. Never commit sensitive information directly to the repository.
-
 ## Service Access
 
 Once deployed, your services will be available at the following URLs:
@@ -603,37 +664,8 @@ Once deployed, your services will be available at the following URLs:
 - Traefik Dashboard: https://dashboard.yourdomain.com
 - Portainer: https://portainer.yourdomain.com
 - Grafana: https://grafana.yourdomain.com
-- PGAdmin: https://pgadmin.yourdomain.com
 
-All secured services will require authentication through Authelia at https://auth.yourdomain.com
-
-## Maintenance
-
-### Updating Services
-
-Most services are configured to use Watchtower for automatic updates. For manual updates:
-
-```bash
-# Pull latest images
-docker pull traefik:latest
-# ... other images
-
-# Redeploy stacks
-docker stack deploy -c source/traefik-stack.yml traefik
-# ... other stacks
-```
-
-### Viewing Logs
-
-```bash
-docker service logs traefik_traefik
-```
-
-### Scaling Services
-
-```bash
-docker service scale traefik_grafana=5
-```
+All secured services will require authentication through Authelia at https://auth.yourdomain.com and would be redirected to the appropriate service after successful login.
 
 ## Customization
 
@@ -655,9 +687,6 @@ The included LLM stack provides:
 These services require significant resources, especially RAM and GPU for larger models. With limited hardware:
 
 - Limit yourself to smaller models (1B-7B parameters)
-- Run only one LLM service at a time
-- Consider increasing swap space
-- Reduce the context size of models
 - Avoid running CPU-intensive tasks concurrently with LLM services
 
 ## LLM Services & Use Cases
@@ -665,8 +694,6 @@ These services require significant resources, especially RAM and GPU for larger 
 The stack includes several powerful local AI model services that allow you to self-host and run LLMs without relying on external cloud APIs. This enables:
 
 - **Data Privacy**: Process sensitive or personal data without sending it to third-party services
-- **Cost Savings**: Run models locally without paying for API usage
-- **Offline Operation**: Access AI capabilities without internet connectivity
 - **Experimentation**: Test different models and configurations in a safe environment
 - **Edge Device Testing**: Prototype edge AI deployments before deploying to constrained devices
 
@@ -694,10 +721,9 @@ The LLM stack provides several complementary services:
 
 #### LocalAI
 - **Description**: Drop-in replacement for OpenAI API with local model execution
-- **Key Features**: Marketplace for models, TTS/STT capabilities, WebAssembly support
+- **Key Features**: Marketplace for models, TTS/STT capabilities, and more
 - **Best For**:
   - Text-to-speech experiments with lightweight models
-  - Speech recognition on your personal devices
   - Running experiments with models that can work in WebAssembly
   - Edge device deployment testing
 
@@ -708,33 +734,6 @@ The LLM stack provides several complementary services:
   - Creating a consistent API interface across different model providers
   - Managing access to models through API keys
   - A/B testing between different models
-
-### Example Use Cases
-
-1. **Personal Document Analysis**:
-   - Upload financial documents or medical records to AnythingLLM
-   - Query sensitive information without exposing it to third parties
-   - Generate summaries and insights from private data
-
-2. **Edge Device Prototyping**:
-   - Test lightweight models via LocalAI before deploying to IoT devices
-   - Experiment with speech recognition for home automation
-   - Prototype offline AI capabilities for edge applications
-
-3. **Private Research Assistant**:
-   - Create a personal research assistant with your own data corpus
-   - Process research papers, books, and articles without usage limitations
-   - Generate citations and references from your personal library
-
-4. **Code Repository Analysis**:
-   - Index your private code repositories in AnythingLLM
-   - Get personalized code completion and documentation
-   - Analyze code quality and suggest improvements privately
-
-5. **Voice Assistant Development**:
-   - Use LocalAI's TTS capabilities to prototype voice interfaces
-   - Create custom voice-enabled applications without cloud dependencies
-   - Test multilingual voice recognition and response systems
 
 ### Resource Management Tips
 
@@ -758,7 +757,7 @@ When working with limited hardware resources:
 For more information on specific models and configurations, refer to each project's documentation:
 - [Ollama Documentation](https://github.com/ollama/ollama)
 - [AnythingLLM Documentation](https://github.com/Mintplex-Labs/anything-llm)
-- [LocalAI Documentation](https://localai.io/howtos/)
+- [LocalAI Documentation](https://localai.io/basics/try/)
 - [LiteLLM Documentation](https://docs.litellm.ai/docs/)
 
 ## Step-by-Step Deployment Guide
@@ -1033,228 +1032,6 @@ After deployment (either manual or automated), verify your services:
    - Configure PGAdmin to connect to your PostgreSQL instance
    - Set up AnythingLLM with your preferred document collections
 
-### Maintenance Operations
 
-1. **Update Services**:
-   ```bash
-   # Pull latest images
-   docker pull traefik:latest
-   docker pull postgres:latest
-   # etc...
-   
-   # Redeploy stacks to use updated images
-   docker stack deploy -c source/traefik-stack.yml traefik
-   docker stack deploy -c source/database-stack.yml db
-   # etc...
-   ```
 
-2. **Check Stack Health**:
-   ```bash
-   docker stack ps traefik
-   docker stack ps db
-   # etc...
-   ```
 
-3. **Backup Strategy Setup**:
-   ```bash
-   # Set up automated database backup
-   docker stack deploy -c source/maintenance.yml maintenance
-   ```
-
-4. **Access Monitoring Dashboards**:
-   - Navigate to https://grafana.yourdomain.com
-   - Check system metrics and container health
-
-### Notes on LLM Stack Usage
-
-The LLM stack deploys several AI services that you can interact with:
-
-1. **Ollama**: Access via https://ollama.local.yourdomain.com
-   - Provides direct API access to installed models
-   - Example curl command:
-   ```bash
-   curl -X POST https://ollama.local.yourdomain.com/api/generate -d '{
-     "model": "phi4-mini",
-     "prompt": "What is Docker Swarm?"
-   }'
-   ```
-
-2. **AnythingLLM**: Access via https://anythingllm.local.yourdomain.com
-   - Upload documents to create custom RAG applications
-   - Create vectorized knowledge bases
-   - Query your private data with natural language
-
-3. **LocalAI**: Access via https://localai.local.yourdomain.com
-   - Explore marketplace for additional models 
-   - Use TTS capabilities for voice applications
-   - Test WebAssembly models for edge deployment
-
-4. **LiteLLM**: Access via https://litellm.local.yourdomain.com
-   - Use as a unified API proxy to all models
-   - Create API keys for access control
-   - Manage model routing and fallbacks
-
-## Service Access
-
-Once deployed, your services will be available at the following URLs:
-
-- Traefik Dashboard: https://dashboard.yourdomain.com
-- Portainer: https://portainer.yourdomain.com
-- Grafana: https://grafana.yourdomain.com
-- PGAdmin: https://pgadmin.yourdomain.com
-
-All secured services will require authentication through Authelia at https://auth.yourdomain.com
-
-## Maintenance
-
-### Updating Services
-
-Most services are configured to use Watchtower for automatic updates. For manual updates:
-
-```bash
-# Pull latest images
-docker pull traefik:latest
-# ... other images
-
-# Redeploy stacks
-docker stack deploy -c source/traefik-stack.yml traefik
-# ... other stacks
-```
-
-### Viewing Logs
-
-```bash
-docker service logs traefik_traefik
-```
-
-### Scaling Services
-
-```bash
-docker service scale traefik_grafana=5
-```
-
-## Customization
-
-The stack is designed to be modular. You can:
-
-1. Add new services by creating additional stack files
-2. Modify existing services by editing the YAML files
-3. Configure Traefik routing by adding the appropriate labels to your services
-
-## LLM Services
-
-The included LLM stack provides:
-
-- **Ollama**: Local inference server with various models
-- **AnythingLLM**: Document-based chatbot with knowledge base capabilities
-- **LiteLLM**: Proxy to standardize access to various LLM providers
-- **LocalAI**: A drop-in replacement for OpenAI API
-
-These services require significant resources, especially RAM and GPU for larger models. With limited hardware:
-
-- Limit yourself to smaller models (1B-7B parameters)
-- Run only one LLM service at a time
-- Consider increasing swap space
-- Reduce the context size of models
-- Avoid running CPU-intensive tasks concurrently with LLM services
-
-## LLM Services & Use Cases
-
-The stack includes several powerful local AI model services that allow you to self-host and run LLMs without relying on external cloud APIs. This enables:
-
-- **Data Privacy**: Process sensitive or personal data without sending it to third-party services
-- **Cost Savings**: Run models locally without paying for API usage
-- **Offline Operation**: Access AI capabilities without internet connectivity
-- **Experimentation**: Test different models and configurations in a safe environment
-- **Edge Device Testing**: Prototype edge AI deployments before deploying to constrained devices
-
-### Available LLM Services
-
-The LLM stack provides several complementary services:
-
-#### Ollama
-- **Description**: High-performance interface for running local models
-- **Available Models**: gemma3, llama3.2, phi4-mini, mistral, neural-chat, and more
-- **Hardware Recommendation**: 4GB+ RAM, ideally with GPU acceleration
-- **Best For**: 
-  - Quick personal assistants without data leaving your network
-  - Document analysis and content generation
-  - Code completion and debugging assistance
-  - Running optimized smaller models (1B-7B parameters)
-
-#### AnythingLLM
-- **Description**: Document-based chatbot with knowledge base and RAG capabilities
-- **Integration**: Connects to both Ollama (direct) and LiteLLM (proxy) for flexible model usage
-- **Best For**:
-  - Creating chatbots from your personal documents (PDFs, text files)
-  - Building searchable knowledge bases from private data
-  - Setting up specialized assistants for specific domains
-
-#### LocalAI
-- **Description**: Drop-in replacement for OpenAI API with local model execution
-- **Key Features**: Marketplace for models, TTS/STT capabilities, WebAssembly support
-- **Best For**:
-  - Text-to-speech experiments with lightweight models
-  - Speech recognition on your personal devices
-  - Running experiments with models that can work in WebAssembly
-  - Edge device deployment testing
-
-#### LiteLLM
-- **Description**: API standardization layer that provides a unified interface
-- **Integration**: Works with Ollama, OpenAI, and many other model providers
-- **Best For**:
-  - Creating a consistent API interface across different model providers
-  - Managing access to models through API keys
-  - A/B testing between different models
-
-### Example Use Cases
-
-1. **Personal Document Analysis**:
-   - Upload financial documents or medical records to AnythingLLM
-   - Query sensitive information without exposing it to third parties
-   - Generate summaries and insights from private data
-
-2. **Edge Device Prototyping**:
-   - Test lightweight models via LocalAI before deploying to IoT devices
-   - Experiment with speech recognition for home automation
-   - Prototype offline AI capabilities for edge applications
-
-3. **Private Research Assistant**:
-   - Create a personal research assistant with your own data corpus
-   - Process research papers, books, and articles without usage limitations
-   - Generate citations and references from your personal library
-
-4. **Code Repository Analysis**:
-   - Index your private code repositories in AnythingLLM
-   - Get personalized code completion and documentation
-   - Analyze code quality and suggest improvements privately
-
-5. **Voice Assistant Development**:
-   - Use LocalAI's TTS capabilities to prototype voice interfaces
-   - Create custom voice-enabled applications without cloud dependencies
-   - Test multilingual voice recognition and response systems
-
-### Resource Management Tips
-
-When working with limited hardware resources:
-
-1. **Model Selection**:
-   - Prioritize smaller models (1B-7B parameters) for better performance
-   - Use quantized models (GGUF format) to reduce memory requirements
-   - Consider specialized models (like code-specific or embedding-specific)
-
-2. **Service Configuration**:
-   - Adjust context lengths to limit memory usage
-   - Use environment variables to limit number of CPU threads
-   - Consider running just one LLM service at a time
-
-3. **Hardware Optimization**:
-   - Add swap space if RAM is limited
-   - Use SSD storage for faster model loading
-   - Consider upgrading RAM before CPU for most LLM workloads
-
-For more information on specific models and configurations, refer to each project's documentation:
-- [Ollama Documentation](https://github.com/ollama/ollama)
-- [AnythingLLM Documentation](https://github.com/Mintplex-Labs/anything-llm)
-- [LocalAI Documentation](https://localai.io/howtos/)
-- [LiteLLM Documentation](https://docs.litellm.ai/docs/)
