@@ -1032,6 +1032,19 @@ After deployment (either manual or automated), verify your services:
    - Configure PGAdmin to connect to your PostgreSQL instance
    - Set up AnythingLLM with your preferred document collections
 
+## Important Licensing Notes
+
+**DISCLAIMER**: This project is intended for personal homelab use only and is not designed or tested for production environments. Many of the included open-source services may require commercial licenses for business or production use.
+
+Key points to understand:
+
+- **Personal Use Only**: This stack is designed for personal experimentation, learning, and home use
+- **Not For Commercial Use**: Using these services in a commercial environment may require purchasing appropriate licenses
+- **License Compliance**: It is your responsibility to comply with the license terms of each included software
+- **No Warranty**: This project is provided "as is" under the MIT License without any warranty or guarantee of functionality
+
+This repository is licensed under the MIT License. See the [LICENSE](LICENSE) file in the repository root for the full license text. Note that this license applies only to the configuration and documentation within this repository, not to the third-party software included in the Docker images.
+
 
 
 
