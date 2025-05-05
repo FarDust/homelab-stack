@@ -1,0 +1,29 @@
+services:
+  mcp-grafana:
+    image: mcp/grafana:latest
+    environment:
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_API_KEY=${MCP_ADMIN_GRAFANA_API_KEY?err}
+    networks:
+      - traefik
+    ports:
+      - mode: host
+        target: 8000
+        published: 8046
+        protocol: tcp
+    deploy:
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.mcp-grafana-http.entrypoints=web
+        - traefik.http.routers.mcp-grafana-http.rule=Host(`mcp-grafana.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-grafana.entrypoints=websecure
+        - traefik.http.routers.mcp-grafana.rule=Host(`mcp-grafana.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-grafana.middlewares=https-redirect@swarm
+        - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+        - traefik.http.routers.mcp-grafana.tls=true
+        - traefik.http.routers.mcp-grafana.tls.certresolver=le-dns
+        - traefik.http.services.mcp-grafana.loadbalancer.server.port=8000
+networks:
+  traefik:
+    external: true
