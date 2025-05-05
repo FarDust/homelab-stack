@@ -15,6 +15,7 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      - node_exporter:/etc/node-exporter
     command:
       - "--path.sysfs=/host/sys"
       - "--path.procfs=/host/proc"
@@ -36,14 +37,14 @@ services:
         - "traefik.enable=false"
         - "traefik.swarm.network=traefik"
   cadvisor:
-    image: google/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:latest
     hostname: "{{.Node.ID}}"
     networks:
       - traefik
     command:
       - "--logtostderr"
       - "--docker_only=true"
-      - "--housekeeping_interval=30s"
+      - "--housekeeping_interval=60s"
       - "--storage_driver=redis"
       - "--storage_driver_host=${REDIS_HOST:?err}:${REDIS_PORT:?err}"
     volumes:
@@ -77,6 +78,11 @@ services:
         reservations:
           cpus: "0.05"
           memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
     healthcheck:
       test: wget --quiet --tries=1 --spider http://localhost:8080/healthz || exit 1
       interval: 15s
@@ -154,6 +160,9 @@ services:
       mode: global
       restart_policy:
         condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       placement:
         constraints: [node.platform.os == linux]
       resources:
@@ -172,6 +181,7 @@ volumes:
   netdataconfig: {}
   netdatalib: {}
   netdatacache: {}
+  node_exporter: {}
 secrets:
   watchtower_auth_token:
     file: ../secrets/watchtower/auth_token
