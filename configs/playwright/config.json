@@ -1,0 +1,35 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true
+    },
+    "contextOptions": {
+      "viewport": { "width": 1280, "height": 720 }
+    }
+  },
+  "server": {
+    "port": 8931,
+    "host": "0.0.0.0"
+  },
+  "capabilities": [
+    "core",
+    "tabs",
+    "pdf",
+    "history",
+    "wait",
+    "files",
+    "testing",
+    "install"
+  ],
+  "vision": true,
+  "outputDir": "/tmp/playwright-output",
+  "network": {
+    "allowedOrigins": ["*"]
+  },
+  "tools": {
+    "browser_take_screenshot": {
+      "omitBase64": false
+    }
+  }
+}

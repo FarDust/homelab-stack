@@ -35,6 +35,40 @@ services:
         # Apply middlewares to router
         - traefik.http.routers.mcp-grafana-http.middlewares=https-redirect
         - traefik.http.routers.mcp-grafana.middlewares=sse-headers
+
+  mcp-playwright:
+    image: mcp/playwright
+    command: 
+      - "--config=/config/config.json"
+      - "--host=0.0.0.0"
+      - "--port=8931"
+    configs:
+      - source: playwright_config
+        target: /config/config.json
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        # Basic routing
+        - traefik.http.routers.mcp-playwright-http.entrypoints=web
+        - traefik.http.routers.mcp-playwright-http.rule=Host(`mcp-playwright.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-playwright.entrypoints=websecure
+        - traefik.http.routers.mcp-playwright.rule=Host(`mcp-playwright.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-playwright.tls=true
+        - traefik.http.routers.mcp-playwright.tls.certresolver=le-dns
+        - traefik.http.services.mcp-playwright.loadbalancer.server.port=8931
+        - traefik.http.services.mcp-playwright.loadbalancer.passHostHeader=true
+        - traefik.http.services.mcp-playwright.loadbalancer.responseForwarding.flushInterval=100ms
+        - traefik.http.routers.mcp-playwright-http.middlewares=https-redirect
+        - traefik.http.routers.mcp-playwright.middlewares=sse-headers
+
 networks:
   traefik:
     external: true
+
+configs:
+  playwright_config:
+    name: playwright_config-${CONFIG_VERSION:-0}
+    file: ../configs/playwright/config.json
