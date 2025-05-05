@@ -3,14 +3,9 @@ services:
     image: mcp/grafana:latest
     environment:
       - GRAFANA_URL=http://grafana:3000
-      - GRAFANA_API_KEY=${MCP_ADMIN_GRAFANA_API_KEY:-demo_key}
+      - GRAFANA_API_KEY=${MCP_ADMIN_GRAFANA_API_KEY:?err}
     networks:
       - traefik
-    ports:
-      - mode: host
-        target: 8000
-        published: 8046
-        protocol: tcp
     deploy:
       replicas: 1
       labels:
