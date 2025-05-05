@@ -827,7 +827,8 @@
     "docker",
     "watchtower",
     "containers",
-    "updates"
+    "updates",
+    "automation"
   ],
   "templating": {
     "list": []

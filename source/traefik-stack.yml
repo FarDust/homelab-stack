@@ -377,6 +377,12 @@ services:
         target: /etc/grafana/provisioning/dashboards/json/docker.json
       - source: grafana_dashboard_traefik
         target: /etc/grafana/provisioning/dashboards/json/traefik_rev4.json
+      - source: grafana_dashboard_docker_swarm
+        target: /etc/grafana/provisioning/dashboards/json/custom/docker_swarm_dashboard.json
+      - source: grafana_dashboard_system_anomalies
+        target: /etc/grafana/provisioning/dashboards/json/custom/system_anomalies_dashboard.json
+      - source: grafana_dashboard_watchtower
+        target: /etc/grafana/provisioning/dashboards/json/custom/watchtower_dashboard.json
     secrets:
       - source: google_oauth_secret
       - source: grafana_admin_password
@@ -504,6 +510,15 @@ configs:
   grafana_dashboard_traefik:
     name: grafana_dashboard_traefik-${CONFIG_VERSION:-0}
     file: ../configs/grafana/provisioning/dashboards/traefik_rev4.json
+  grafana_dashboard_docker_swarm:
+    name: grafana_dashboard_docker_swarm-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
+  grafana_dashboard_system_anomalies:
+    name: grafana_dashboard_system_anomalies-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
+  grafana_dashboard_watchtower:
+    name: grafana_dashboard_watchtower-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ../configs/prometheus/prometheus.yml

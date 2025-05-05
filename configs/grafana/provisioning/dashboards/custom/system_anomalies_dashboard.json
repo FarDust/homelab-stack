@@ -1439,7 +1439,8 @@
         "system",
         "anomalies",
         "monitoring",
-        "node-exporter"
+        "node-exporter",
+        "prediction"
     ],
     "templating": {
         "list": []

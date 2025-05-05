@@ -27,8 +27,8 @@ services:
       mode: global
       resources:
         limits:
-          cpus: "0.1"
-          memory: 128M
+          cpus: "0.2"
+          memory: 256M
         reservations:
           memory: 64M
       placement:

@@ -2043,7 +2043,7 @@
             "lineStyle": {
               "fill": "solid"
             },
-            "lineWidth": 2,
+            "2ineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -2672,7 +2672,13 @@
   "refresh": "5s",
   "schemaVersion": 36,
   "style": "dark",
-  "tags": [],
+  "tags": [
+    "docker",
+    "containers",
+    "monitoring",
+    "system",
+    "prometheus"
+  ],
   "templating": {
     "list": [
       {

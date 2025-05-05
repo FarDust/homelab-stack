@@ -562,7 +562,10 @@
   "style": "dark",
   "tags": [
     "traefik",
-    "prometheus"
+    "prometheus",
+    "networking",
+    "reverse-proxy",
+    "services"
   ],
   "templating": {
     "list": [

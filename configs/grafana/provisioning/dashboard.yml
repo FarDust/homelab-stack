@@ -19,3 +19,14 @@ providers:
   updateIntervalSeconds: 10
   options:
     path: /etc/grafana/provisioning/dashboards/json
+
+- name: 'Custom Dashboards'
+  orgId: 1
+  folder: 'Custom'
+  folderUid: 'custom-dashboards'
+  type: file
+  disableDeletion: true
+  editable: true
+  updateIntervalSeconds: 10
+  options:
+    path: /etc/grafana/provisioning/dashboards/json/custom
