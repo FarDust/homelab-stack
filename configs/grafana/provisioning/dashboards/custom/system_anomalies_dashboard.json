@@ -26,7 +26,6 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "links": [],
-  "liveNow": false,
   "panels": [
     {
       "datasource": {
@@ -44,8 +43,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -65,6 +63,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -72,9 +71,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -106,8 +107,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
@@ -131,6 +131,8 @@
       },
       "id": 2,
       "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -140,9 +142,10 @@
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -174,8 +177,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
@@ -199,6 +201,8 @@
       },
       "id": 3,
       "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -208,9 +212,10 @@
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -242,8 +247,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
@@ -261,12 +265,14 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
+        "w": 6,
         "x": 12,
         "y": 0
       },
       "id": 4,
       "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -276,9 +282,10 @@
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -308,8 +315,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
@@ -327,8 +333,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 16,
+        "w": 6,
+        "x": 18,
         "y": 0
       },
       "id": 5,
@@ -337,6 +343,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -344,9 +351,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -365,65 +374,83 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Temperatura promedio de las CPUs",
+      "description": "Monitorización de temperaturas de los componentes del sistema (CPU, discos, zonas térmicas)",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "max": 100,
-          "min": 20,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 65
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "celsius"
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 0
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 4
       },
-      "id": 6,
+      "id": 15,
       "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "mean"
-          ],
-          "fields": "",
-          "values": false
+        "calculate": false,
+        "cellGap": 1,
+        "cellHeight": "sm",
+        "cellValues": {
+          "unit": "celsius"
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "RdYlGn-rev",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 0
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "sort": "none",
+          "yHistogram": false
+        },
+        "xField": "time",
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        },
+        "yAxisLabels": "",
+        "yField": "sensor"
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "node_hwmon_temp_celsius",
+          "expr": "node_hwmon_temp_celsius{chip=~\".*nvme.*\"}",
+          "format": "time_series",
           "interval": "",
-          "legendFormat": "Sensor: {{chip}} - {{label}} ({{name}})",
+          "legendFormat": "NVMe: {{chip}} - {{label||sensor}}",
           "refId": "A"
         },
         {
@@ -431,14 +458,26 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "node_thermal_zone_temp",
+          "expr": "node_hwmon_temp_celsius{chip=~\".*coretemp.*\"}",
+          "format": "time_series",
           "interval": "",
-          "legendFormat": "Zona Térmica: {{name}} ({{type}})",
+          "legendFormat": "CPU: {{chip}} - {{label||sensor}}",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "node_thermal_zone_temp",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "Zona: {{type}} {{name}}",
+          "refId": "C"
         }
       ],
-      "title": "Temperatura",
-      "type": "gauge"
+      "title": "Mapa de Calor de Temperaturas",
+      "type": "heatmap"
     },
     {
       "datasource": {
@@ -452,11 +491,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -465,6 +506,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -486,8 +528,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -564,7 +605,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 13
       },
       "id": 7,
       "options": {
@@ -579,11 +620,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -611,11 +653,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 30,
             "gradientMode": "none",
@@ -624,6 +668,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -645,8 +690,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -662,7 +706,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 13
       },
       "id": 8,
       "options": {
@@ -677,11 +721,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -729,11 +774,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -742,6 +789,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -763,8 +811,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -780,7 +827,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 21
       },
       "id": 9,
       "options": {
@@ -794,11 +841,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -836,11 +884,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -849,6 +899,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -870,8 +921,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -887,7 +937,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 21
       },
       "id": 10,
       "options": {
@@ -901,11 +951,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -933,11 +984,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 30,
             "gradientMode": "none",
@@ -946,6 +999,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -967,8 +1021,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent",
-                "value": null
+                "color": "transparent"
               },
               {
                 "color": "rgba(242, 73, 92, 0.2)",
@@ -984,7 +1037,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 29
       },
       "id": 11,
       "options": {
@@ -1000,11 +1053,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -1052,11 +1106,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -1065,6 +1121,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -1086,8 +1143,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent",
-                "value": null
+                "color": "transparent"
               },
               {
                 "color": "rgba(242, 73, 92, 0.2)",
@@ -1122,7 +1178,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 29
       },
       "id": 12,
       "options": {
@@ -1138,11 +1194,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -1180,11 +1237,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -1193,6 +1252,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -1214,8 +1274,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "rgba(237, 129, 40, 0.2)",
@@ -1235,7 +1294,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 37
       },
       "id": 13,
       "options": {
@@ -1250,11 +1309,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -1282,11 +1342,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 20,
             "gradientMode": "none",
@@ -1295,6 +1357,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
@@ -1316,8 +1379,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1333,7 +1395,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 37
       },
       "id": 14,
       "options": {
@@ -1348,11 +1410,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -1367,137 +1430,11 @@
       ],
       "title": "Frecuencia de CPU",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Monitorización de temperaturas de los componentes del sistema (CPU, discos, zonas térmicas)",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "area"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 60
-              },
-              {
-                "color": "orange",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "celsius"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 36
-      },
-      "id": 15,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "node_hwmon_temp_celsius{chip=~\".*nvme.*\"}",
-          "interval": "",
-          "legendFormat": "NVMe: {{chip}} - {{label||sensor}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "node_hwmon_temp_celsius{chip=~\".*coretemp.*\"}",
-          "interval": "",
-          "legendFormat": "CPU: {{chip}} - {{label||sensor}}",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "node_thermal_zone_temp",
-          "interval": "",
-          "legendFormat": "Zona: {{type}} {{name}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Temperaturas del Sistema",
-      "type": "timeseries"
     }
   ],
-  "refresh": "1m",
-  "schemaVersion": 37,
-  "style": "dark",
+  "preload": false,
+  "refresh": "5s",
+  "schemaVersion": 41,
   "tags": [
     "system",
     "anomalies",
@@ -1508,7 +1445,7 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {
@@ -1528,6 +1465,5 @@
   "timezone": "",
   "title": "System Anomalies and Predictive Analytics Dashboard",
   "uid": "system-anomalies",
-  "version": 1,
-  "weekStart": ""
+  "version": 7
 }
