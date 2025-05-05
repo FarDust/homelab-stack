@@ -18,7 +18,7 @@ services:
         - traefik.http.routers.mcp-grafana.tls=true
         - traefik.http.routers.mcp-grafana.tls.certresolver=le-dns
         
-        # Service configuration
+        # Service configuration with extended timeout parameters
         - traefik.http.services.mcp-grafana.loadbalancer.server.port=8000
         - traefik.http.services.mcp-grafana.loadbalancer.passHostHeader=true
         - traefik.http.services.mcp-grafana.loadbalancer.responseForwarding.flushInterval=100ms
@@ -26,9 +26,11 @@ services:
         # Simple redirect middleware
         - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
         
-        # SSE-specific headers middleware (focused on just what's needed)
+        # Enhanced SSE-specific headers middleware
         - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Cache-Control=no-cache
         - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Connection=keep-alive
+        - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.X-Accel-Buffering=no
+        - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Pragma=no-cache
         
         # Apply middlewares to router
         - traefik.http.routers.mcp-grafana-http.middlewares=https-redirect
