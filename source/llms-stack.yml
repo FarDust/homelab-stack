@@ -94,8 +94,13 @@ services:
       - OPEN_AI_KEY=${ANYTHINGLLM_OPENAI_API_KEY?err}
       - OPEN_MODEL_PREF='gpt-4o-mini'
       - DATA_DIRECTORY=/storage
+      # MCP Configuration (to be managed through the Agent Skills page)
+      - MCP_ENABLED=true
     volumes:
       - anythingllm_storage:/app/server/storage
+    configs:
+      - source: anythingllm_mcp_config
+        target: /app/server/storage/plugins/anythingllm_mcp_servers.json
     deploy:
       replicas: 1
       placement:
@@ -212,3 +217,6 @@ configs:
   litellm_config:
     name: litellm_config-${CONFIG_VERSION:-0}
     file: ../configs/litellm/config.yaml
+  anythingllm_mcp_config:
+    name: anythingllm_mcp_config-${CONFIG_VERSION:-0}
+    file: ../configs/anythingllm/plugins/anythingllm_mcp_servers.json

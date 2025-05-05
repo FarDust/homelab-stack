@@ -45,6 +45,8 @@ services:
     configs:
       - source: playwright_config
         target: /config/config.json
+    volumes:
+      - playwright_browsers:/root/.cache/ms-playwright
     networks:
       - traefik
     deploy:
@@ -67,6 +69,10 @@ services:
 networks:
   traefik:
     external: true
+
+volumes:
+  playwright_browsers:
+    name: mcp_playwright_browsers
 
 configs:
   playwright_config:
