@@ -117,7 +117,7 @@ services:
       # To persist certificates
       - traefik-certificates:/letsencrypt
       - traefik-configs:/etc/traefik/configs
-      
+
       - root-certificates:/etc/ssl/traefik:ro
       # So that Traefik can listen to the Docker events
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
