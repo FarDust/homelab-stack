@@ -1,0 +1,145 @@
+services:
+  mcp-grafana:
+    image: mcp/grafana:latest
+    environment:
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_API_KEY=${MCP_ADMIN_GRAFANA_API_KEY:?err}
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        # Basic routing
+        - traefik.http.routers.mcp-grafana-http.entrypoints=web
+        - traefik.http.routers.mcp-grafana-http.rule=Host(`mcp-grafana.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-grafana.entrypoints=websecure
+        - traefik.http.routers.mcp-grafana.rule=Host(`mcp-grafana.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-grafana.tls=true
+        - traefik.http.routers.mcp-grafana.tls.certresolver=le-dns
+
+        # Service configuration with extended timeout parameters
+        - traefik.http.services.mcp-grafana.loadbalancer.server.port=8000
+        - traefik.http.services.mcp-grafana.loadbalancer.passHostHeader=true
+        - traefik.http.services.mcp-grafana.loadbalancer.responseForwarding.flushInterval=100ms
+
+        # Simple redirect middleware
+        - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+
+        # Enhanced SSE-specific headers middleware
+        - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Cache-Control=no-cache
+        - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Connection=keep-alive
+        - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.X-Accel-Buffering=no
+        - traefik.http.middlewares.sse-headers.headers.customResponseHeaders.Pragma=no-cache
+
+        # Apply middlewares to router
+        - traefik.http.routers.mcp-grafana-http.middlewares=https-redirect
+        - traefik.http.routers.mcp-grafana.middlewares=sse-headers
+
+  mcp-playwright:
+    image: mcp/playwright
+    command:
+      - "--config=/config/config.json"
+      - "--host=0.0.0.0"
+      - "--port=8931"
+    configs:
+      - source: playwright_config
+        target: /config/config.json
+    volumes:
+      - playwright_browsers:/root/.cache/ms-playwright
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        # Basic routing
+        - traefik.http.routers.mcp-playwright-http.entrypoints=web
+        - traefik.http.routers.mcp-playwright-http.rule=Host(`mcp-playwright.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-playwright.entrypoints=websecure
+        - traefik.http.routers.mcp-playwright.rule=Host(`mcp-playwright.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-playwright.tls=true
+        - traefik.http.routers.mcp-playwright.tls.certresolver=le-dns
+        - traefik.http.services.mcp-playwright.loadbalancer.server.port=8931
+        - traefik.http.services.mcp-playwright.loadbalancer.passHostHeader=true
+        - traefik.http.services.mcp-playwright.loadbalancer.responseForwarding.flushInterval=100ms
+        - traefik.http.routers.mcp-playwright-http.middlewares=https-redirect
+        - traefik.http.routers.mcp-playwright.middlewares=sse-headers
+
+  mcp-notion:
+    image: node:18-alpine
+    command: >
+      sh -c "apk add --no-cache python3 &&
+             npm install -g @notionhq/notion-mcp-server &&
+             wget -qO- https://astral.sh/uv/install.sh | sh &&
+             export PATH=$PATH:/root/.local/bin &&
+             /root/.local/bin/uv pip install --system mcp-proxy &&
+             UV_PYTHON_PREFERENCE=only-system
+             /root/.local/bin/uvx mcp-proxy --pass-environment --sse-port=8000 --sse-host=0.0.0.0 --allow-origin '*' -- npx @notionhq/notion-mcp-server"
+    environment:
+      - OPENAPI_MCP_HEADERS={"Authorization":"Bearer ${MCP_NOTION_API_TOKEN}","Notion-Version":"${MCP_NOTION_VERSION}"}
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      labels:
+        - traefik.enable=true
+        # Basic routing
+        - traefik.http.routers.mcp-notion-http.entrypoints=web
+        - traefik.http.routers.mcp-notion-http.rule=Host(`mcp-notion.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-notion.entrypoints=websecure
+        - traefik.http.routers.mcp-notion.rule=Host(`mcp-notion.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-notion.tls=true
+        - traefik.http.routers.mcp-notion.tls.certresolver=le-dns
+
+        # Service configuration with extended timeout parameters for SSE
+        - traefik.http.services.mcp-notion.loadbalancer.server.port=8000
+        - traefik.http.services.mcp-notion.loadbalancer.passHostHeader=true
+        - traefik.http.services.mcp-notion.loadbalancer.responseForwarding.flushInterval=100ms
+
+        # Apply middlewares to router
+        - traefik.http.routers.mcp-notion-http.middlewares=https-redirect
+        - traefik.http.routers.mcp-notion.middlewares=sse-headers
+
+  mcp-inspector:
+    image: node:20-alpine
+    command: >
+      sh -c "mkdir -p /app && cd /app &&
+             npm init -y &&
+             npm install @modelcontextprotocol/inspector@0.11.0 &&
+             npx @modelcontextprotocol/inspector"
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      labels:
+        - traefik.enable=true
+        # Basic routing
+        - traefik.http.routers.mcp-inspector-http.entrypoints=web
+        - traefik.http.routers.mcp-inspector-http.rule=Host(`mcp-inspector.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-inspector.entrypoints=websecure
+        - traefik.http.routers.mcp-inspector.rule=Host(`mcp-inspector.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-inspector.tls=true
+        - traefik.http.routers.mcp-inspector.tls.certresolver=le-dns
+        - traefik.http.services.mcp-inspector.loadbalancer.server.port=6274
+        - traefik.http.services.mcp-inspector.loadbalancer.passHostHeader=true
+        - traefik.http.routers.mcp-inspector-http.middlewares=https-redirect
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  playwright_browsers:
+    name: mcp_playwright_browsers
+
+configs:
+  playwright_config:
+    name: playwright_config-${CONFIG_VERSION:-0}
+    file: ../configs/playwright/config.json

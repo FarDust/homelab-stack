@@ -2,7 +2,7 @@ services:
   auto-gpt:
     image: significantgravitas/auto-gpt:latest-dev
     entrypoint: /bin/bash
-    command: 
+    command:
       - -c
       - "poetry install && poetry run python -m autogpt serve"
     networks:
@@ -28,7 +28,7 @@ services:
   ollama:
     image: ollama/ollama
     entrypoint: /bin/bash
-    command: 
+    command:
       - -c
       - "ollama serve & SERVER_PID=$! && echo 'Ollama server started with PID: '$SERVER_PID && sleep 5 && (ollama pull gemma3:1b && ollama pull llama3.2:1b && ollama pull phi4-mini && ollama pull mistral && ollama pull moondream && ollama pull neural-chat && ollama pull starling-lm && ollama pull llama2-uncensored && ollama pull llava && ollama pull codellama && ollama pull deepseek-r1 && ollama pull granite3.2 && ollama pull llama3.1 && ollama pull nomic-embed-text && echo 'Models installed successfully' &) && wait $SERVER_PID"
     deploy:
@@ -94,8 +94,13 @@ services:
       - OPEN_AI_KEY=${ANYTHINGLLM_OPENAI_API_KEY?err}
       - OPEN_MODEL_PREF='gpt-4o-mini'
       - DATA_DIRECTORY=/storage
+      # MCP Configuration (to be managed through the Agent Skills page)
+      - MCP_ENABLED=true
     volumes:
       - anythingllm_storage:/app/server/storage
+    configs:
+      - source: anythingllm_mcp_config
+        target: /app/server/storage/plugins/anythingllm_mcp_servers.json
     deploy:
       replicas: 1
       placement:
@@ -212,3 +217,6 @@ configs:
   litellm_config:
     name: litellm_config-${CONFIG_VERSION:-0}
     file: ../configs/litellm/config.yaml
+  anythingllm_mcp_config:
+    name: anythingllm_mcp_config-${CONFIG_VERSION:-0}
+    file: ../configs/anythingllm/plugins/anythingllm_mcp_servers.json

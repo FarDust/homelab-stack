@@ -1,0 +1,142 @@
+model_list:
+  # OpenAI Models - with a special catch-all entry
+  - model_name: openai
+    litellm_params:
+      model: openai/<model_name>
+      api_key: ${OPENAI_API_KEY}
+
+  # Specific OpenAI models for direct access
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: gpt-4o-mini
+      api_key: ${OPENAI_API_KEY}
+  
+  # Ollama Models - defining all available models from your ollama service
+  - model_name: gemma3
+    litellm_params:
+      model: ollama/gemma3:1b
+      api_base: http://ollama:11434
+
+  - model_name: llama3.2
+    litellm_params:
+      model: ollama/llama3.2:1b
+      api_base: http://ollama:11434
+  
+  - model_name: phi4-mini
+    litellm_params:
+      model: ollama/phi4-mini
+      api_base: http://ollama:11434
+  
+  - model_name: mistral
+    litellm_params:
+      model: ollama/mistral
+      api_base: http://ollama:11434
+      
+  - model_name: moondream
+    litellm_params:
+      model: ollama/moondream
+      api_base: http://ollama:11434
+      
+  - model_name: neural-chat
+    litellm_params:
+      model: ollama/neural-chat
+      api_base: http://ollama:11434
+      
+  - model_name: starling-lm
+    litellm_params:
+      model: ollama/starling-lm
+      api_base: http://ollama:11434
+      
+  - model_name: llama2-uncensored
+    litellm_params:
+      model: ollama/llama2-uncensored
+      api_base: http://ollama:11434
+      
+  - model_name: llava
+    litellm_params:
+      model: ollama/llava
+      api_base: http://ollama:11434
+  
+  - model_name: codellama
+    litellm_params:
+      model: ollama/codellama
+      api_base: http://ollama:11434
+      
+  - model_name: deepseek-r1
+    litellm_params:
+      model: ollama/deepseek-r1
+      api_base: http://ollama:11434
+      
+  - model_name: granite3.2
+    litellm_params:
+      model: ollama/granite3.2
+      api_base: http://ollama:11434
+  
+  - model_name: llama3.1
+    litellm_params:
+      model: ollama/llama3.1
+      api_base: http://ollama:11434
+      
+  - model_name: nomic-embed-text
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: http://ollama:11434
+  
+  # LocalAI Models - you'll need to pull these models into LocalAI separately
+  - model_name: local-mistral
+    litellm_params:
+      model: localai/mistral
+      api_base: http://localai:8080/v1
+  
+  - model_name: local-llama3
+    litellm_params:
+      model: localai/llama3
+      api_base: http://localai:8080/v1
+      
+  - model_name: local-stablelm
+    litellm_params:
+      model: localai/stablelm
+      api_base: http://localai:8080/v1
+
+# Router configuration for setting up model routing
+router_settings:
+  # Default timeout and max retries
+  timeout: 30
+  max_retries: 2
+  
+  # Set up fallback models if a model fails
+  fallbacks: [
+    {
+      # If OpenAI models fail, fallback to Ollama models
+      "gpt-4o": ["llama3.1", "mistral"],
+      "gpt-3.5-turbo": ["phi4-mini", "mistral"]
+    }
+  ]
+  
+  # Load balancing settings for high throughput
+  routing_strategy: "least-busy"
+
+# General settings
+general_settings:
+  # Set to true to enable more detailed logs
+  debug: true
+  
+  # Telemetry and tracking settings
+  telemetry: false
+  
+  # Redis caching (disabled by default, uncomment if needed)
+  # cache:
+  #   type: redis
+  #   host: redis
+  #   port: 6379
+  #   password: ""
+  
+  # Set a default model
+  default_model: gpt-4o-mini
+
+# Authentication settings (optional)
+# litellm_settings:
+#   # Uncomment and configure if you want API key auth
+#   api_key: "sk-my-secret-key"
+#   # Set allowed API keys that can use the proxy
+#   allowed_api_keys: ["sk-allowed-key-1", "sk-allowed-key-2"]
