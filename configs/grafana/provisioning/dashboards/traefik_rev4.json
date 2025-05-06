@@ -3,7 +3,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -21,7 +24,10 @@
   "links": [],
   "panels": [
     {
-      "datasource": null,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -29,7 +35,7 @@
         "y": 0
       },
       "id": 10,
-      "title": "$service stats",
+      "title": "Service Stats",
       "type": "row"
     },
     {
@@ -41,7 +47,10 @@
         "rgba(237, 129, 40, 0.89)",
         "#299c46"
       ],
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "format": "none",
       "gauge": {
         "maxValue": 100,
@@ -94,28 +103,31 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "count(traefik_service_open_connections)",
+          "expr": "count(count by(service) (traefik_service_requests_total))",
           "format": "time_series",
           "intervalFactor": 2,
           "refId": "A"
         }
       ],
       "thresholds": "0,1",
-      "title": "Number of Traefik Services ",
+      "title": "Number of Traefik Services",
       "type": "singlestat",
       "valueFontSize": "80%",
       "valueMaps": [
         {
           "op": "=",
-          "text": "OK",
-          "value": "1"
+          "text": "N/A",
+          "value": "null"
         }
       ],
       "valueName": "current"
     },
     {
       "cacheTimeout": null,
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "gridPos": {
         "h": 7,
         "w": 8,
@@ -152,7 +164,7 @@
                 "value": 3
               }
             ],
-            "unit": "none"
+            "unit": "s"
           },
           "override": {},
           "values": false
@@ -164,16 +176,16 @@
       "pluginVersion": "6.5.0",
       "targets": [
         {
-          "expr": "traefik_service_request_duration_seconds_sum{service=\"$service\"}",
+          "expr": "sum(rate(traefik_service_request_duration_seconds_sum{service=~\"$service\"}[5m])) / sum(rate(traefik_service_request_duration_seconds_count{service=~\"$service\"}[5m]))",
           "format": "time_series",
           "intervalFactor": 2,
-          "legendFormat": "{{$service}} | {{method}}",
+          "legendFormat": "Average",
           "refId": "A"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Average response time",
+      "title": "Service Response Time",
       "type": "gauge"
     },
     {
@@ -184,7 +196,10 @@
         "label": "Others",
         "threshold": 0
       },
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "fontSize": "80%",
       "format": "short",
       "gridPos": {
@@ -209,20 +224,23 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "avg_over_time(traefik_service_request_duration_seconds_sum{service=\"$service\"}[5m])",
+          "expr": "sum(rate(traefik_service_request_duration_seconds_sum[5m])) by (service)",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],
-      "title": "Avergae Service response time",
+      "title": "Service Response Time Distribution",
       "type": "grafana-piechart-panel",
       "valueName": "current"
     },
     {
       "cacheTimeout": null,
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "gridPos": {
         "h": 7,
         "w": 24,
@@ -235,7 +253,7 @@
         "displayMode": "basic",
         "fieldOptions": {
           "calcs": [
-            "range"
+            "sum"
           ],
           "defaults": {
             "mappings": [],
@@ -257,21 +275,24 @@
       "pluginVersion": "6.5.0",
       "targets": [
         {
-          "expr": "avg(traefik_service_requests_total{service=\"$service\"})",
+          "expr": "sum(increase(traefik_service_requests_total{service=~\"$service\"}[5m])) by (service)",
           "format": "time_series",
           "intervalFactor": 2,
-          "legendFormat": "{{$service}} | {{method}}",
+          "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Total requests over 5min $service",
+      "title": "Total Requests by Service (last 5min)",
       "type": "bargauge"
     },
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -280,7 +301,7 @@
       },
       "id": 12,
       "panels": [],
-      "title": "Global stats",
+      "title": "Entrypoints & Global Stats",
       "type": "row"
     },
     {
@@ -288,7 +309,10 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -327,7 +351,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(traefik_entrypoint_requests_total{entrypoint=~\"$entrypoint\",code=\"200\"}[5m])",
+          "expr": "sum(rate(traefik_entrypoint_requests_total{entrypoint=~\"$entrypoint\",code=\"200\"}[5m])) by (method, code)",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{method}} : {{code}}",
@@ -378,7 +402,10 @@
       }
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "gridPos": {
         "h": 7,
         "w": 12,
@@ -391,7 +418,7 @@
         "displayMode": "basic",
         "fieldOptions": {
           "calcs": [
-            "mean"
+            "lastNotNull"
           ],
           "defaults": {
             "decimals": 0,
@@ -402,6 +429,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
               }
             ],
             "unit": "short"
@@ -415,21 +450,17 @@
       "pluginVersion": "6.5.0",
       "targets": [
         {
-          "expr": "rate(traefik_entrypoint_requests_total{entrypoint=~\"$entrypoint\",code!=\"200\"}[5m]) * 100",
+          "expr": "sum(increase(traefik_service_requests_total{service=~\"$service\",code!=\"200\"}[5m])) by (code)",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
-          "legendFormat": "{{ method }} : {{code}}",
+          "legendFormat": "{{code}}",
           "refId": "A"
-        },
-        {
-          "expr": "avg_over_time",
-          "refId": "B"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Entrypoint Error Codes",
+      "title": "Service Error Codes (last 5min)",
       "type": "bargauge"
     },
     {
@@ -440,7 +471,10 @@
         "label": "Others",
         "threshold": 0
       },
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "fontSize": "80%",
       "format": "short",
       "gridPos": {
@@ -484,7 +518,10 @@
         "label": "Others",
         "threshold": 0
       },
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "fontSize": "80%",
       "format": "short",
       "gridPos": {
@@ -516,7 +553,7 @@
           "refId": "A"
         }
       ],
-      "title": "Requests by protocol",
+      "title": "Requests by Entrypoint",
       "type": "grafana-piechart-panel",
       "valueName": "total"
     }
@@ -525,30 +562,36 @@
   "style": "dark",
   "tags": [
     "traefik",
-    "prometheus"
+    "prometheus",
+    "networking",
+    "reverse-proxy",
+    "services"
   ],
   "templating": {
     "list": [
       {
         "allValue": null,
         "current": {
-          "tags": [],
-          "text": "prometheus@docker",
-          "value": "prometheus@docker"
+          "selected": true,
+          "text": ["All"],
+          "value": ["$__all"]
         },
-        "datasource": "Prometheus",
-        "definition": "label_values(service)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(traefik_service_requests_total, service)",
         "hide": 0,
         "includeAll": true,
-        "label": null,
-        "multi": false,
+        "label": "Service",
+        "multi": true,
         "name": "service",
         "options": [],
-        "query": "label_values(service)",
+        "query": "label_values(traefik_service_requests_total, service)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 1,
         "tagValuesQuery": "",
         "tags": [],
         "tagsQuery": "",
@@ -558,26 +601,26 @@
       {
         "allValue": null,
         "current": {
-          "selected": false,
-          "tags": [],
-          "text": "All",
-          "value": [
-            "$__all"
-          ]
+          "selected": true,
+          "text": ["All"],
+          "value": ["$__all"]
         },
-        "datasource": "Prometheus",
-        "definition": "label_values(entrypoint)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(traefik_entrypoint_requests_total, entrypoint)",
         "hide": 0,
         "includeAll": true,
-        "label": null,
+        "label": "Entrypoint",
         "multi": true,
         "name": "entrypoint",
         "options": [],
-        "query": "label_values(entrypoint)",
+        "query": "label_values(traefik_entrypoint_requests_total, entrypoint)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 1,
         "tagValuesQuery": "",
         "tags": [],
         "tagsQuery": "",
@@ -590,7 +633,10 @@
           "text": "200",
           "value": "200"
         },
-        "datasource": "Prometheus",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "definition": "label_values(code)",
         "hide": 2,
         "includeAll": false,
@@ -658,7 +704,7 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -687,7 +733,7 @@
     ]
   },
   "timezone": "",
-  "title": "Traefik2",
+  "title": "Traefik Service Dashboard",
   "uid": "qPdAviJmz1",
   "version": 1
 }

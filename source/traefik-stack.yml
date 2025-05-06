@@ -117,7 +117,7 @@ services:
       # To persist certificates
       - traefik-certificates:/letsencrypt
       - traefik-configs:/etc/traefik/configs
-      
+
       - root-certificates:/etc/ssl/traefik:ro
       # So that Traefik can listen to the Docker events
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
@@ -230,7 +230,7 @@ services:
       - source: sendgrid_smtp_password
     configs:
       - source: authelia_config
-        target: /config/configuration.yml
+        target: /etc/authelia/configuration.yml
     volumes:
       - authelia-configs:/config
     environment:
@@ -252,6 +252,7 @@ services:
       AUTHELIA_NOTIFIER_SMTP_SENDER: Authelia <${AUTHELIA_SMTP_FROM}>
       AUTHELIA_NOTIFIER_SMTP_STARTUP_CHECK_ADDRESS: ${MAINTAINER_EMAIL}
       AUTHELIA_TOTP_ISSUER: ${DOMAIN_NAME}
+      X_AUTHELIA_CONFIG: /etc/authelia/configuration.yml
     deploy:
       mode: replicated
       replicas: 3
@@ -366,12 +367,22 @@ services:
     #   start_period: 40s
     volumes:
       - grafana_data:/var/lib/grafana
-      - grafana_dashboards:/etc/grafana/provisioning/dashboards
+#      - grafana_dashboards:/etc/grafana/provisioning/dashboards
     configs:
       - source: grafana_datasources
-        target: /etc/grafana/provisioning/datasource.yml
+        target: /etc/grafana/provisioning/datasources/datasource.yml
       - source: grafana_dashboards
-        target: /etc/grafana/provisioning/dashboards/dashboard.yml
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: grafana_dashboard_docker
+        target: /etc/grafana/provisioning/dashboards/json/docker.json
+      - source: grafana_dashboard_traefik
+        target: /etc/grafana/provisioning/dashboards/json/traefik_rev4.json
+      - source: grafana_dashboard_docker_swarm
+        target: /etc/grafana/provisioning/dashboards/json/custom/docker_swarm_dashboard.json
+      - source: grafana_dashboard_system_anomalies
+        target: /etc/grafana/provisioning/dashboards/json/custom/system_anomalies_dashboard.json
+      - source: grafana_dashboard_watchtower
+        target: /etc/grafana/provisioning/dashboards/json/custom/watchtower_dashboard.json
     secrets:
       - source: google_oauth_secret
       - source: grafana_admin_password
@@ -492,7 +503,22 @@ configs:
     file: ../configs/grafana/provisioning/datasources/datasource.yml
   grafana_dashboards:
     name: grafana_dashboards-${CONFIG_VERSION:-0}
-    file: ../configs/grafana/provisioning/dashboards/dashboard.yml
+    file: ../configs/grafana/provisioning/dashboard.yml
+  grafana_dashboard_docker:
+    name: grafana_dashboard_docker-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/docker.json
+  grafana_dashboard_traefik:
+    name: grafana_dashboard_traefik-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/traefik_rev4.json
+  grafana_dashboard_docker_swarm:
+    name: grafana_dashboard_docker_swarm-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
+  grafana_dashboard_system_anomalies:
+    name: grafana_dashboard_system_anomalies-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
+  grafana_dashboard_watchtower:
+    name: grafana_dashboard_watchtower-${CONFIG_VERSION:-0}
+    file: ../configs/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ../configs/prometheus/prometheus.yml
