@@ -8,6 +8,14 @@
     "playwright-mcp": {
       "type": "sse",
       "url": "http://mcp-playwright:8931/sse"
+    },
+    "notion-mcp": {
+      "type": "sse",
+      "url": "http://mcp-notion:8000/sse"
+    },
+    "inspector-mcp": {
+      "type": "sse",
+      "url": "http://mcp-inspector:6274/sse"
     }
   }
 }
