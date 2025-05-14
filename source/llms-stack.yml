@@ -161,17 +161,19 @@ services:
       - localai_data:/usr/share/local-ai/models
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
+    command:
+      - --config
+      - /app/config/config.yaml
+      - --detailed_debug
     networks:
       - traefik
     environment:
       - PORT=4000
-      - LITELLM_MODEL_CONFIG=/app/config/config.yaml
-      - PROXY_LOG_LEVEL=DEBUG
       - OPENAI_API_KEY=${OPENAI_API_KEY?err}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY?err}
-      - STORE_MODEL_IN_DB=False
     volumes:
       - litellm_logs:/app/logs
+      - litellm_data:/app/data
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
@@ -212,6 +214,8 @@ volumes:
   localai_data:
     driver: local
   litellm_logs:
+    driver: local
+  litellm_data:
     driver: local
 configs:
   litellm_config:
