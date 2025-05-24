@@ -55,3 +55,14 @@ http:
             showDetails: true
             theme: shuffle
             refreshFrequency: 10s
+    load-productivity:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier-app:10000
+          sessionDuration: 3m
+          group: productivity
+          dynamic:
+            displayName: Herramientas de Productividad 📝
+            showDetails: true
+            theme: shuffle
+            refreshFrequency: 8s

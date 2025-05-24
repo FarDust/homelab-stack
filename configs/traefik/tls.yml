@@ -1,4 +1,7 @@
 tls:
+  options:
+    default:
+      sniStrict: true
   stores:
     default:
       defaultCertificate:

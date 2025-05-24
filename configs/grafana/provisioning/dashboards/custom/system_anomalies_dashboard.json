@@ -25,6 +25,7 @@
     "editable": true,
     "fiscalYearStartMonth": 0,
     "graphTooltip": 1,
+    "id": 13,
     "links": [],
     "panels": [
         {
@@ -75,7 +76,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -145,7 +146,7 @@
                 "showThresholdMarkers": true,
                 "sizing": "auto"
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -215,7 +216,7 @@
                 "showThresholdMarkers": true,
                 "sizing": "auto"
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -285,7 +286,7 @@
                 "showThresholdMarkers": true,
                 "sizing": "auto"
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -355,7 +356,7 @@
                 "textMode": "auto",
                 "wideLayout": true
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -407,6 +408,7 @@
                 "color": {
                     "exponent": 0.5,
                     "fill": "dark-orange",
+                    "max": 80,
                     "mode": "scheme",
                     "reverse": false,
                     "scale": "exponential",
@@ -440,7 +442,7 @@
                 "yAxisLabels": "",
                 "yField": "sensor"
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -625,7 +627,7 @@
                     "sort": "desc"
                 }
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -726,7 +728,7 @@
                     "sort": "desc"
                 }
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -846,7 +848,7 @@
                     "sort": "none"
                 }
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -956,7 +958,7 @@
                     "sort": "none"
                 }
             },
-            "pluginVersion": "11.6.1",
+            "pluginVersion": "12.0.0",
             "targets": [
                 {
                     "datasource": {
@@ -1453,5 +1455,5 @@
     "timezone": "",
     "title": "System Anomalies and Predictive Analytics Dashboard",
     "uid": "system-anomalies",
-    "version": 7
+    "version": 16
 }

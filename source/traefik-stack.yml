@@ -20,6 +20,9 @@ services:
       - "--api=true"
       - "--api.dashboard=true"
       - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=traefik"
       - "--providers.swarm=true"
       - "--providers.swarm.watch"
       - "--providers.swarm.exposedbydefault=false"
@@ -65,10 +68,6 @@ services:
       retries: 3
       start_period: 30s
     ports:
-      - target: 8080
-        published: 8080
-        protocol: tcp
-        mode: ingress
       - target: 53
         published: 53
         protocol: tcp
@@ -181,8 +180,10 @@ services:
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock'
     deploy:
-      mode: replicated
-      replicas: 1
+      mode: global
+      placement:
+        constraints:
+          - node.role == manager
       labels:
         - 'traefik.enable=true'
         - "traefik.http.routers.sablier.rule=Host(`sablier.${LOCAL_DOMAIN}`)"
