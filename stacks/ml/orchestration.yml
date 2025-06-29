@@ -1,0 +1,83 @@
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+
+services:
+  metaflow-metadata:
+    image: "netflixoss/metaflow_metadata_service:latest"
+    networks:
+      - traefik
+      - traefik-public
+    environment:
+      - MF_METADATA_DB_HOST=${MF_METADATA_DB_HOST:?err}
+      - MF_METADATA_DB_PORT=${MF_METADATA_DB_PORT:-5432}
+      - MF_METADATA_DB_USER=${MF_METADATA_DB_USER:?err}
+      - MF_METADATA_DB_PSWD=${MF_METADATA_DB_PASSWORD:?err}
+      - MF_METADATA_DB_NAME=${MF_METADATA_DB_NAME:-metaflow}
+      # Optional: Allow connection to slower databases
+      - MF_SERVICE_STARTUP_WAITTIME_SECONDS=5
+      - MF_SERVICE_STARTUP_RETRIES=5
+      - MF_SERVICE_CONNECTION_RETRY_WAITTIME_SECONDS=5
+      # Optional: Enable migration endpoints
+      - MF_MIGRATION_ENDPOINTS_ENABLED=1
+      - MF_METADATA_PORT=${MF_METADATA_PORT:-8080}
+      - MF_METADATA_HOST=${MF_METADATA_HOST:-0.0.0.0}
+      - MF_MIGRATION_PORT=${MF_MIGRATION_PORT:-8082}
+    deploy:
+      mode: replicated
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=traefik-public"
+        # API Service
+        - "traefik.http.routers.metaflow.rule=Host(`metaflow.${LOCAL_DOMAIN:?err}`)"
+        - "traefik.http.routers.metaflow.entrypoints=websecure"
+        - "traefik.http.routers.metaflow.tls=true"
+        - "traefik.http.routers.metaflow.tls.certresolver=le-dns"
+        - "traefik.http.services.metaflow-api.loadbalancer.server.port=${MF_METADATA_PORT:-8080}"
+        - "traefik.http.routers.metaflow.service=metaflow-api"
+  metaflow-ui:
+    image: "netflixoss/metaflow_metadata_service:latest"
+
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["apt-get update -y && apt-get -y install libpq-dev unzip gcc curl && services/ui_backend_service/download_ui.sh && pip install --editable . && ui_backend_service"]
+    networks:
+      - traefik
+      - traefik-public
+    environment:
+      - UI_ENABLED=1
+      - UI_VERSION=v1.3.13
+      - MF_UI_METADATA_PORT=${MF_UI_METADATA_PORT:-8083}
+      - MF_METADATA_DB_HOST=${MF_METADATA_DB_HOST:?err}
+      - MF_METADATA_DB_PORT=${MF_METADATA_DB_PORT:-5432}
+      - MF_METADATA_DB_USER=${MF_METADATA_DB_USER:?err}
+      - MF_METADATA_DB_PSWD=${MF_METADATA_DB_PASSWORD:?err}
+      - MF_METADATA_DB_NAME=${MF_METADATA_DB_NAME:-metaflow}
+      - MF_METADATA_DB_TIMEOUT=${MF_METADATA_DB_TIMEOUT:-120}
+      # Optional: Allow connection to slower databases
+      - MF_SERVICE_STARTUP_WAITTIME_SECONDS=5
+      - MF_SERVICE_STARTUP_RETRIES=5
+      - MF_SERVICE_CONNECTION_RETRY_WAITTIME_SECONDS=5
+      - LOGLEVEL=INFO
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: none
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=traefik-public"
+        # UI Service
+        - "traefik.http.routers.metaflow-ui.rule=Host(`metaflow-ui.${LOCAL_DOMAIN:?err}`)"
+        - "traefik.http.routers.metaflow-ui.entrypoints=websecure"
+        - "traefik.http.routers.metaflow-ui.tls=true"
+        - "traefik.http.routers.metaflow-ui.tls.certresolver=le-dns"
+        - "traefik.http.services.metaflow-ui.loadbalancer.server.port=${MF_UI_METADATA_PORT:-8083}"
+        - "traefik.http.routers.metaflow-ui.service=metaflow-ui"
+        - "traefik.http.routers.metaflow-ui.middlewares=authelia@swarm"
