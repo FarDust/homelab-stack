@@ -161,25 +161,18 @@ Here's how the stacks depend on each other:
 
 1. **Core Requirements**
    - `traefik-stack.yml` - Required by all other stacks
-   
+
 2. **Optional Stacks with Dependencies**
    - `database-stack.yml` - Required if not using SaaS database providers
    - All other stacks depend on both Traefik and appropriate database services
 
 ## System Requirements
 
-### Minimum Hardware (Core Traefik Stack only)
+### Minimum Hardware
 - CPU: Dual-core CPU (Intel Pentium G4400 or equivalent)
 - RAM: 4GB minimum
 - Storage: 20GB for Docker images and configuration
-- Network: Stable internet connection for SSL certificates
-
-### Recommended Hardware (Full Stack including LLMs)
-- CPU: Quad-core CPU or better
-- RAM: 16GB minimum (32GB recommended for running multiple LLMs)
-- GPU: Dedicated GPU for AI model acceleration (optional but recommended)
-- Storage: 100GB+ SSD for Docker images, data, and model storage
-- Network: High-speed internet connection
+- Network: Stable internet connection for SSL certificatesn
 
 > **Note**: The current deployment is running on an Intel Pentium G4400 (2 cores @ 3.3GHz) with 8GB RAM, which is sufficient for the core services but may struggle with multiple LLM services running simultaneously.
 
@@ -337,7 +330,7 @@ The stack uses Authelia for Single Sign-On (SSO) and Multi-Factor Authentication
 The following authentication methods are configured:
 
 - **First Factor**: Username/password authentication against a file-based user database
-- **Second Factor**: 
+- **Second Factor**:
   - Duo Push mobile notifications (default)
   - TOTP (Time-based One-Time Password)
   - WebAuthn (hardware security keys)
@@ -624,17 +617,193 @@ For databases with write loads:
 
 #### Secrets Management
 
-The stack is designed to be forked and maintained with secrets managed through:
+This homelab stack implements comprehensive secret management patterns designed for security, maintainability, and scalability. The approach combines Docker Swarm file-based secrets with cloud integration for production deployments.
 
-1. **GCP Secret Manager Integration**:
-   - Store all sensitive credentials in GCP Secret Manager
-   - Configure GitHub Actions to access secrets securely
-   - Rotate secrets regularly
+##### Directory Structure and Organization
 
-2. **Security Best Practices**:
-   - Keep the forked repository public for community contributions
-   - Use tools like GitGuardian to prevent accidental credential exposure
-   - Implement secret scanning in CI/CD pipelines
+Secrets are organized in a hierarchical directory structure:
+
+```
+secrets/
+├── authelia/          # Authentication service secrets
+│   ├── jwt_secret
+│   ├── session_secret
+│   ├── encryption_key
+│   ├── postgres_password
+│   └── users.yml
+├── cloudflare/        # DNS challenge credentials
+│   ├── dns_api_token
+│   └── zone_api_token
+├── databases/         # Database credentials by service
+│   ├── postgres/postgres_db_password
+│   ├── redis/redis_password
+│   ├── mongodb/mongodb_root_password
+│   └── opensearch/opensearch_password
+├── storage/           # Object storage credentials
+│   ├── minio/minio_access_key
+│   ├── minio/minio_secret_key
+│   └── ...
+└── services/          # Service-specific secrets
+    ├── grafana/admin_password
+    ├── portainer/admin_password
+    └── ...
+```
+
+##### Docker Swarm File-Based Secrets Pattern
+
+All services use Docker Swarm's native file-based secrets for maximum security:
+
+```yaml
+# In compose files
+secrets:
+  service_password:
+    file: ../../secrets/service/password_file
+
+services:
+  myservice:
+    secrets:
+      - service_password
+    environment:
+      # Use _FILE pattern when supported by the container
+      - SERVICE_PASSWORD_FILE=/run/secrets/service_password
+      # Or load via environment variable pattern
+      - SERVICE_PASSWORD=$(cat /run/secrets/service_password | tr -d '\n')
+```
+
+##### Cryptographic Secret Generation
+
+Use strong cryptographic practices for generating secrets:
+
+```bash
+# High-entropy secrets (64-character hex)
+openssl rand -hex 64 > secrets/authelia/jwt_secret
+openssl rand -hex 64 > secrets/authelia/session_secret
+openssl rand -hex 64 > secrets/authelia/encryption_key
+
+# Medium-entropy secrets (32-character hex)
+openssl rand -hex 32 > secrets/redis/redis_password
+openssl rand -hex 32 > secrets/watchtower/auth_token
+
+# Base64 encoded secrets (for services requiring specific formats)
+openssl rand -base64 32 > secrets/mongodb/mongodb_root_password
+openssl rand -base64 44 > secrets/minio/minio_secret_key
+
+# Complex passwords meeting specific requirements
+# For OpenSearch: 8+ chars, uppercase, lowercase, digit, special char
+openssl rand -base64 16 | sed 's/[^a-zA-Z0-9]//g' | head -c 12 && echo -n 'A1@'
+```
+
+##### Container Integration Patterns
+
+**Pattern 1: _FILE Environment Variables (Preferred)**
+Many modern containers support `_FILE` environment variables:
+
+```yaml
+environment:
+  - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+  - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+  - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_secret_key
+```
+
+**Pattern 2: Environment Variable Loading**
+For containers that don't support `_FILE` pattern:
+
+```bash
+# In .env file
+export MONGODB_ROOT_PASSWORD=$(cat secrets/mongodb/mongodb_root_password | tr -d '\n')
+export GRAFANA_ADMIN_PASSWORD=$(cat secrets/grafana/admin_password | tr -d '\n')
+```
+
+**Pattern 3: Init Container Pattern**
+For complex secret processing:
+
+```yaml
+services:
+  secret-loader:
+    image: alpine
+    command: >
+      sh -c "cat /run/secrets/source_secret > /shared/processed_secret"
+    secrets:
+      - source_secret
+    volumes:
+      - shared_secrets:/shared
+```
+
+##### Security Best Practices
+
+1. **File-Based vs Hardcoded**:
+   - ✅ Use Docker secrets with file-based loading
+   - ❌ Never hardcode secrets in compose files
+   - ❌ Avoid plain text environment variables for secrets
+
+2. **Secret Rotation and Lifecycle**:
+   - Generate new secrets during initial setup
+   - Use version tags for secrets that need rotation
+   - Implement regular secret rotation procedures
+   - Document secret dependencies between services
+
+3. **Access Control**:
+   - Restrict file permissions: `chmod 600` for secret files
+   - Use `.gitignore` to prevent accidental commits
+   - Separate secrets by service responsibility
+   - Implement principle of least privilege
+
+4. **Development vs Production**:
+   ```bash
+   # Development: Local file-based secrets
+   secrets/service/password_file
+
+   # Production: External secret management
+   ```
+
+##### Cloud Integration Patterns
+
+**GCP Secret Manager Integration**:
+```yaml
+# GitHub Actions pattern
+- name: Get secrets from GCP
+  uses: google-github-actions/get-secretmanager-secrets@v0
+  with:
+    secrets: |
+      db-password:${{ secrets.GCP_PROJECT_ID }}/database-password
+      api-key:${{ secrets.GCP_PROJECT_ID }}/service-api-key
+```
+
+**CI/CD Secret Management**:
+```bash
+# Automated secret deployment
+echo '${{ steps.get-secrets.outputs.db-password }}' | tr -d '\n' > ./secrets/database/password
+echo '${{ steps.get-secrets.outputs.api-key }}' | tr -d '\n' > ./secrets/service/api_key
+```
+
+##### Troubleshooting Common Issues
+
+1. **Secret Not Found**: Verify file paths are relative to compose file location
+2. **Permission Denied**: Check file permissions and Docker daemon access
+3. **Empty Secrets**: Ensure `tr -d '\n'` removes trailing newlines
+4. **Service Won't Start**: Validate secret file exists before container starts
+5. **Hardcoded Values**: Replace static strings with file-based secret loading
+
+##### Migration from Hardcoded Secrets
+
+When updating existing services:
+
+```yaml
+# Before (insecure)
+environment:
+  - DATABASE_PASSWORD=hardcoded-password
+  - API_KEY=static-key
+
+# After (secure)
+secrets:
+  - database_password
+  - api_key
+environment:
+  - DATABASE_PASSWORD_FILE=/run/secrets/database_password
+  - API_KEY_FILE=/run/secrets/api_key
+```
+
+This comprehensive approach ensures secrets are handled securely throughout the entire lifecycle, from development to production deployment, while maintaining the flexibility needed for a homelab environment.
 
 ### Disaster Recovery Procedures
 
@@ -701,7 +870,7 @@ The LLM stack provides several complementary services:
 - **Description**: High-performance interface for running local models
 - **Available Models**: gemma3, llama3.2, phi4-mini, mistral, neural-chat, and more
 - **Hardware Recommendation**: 4GB+ RAM, ideally with GPU acceleration
-- **Best For**: 
+- **Best For**:
   - Quick personal assistants without data leaving your network
   - Document analysis and content generation
   - Code completion and debugging assistance
@@ -774,7 +943,7 @@ This guide provides detailed instructions to deploy the entire homelab stack fro
 2. **Server Preparation**:
    - Install Ubuntu Server (24.04 LTS recommended)
    - Update the system: `sudo apt update && sudo apt upgrade -y`
-   - Install Docker: 
+   - Install Docker:
      ```bash
      curl -fsSL https://get.docker.com -o get-docker.sh
      sudo sh get-docker.sh
@@ -799,16 +968,16 @@ This guide provides detailed instructions to deploy the entire homelab stack fro
    ```bash
    # Copy the example environment file
    cp .env.example .env
-   
+
    # Edit .env with your actual settings
    nano .env
-   
+
    # Source the environment file to make variables available to your shell
    source .env
    ```
 
 3. **Create Required Secret Files**:
-   
+
    Create directories for secrets:
    ```bash
    mkdir -p secrets/{authelia,cloudflare,grafana,postgres,sendgrid,google,pihole,watchtower,fireflyiii}
@@ -826,7 +995,7 @@ This guide provides detailed instructions to deploy the entire homelab stack fro
    echo "$(openssl rand -hex 64)" > secrets/authelia/encryption_key
    echo "$(openssl rand -hex 32)" > secrets/authelia/redis_password
    echo "securepassword" > secrets/authelia/postgres_password
-   
+
    # Create a default users file for Authelia
    cat > secrets/authelia/users.yml << EOL
    users:
@@ -848,7 +1017,7 @@ This guide provides detailed instructions to deploy the entire homelab stack fro
    ```bash
    docker network create -d overlay --attachable traefik
    docker network create -d overlay --attachable traefik-public
-   
+
    # Optional: Create DNSCrypt network if using DNS services
    docker network create -d overlay --attachable --subnet=10.10.0.0/24 --ip-range=10.10.0.0/28 dnscrypt-network
    ```
@@ -862,14 +1031,14 @@ Follow this sequence to deploy the stacks in the correct order:
    ```bash
    # Make sure environment variables are loaded
    source .env
-   
+
    # Set a config version (using git commit hash or increment manually)
    export CONFIG_VERSION=$(git rev-parse --short HEAD)
-   
+
    # Deploy the stack
    docker stack deploy -c source/traefik-stack.yml traefik
    ```
-   
+
    Verify deployment:
    ```bash
    docker service ls | grep traefik
@@ -881,11 +1050,11 @@ Follow this sequence to deploy the stacks in the correct order:
    ```bash
    # Ensure environment variables are still loaded
    source .env
-   
+
    # Deploy the database stack
    docker stack deploy -c source/database-stack.yml db
    ```
-   
+
    Verify deployment:
    ```bash
    docker service ls | grep db
@@ -896,16 +1065,16 @@ Follow this sequence to deploy the stacks in the correct order:
    Remember to source your environment variables before each deployment command:
    ```bash
    source .env
-   
+
    # LLM Stack (for AI capabilities)
    docker stack deploy -c source/llms-stack.yml llms
-   
+
    # DNS Stack (for local DNS resolution)
    docker stack deploy -c source/dns-stack.yml dns
-   
+
    # Web Services Stack
    docker stack deploy -c source/web-stack.yml web
-   
+
    # Additional specialized stacks
    docker stack deploy -c source/financial-stack.yml finance
    docker stack deploy -c source/bi-stack.yml bi
@@ -1040,7 +1209,3 @@ Key points to understand:
 - **No Warranty**: This project is provided "as is" under the MIT License without any warranty or guarantee of functionality
 
 This repository is licensed under the MIT License. See the [LICENSE](LICENSE) file in the repository root for the full license text. Note that this license applies only to the configuration and documentation within this repository, not to the third-party software included in the Docker images.
-
-
-
-
