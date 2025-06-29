@@ -30,17 +30,17 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik"
+        - "traefik.swarm.network=traefik"
         # UDP traffic
         - "traefik.udp.routers.homeassistant.entrypoints=discovery-udp"
-        - "traefik.udp.routers.homeassistant.service=homeassistant@docker"
+        - "traefik.udp.routers.homeassistant.service=homeassistant@swarm"
         - "traefik.udp.services.homeassistant.loadbalancer.server.port=5353/udp"
         - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.homeassistant.service=homeassistant@docker"
+        - "traefik.http.routers.homeassistant.service=homeassistant@swarm"
         - "traefik.http.routers.homeassistant-http.entrypoints=web"
         - "traefik.http.routers.homeassistant-http.rule=Host(`homeassistant.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.homeassistant.entrypoints=websecure"
-        - "traefik.http.routers.homeassistant-http.middlewares=homeassistant-https@docker"
+        - "traefik.http.routers.homeassistant-http.middlewares=homeassistant-https@swarm"
         - "traefik.http.middlewares.homeassistant-https.redirectscheme.scheme=https"
         - "traefik.http.routers.homeassistant.tls=true"
         - "traefik.http.routers.homeassistant.tls.certresolver=le-dns"

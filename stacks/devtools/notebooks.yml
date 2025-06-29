@@ -23,13 +23,13 @@ services:
         condition: on-failure
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik"
+        - "traefik.swarm.network=traefik"
         - "traefik.http.routers.tensorflow.rule=Host(`jupyter.tensorflow.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.tensorflow.service=tensorflow@docker"
+        - "traefik.http.routers.tensorflow.service=tensorflow@swarm"
         - "traefik.http.routers.tensorflow-http.entrypoints=web"
         - "traefik.http.routers.tensorflow-http.rule=Host(`jupyter.tensorflow.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.tensorflow.entrypoints=websecure"
-        - "traefik.http.routers.tensorflow-http.middlewares=tensorflow-https@docker"
+        - "traefik.http.routers.tensorflow-http.middlewares=tensorflow-https@swarm"
         - "traefik.http.middlewares.tensorflow-https.redirectscheme.scheme=https"
         - "traefik.http.routers.tensorflow.tls=true"
         - "traefik.http.routers.tensorflow.tls.certresolver=le-dns"
