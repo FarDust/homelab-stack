@@ -142,4 +142,4 @@ volumes:
 configs:
   playwright_config:
     name: playwright_config-${CONFIG_VERSION:-0}
-    file: ../configs/playwright/config.json
+    file: ./configs/playwright/config.json

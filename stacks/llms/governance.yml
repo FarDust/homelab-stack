@@ -1,30 +1,4 @@
 services:
-  auto-gpt:
-    image: significantgravitas/auto-gpt:latest-dev
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - "poetry install && poetry run python -m autogpt serve"
-    networks:
-      - traefik
-    volumes:
-      - auto-gpt-data:/app/data
-      - auto-gpt-logs:/app/logs
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY?err}
-    deploy:
-      replicas: 1
-      labels:
-        - traefik.enable=true
-        - traefik.http.routers.autogpt-http.entrypoints=web
-        - traefik.http.routers.autogpt-http.rule=Host(`autogpt.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.autogpt.entrypoints=websecure
-        - traefik.http.routers.autogpt.rule=Host(`autogpt.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.autogpt-http.middlewares=autogpt-https@swarm
-        - traefik.http.middlewares.autogpt-https.redirectscheme.scheme=https
-        - traefik.http.routers.autogpt.tls=true
-        - traefik.http.routers.autogpt.tls.certresolver=le-dns
-        - traefik.http.services.autogpt.loadbalancer.server.port=8000
   ollama:
     image: ollama/ollama
     entrypoint: /bin/bash
@@ -33,10 +7,14 @@ services:
       - "ollama serve & SERVER_PID=$! && echo 'Ollama server started with PID: '$SERVER_PID && sleep 5 && (ollama pull gemma3:1b && ollama pull llama3.2:1b && ollama pull phi4-mini && ollama pull mistral && ollama pull moondream && ollama pull neural-chat && ollama pull starling-lm && ollama pull llama2-uncensored && ollama pull llava && ollama pull codellama && ollama pull deepseek-r1 && ollama pull granite3.2 && ollama pull llama3.1 && ollama pull nomic-embed-text && echo 'Models installed successfully' &) && wait $SERVER_PID"
     deploy:
       replicas: 1
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 4.5G
+      placement:
+        constraints:
+        - node.labels.gpu == true
+        - node.labels.gpu.class == high-end
+      # resources:
+      #   limits:
+      #     cpus: '1.5'
+      #     memory: 4.5G
       restart_policy:
         condition: any
         delay: 5s
@@ -58,6 +36,7 @@ services:
     environment:
       - OLLAMA_NUM_THREAD=2
       - OLLAMA_HOST=0.0.0.0
+      - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - traefik
   anythingllm:
@@ -107,6 +86,8 @@ services:
         constraints:
           - node.platform.os == linux
           - node.platform.arch == x86_64
+          - node.role == manager
+          - node.labels.swarm.leader == true
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -127,12 +108,12 @@ services:
         - traefik.http.routers.anythingllm.tls=true
         - traefik.http.routers.anythingllm.tls.certresolver=le-dns
         - traefik.http.services.anythingllm.loadbalancer.server.port=3001
-  localai:
+  localai-cpu:
     image: localai/localai:latest-cpu
     networks:
       - traefik
     environment:
-      - LOCALAI_P2P=true
+      - LOCALAI_P2P=false
       - LOCALAI_FEDERATED=true
       - FEDERATED_SERVER=true
     deploy:
@@ -141,6 +122,9 @@ services:
         limits:
           cpus: '1.5'
           memory: 4G
+      placement:
+        constraints:
+        - node.labels.gpu == false
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -164,19 +148,22 @@ services:
     command:
       - --config
       - /app/config/config.yaml
-      - --detailed_debug
     networks:
       - traefik
     environment:
       - PORT=4000
       - OPENAI_API_KEY=${OPENAI_API_KEY?err}
+      - GITHUB_API_KEY=${LITELLM_GITHUB_TOKEN?err}
+      - OPENROUTER_API_KEY=${LITELLM_OPENROUTER_API_KEY?err}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY?err}
-    volumes:
-      - litellm_logs:/app/logs
-      - litellm_data:/app/data
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/vertex_ai_credentials
+      - DATABASE_URL=postgresql://${LITELLM_DB_URL?err}/${LITELLM_DB:-postgres}
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
+    secrets:
+      - source: vertex_ai_credentials
+        target: vertex_ai_credentials
     deploy:
       replicas: 1
       resources:
@@ -199,28 +186,72 @@ services:
         - traefik.http.routers.litellm.tls=true
         - traefik.http.routers.litellm.tls.certresolver=le-dns
         - traefik.http.services.litellm.loadbalancer.server.port=4000
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    networks:
+      - traefik
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+    volumes:
+      - open_webui_data:/app/backend/data
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+      placement:
+        constraints:
+        - node.labels.gpu == true
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.open-webui-http.entrypoints=web
+        - traefik.http.routers.open-webui-http.rule=Host(`chat.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.open-webui.entrypoints=websecure
+        - traefik.http.routers.open-webui.rule=Host(`chat.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.open-webui-http.middlewares=open-webui-https@swarm
+        - traefik.http.middlewares.open-webui-https.redirectscheme.scheme=https
+        - traefik.http.routers.open-webui.tls=true
+        - traefik.http.routers.open-webui.tls.certresolver=le-dns
+        - traefik.http.services.open-webui.loadbalancer.server.port=8080
 networks:
   traefik:
     external: true
 volumes:
-  auto-gpt-data:
-    driver: local
-  auto-gpt-logs:
-    driver: local
   ollama_data:
-    driver: local
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/ollama/data"
+      allow_other: "true"
+      vfs_cache_mode: full
   anythingllm_storage:
     driver: local
   localai_data:
-    driver: local
-  litellm_logs:
-    driver: local
-  litellm_data:
-    driver: local
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/localai/data"
+      allow_other: "true"
+      vfs_cache_mode: full
+  open_webui_data:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/open_web_ui/data"
+      allow_other: "true"
+      vfs_cache_mode: full
 configs:
   litellm_config:
     name: litellm_config-${CONFIG_VERSION:-0}
-    file: ../configs/litellm/config.yaml
+    file: ./configs/litellm/config.yaml
   anythingllm_mcp_config:
     name: anythingllm_mcp_config-${CONFIG_VERSION:-0}
-    file: ../configs/anythingllm/plugins/anythingllm_mcp_servers.json
+    file: ./configs/anythingllm/plugins/anythingllm_mcp_servers.json
+secrets:
+  vertex_ai_credentials:
+    name: vertex_ai_credentials-${CONFIG_VERSION:-0}
+    file: ../../secrets/google/vertex_ai/credentials.json
