@@ -2669,7 +2669,7 @@
       "type": "table"
     }
   ],
-  "refresh": "5s",
+  "refresh": "1m",
   "schemaVersion": 36,
   "style": "dark",
   "tags": [
