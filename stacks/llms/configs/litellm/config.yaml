@@ -1,0 +1,712 @@
+litellm_settings:
+  vertex_location: "us-central1"
+
+model_list:
+  # OpenAI Models
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: chatgpt-4o-latest
+    litellm_params:
+      model: openai/chatgpt-4o-latest
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-4o-mini-search-preview
+    litellm_params:
+      model: openai/gpt-4o-mini-search-preview
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-4o-search-preview
+    litellm_params:
+      model: openai/gpt-4o-search-preview
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: o1
+    litellm_params:
+      model: openai/o1
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: o1-mini
+    litellm_params:
+      model: openai/o1-mini
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: o1-pro
+    litellm_params:
+      model: openai/o1-pro
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: o3
+    litellm_params:
+      model: openai/o3
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: o3-mini
+    litellm_params:
+      model: openai/o3-mini
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: o4-mini
+    litellm_params:
+      model: openai/o4-mini
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: openai/text-embedding-3-small
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: text-embedding-ada-002
+    litellm_params:
+      model: openai/text-embedding-ada-002
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: text-embedding-3-large
+    litellm_params:
+      model: openai/text-embedding-3-large
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: whisper-1
+    litellm_params:
+      model: openai/whisper-1
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: dall-e-3
+    litellm_params:
+      model: openai/dall-e-3
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: tts-1
+    litellm_params:
+      model: openai/tts-1
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: tts-1-hd
+    litellm_params:
+      model: openai/tts-1-hd
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  # GitHub Models
+  - model_name: github.llama-3.1-8b-instant
+    litellm_params:
+      model: github/llama-3.1-8b-instant
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.llama-3.1-70b-versatile
+    litellm_params:
+      model: github/llama-3.1-70b-versatile
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Llama-3.2-11B-Vision-Instruct
+    litellm_params:
+      model: github/Llama-3.2-11B-Vision-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.llama3-70b-8192
+    litellm_params:
+      model: github/llama3-70b-8192
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.llama2-70b-4096
+    litellm_params:
+      model: github/llama2-70b-4096
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.mixtral-8x7b-32768
+    litellm_params:
+      model: github/mixtral-8x7b-32768
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  - model_name: github.gemma-7b-it
+    litellm_params:
+      model: github/gemma-7b-it
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: google
+
+  # GitHub Models - AI21 Labs
+  - model_name: github.AI21-Jamba-1-5-Large
+    litellm_params:
+      model: github/AI21-Jamba-1-5-Large
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: ai21
+
+  - model_name: github.AI21-Jamba-1-5-Mini
+    litellm_params:
+      model: github/AI21-Jamba-1-5-Mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: ai21
+
+  # GitHub Models - Mistral AI
+  - model_name: github.Codestral-2501
+    litellm_params:
+      model: github/Codestral-2501
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  - model_name: github.Ministral-3B
+    litellm_params:
+      model: github/Ministral-3B
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  - model_name: github.Mistral-Large-2411
+    litellm_params:
+      model: github/Mistral-Large-2411
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  - model_name: github.Mistral-Nemo
+    litellm_params:
+      model: github/Mistral-Nemo
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  - model_name: github.mistral-medium-2505
+    litellm_params:
+      model: github/mistral-medium-2505
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  - model_name: github.mistral-small-2503
+    litellm_params:
+      model: github/mistral-small-2503
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: mistral
+
+  # GitHub Models - Cohere
+  - model_name: github.Cohere-command-r
+    litellm_params:
+      model: github/Cohere-command-r
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  - model_name: github.Cohere-command-r-08-2024
+    litellm_params:
+      model: github/Cohere-command-r-08-2024
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  - model_name: github.Cohere-command-r-plus
+    litellm_params:
+      model: github/Cohere-command-r-plus
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  - model_name: github.Cohere-command-r-plus-08-2024
+    litellm_params:
+      model: github/Cohere-command-r-plus-08-2024
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  - model_name: github.cohere-command-a
+    litellm_params:
+      model: github/cohere-command-a
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  - model_name: github.Cohere-embed-v3-english
+    litellm_params:
+      model: github/Cohere-embed-v3-english
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  - model_name: github.Cohere-embed-v3-multilingual
+    litellm_params:
+      model: github/Cohere-embed-v3-multilingual
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: cohere
+
+  # GitHub Models - DeepSeek
+  - model_name: github.DeepSeek-R1
+    litellm_params:
+      model: github/DeepSeek-R1
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: deepseek
+
+  - model_name: github.DeepSeek-R1-0528
+    litellm_params:
+      model: github/DeepSeek-R1-0528
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: deepseek
+
+  - model_name: github.DeepSeek-V3-0324
+    litellm_params:
+      model: github/DeepSeek-V3-0324
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: deepseek
+
+  # GitHub Models - Meta Llama
+  - model_name: github.Llama-3-2-11B-Vision-Instruct
+    litellm_params:
+      model: github/Llama-3-2-11B-Vision-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Llama-3-2-90B-Vision-Instruct
+    litellm_params:
+      model: github/Llama-3-2-90B-Vision-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Llama-3-3-70B-Instruct
+    litellm_params:
+      model: github/Llama-3-3-70B-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Llama-4-Maverick-17B-128E-Instruct-FP8
+    litellm_params:
+      model: github/Llama-4-Maverick-17B-128E-Instruct-FP8
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Llama-4-Scout-17B-16E-Instruct
+    litellm_params:
+      model: github/Llama-4-Scout-17B-16E-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Meta-Llama-3-1-405B-Instruct
+    litellm_params:
+      model: github/Meta-Llama-3-1-405B-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Meta-Llama-3-1-70B-Instruct
+    litellm_params:
+      model: github/Meta-Llama-3-1-70B-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Meta-Llama-3-1-8B-Instruct
+    litellm_params:
+      model: github/Meta-Llama-3-1-8B-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Meta-Llama-3-70B-Instruct
+    litellm_params:
+      model: github/Meta-Llama-3-70B-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  - model_name: github.Meta-Llama-3-8B-Instruct
+    litellm_params:
+      model: github/Meta-Llama-3-8B-Instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: meta
+
+  # GitHub Models - Microsoft
+  - model_name: github.MAI-DS-R1
+    litellm_params:
+      model: github/MAI-DS-R1
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-5-MoE-instruct
+    litellm_params:
+      model: github/Phi-3-5-MoE-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-5-mini-instruct
+    litellm_params:
+      model: github/Phi-3-5-mini-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-5-vision-instruct
+    litellm_params:
+      model: github/Phi-3-5-vision-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-medium-128k-instruct
+    litellm_params:
+      model: github/Phi-3-medium-128k-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-medium-4k-instruct
+    litellm_params:
+      model: github/Phi-3-medium-4k-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-mini-128k-instruct
+    litellm_params:
+      model: github/Phi-3-mini-128k-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-mini-4k-instruct
+    litellm_params:
+      model: github/Phi-3-mini-4k-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-small-128k-instruct
+    litellm_params:
+      model: github/Phi-3-small-128k-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-3-small-8k-instruct
+    litellm_params:
+      model: github/Phi-3-small-8k-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-4
+    litellm_params:
+      model: github/Phi-4
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-4-mini-instruct
+    litellm_params:
+      model: github/Phi-4-mini-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-4-mini-reasoning
+    litellm_params:
+      model: github/Phi-4-mini-reasoning
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-4-multimodal-instruct
+    litellm_params:
+      model: github/Phi-4-multimodal-instruct
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  - model_name: github.Phi-4-reasoning
+    litellm_params:
+      model: github/Phi-4-reasoning
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: microsoft
+
+  # GitHub Models - OpenAI (Azure OpenAI)
+  - model_name: github.gpt-4-1
+    litellm_params:
+      model: github/gpt-4-1
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.gpt-4-1-mini
+    litellm_params:
+      model: github/gpt-4-1-mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.gpt-4-1-nano
+    litellm_params:
+      model: github/gpt-4-1-nano
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.gpt-4o-azure
+    litellm_params:
+      model: github/gpt-4o
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.gpt-4o-mini-azure
+    litellm_params:
+      model: github/gpt-4o-mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.o1-azure
+    litellm_params:
+      model: github/o1
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.o1-mini-azure
+    litellm_params:
+      model: github/o1-mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.o1-preview
+    litellm_params:
+      model: github/o1-preview
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.o3-azure
+    litellm_params:
+      model: github/o3
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.o3-mini-azure
+    litellm_params:
+      model: github/o3-mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.o4-mini-azure
+    litellm_params:
+      model: github/o4-mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.text-embedding-3-large-azure
+    litellm_params:
+      model: github/text-embedding-3-large
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: github.text-embedding-3-small-azure
+    litellm_params:
+      model: github/text-embedding-3-small
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: openai
+
+  # GitHub Models - xAI
+  - model_name: github.grok-3
+    litellm_params:
+      model: github/grok-3
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: xai
+
+  - model_name: github.grok-3-mini
+    litellm_params:
+      model: github/grok-3-mini
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: xai
+
+  # GitHub Models - Core42
+  - model_name: github.jais-30b-chat
+    litellm_params:
+      model: github/jais-30b-chat
+      api_key: os.environ/GITHUB_API_KEY
+    model_info:
+      owned_by: core42
+
+  # Vertex AI Models
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash-preview-05-20
+    model_info:
+      owned_by: google
+
+  # Ollama Models
+  - model_name: gemma3-1b
+    litellm_params:
+      model: ollama/gemma3:1b
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: google
+
+  - model_name: llama3-1b
+    litellm_params:
+      model: ollama/llama3.2:1b
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: meta
+
+  - model_name: phi4-mini
+    litellm_params:
+      model: ollama/phi4-mini
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: microsoft
+
+  - model_name: mistral
+    litellm_params:
+      model: ollama/mistral
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: mistral
+
+  - model_name: moondream
+    litellm_params:
+      model: ollama/moondream
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: vikhyatk
+
+  - model_name: neural-chat
+    litellm_params:
+      model: ollama/neural-chat
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: intel
+
+  - model_name: starling-lm
+    litellm_params:
+      model: ollama/starling-lm
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: berkeley-nest
+
+  - model_name: llama2-uncensored
+    litellm_params:
+      model: ollama/llama2-uncensored
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: meta
+
+  - model_name: llava
+    litellm_params:
+      model: ollama/llava
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: lmsys
+
+  - model_name: codellama
+    litellm_params:
+      model: ollama/codellama
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: meta
+
+  - model_name: deepseek-r1
+    litellm_params:
+      model: ollama/deepseek-r1
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: deepseek
+
+  - model_name: granite3-2
+    litellm_params:
+      model: ollama/granite3.2
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: google
+
+  - model_name: llama3-1
+    litellm_params:
+      model: ollama/llama3.1
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: meta
+
+  - model_name: nomic-embed-text
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: nomic
+
+general_settings:
+
+  store_prompts_in_spend_logs: true
