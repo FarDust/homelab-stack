@@ -4,3 +4,4 @@ secrets/*
 secrets.yaml
 supabase_target.yaml
 **/secrets/
+*.swp

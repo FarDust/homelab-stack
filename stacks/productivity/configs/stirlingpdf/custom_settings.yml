@@ -1,0 +1,14 @@
+# Stirling PDF Custom Settings
+ui:
+  appName: "Stirling PDF"
+  homeDescription: "Your locally hosted one-stop-shop for all your PDF needs."
+  appNavbarName: "Stirling PDF"
+
+security:
+  enableLogin: false
+  csrfDisabled: false
+
+# Default settings - Override with environment variables if needed
+system:
+  connectionTimeoutMinutes: 30
+  enableLogging: true
