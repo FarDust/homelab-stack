@@ -1,0 +1,34 @@
+version: "3.9"
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+services:
+  cube:
+    image: cubejs/cube:latest
+    environment:
+      CUBEJS_DEV_MODE: "true"
+      CUBEJS_CACHE_AND_QUEUE_DRIVER: redis
+      CUBEJS_REDIS_URL: redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/{REDIS_CUBE_DB:-3}
+      CUBEJS_PG_SQL_PORT: 5432
+      CUBEJS_SQL_USER: cube
+      CUBEJS_SQL_PASSWORD: testing
+    networks:
+      - traefik
+    volumes:
+      - cube_conf:/cube/conf
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.cubejs-http.entrypoints=web
+        - traefik.http.routers.cubejs-http.rule=Host(`cubejs.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.cubejs.entrypoints=websecure
+        - traefik.http.routers.cubejs.rule=Host(`cubejs.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.cubejs-http.middlewares=cubejs-https@swarm
+        - traefik.http.middlewares.cubejs-https.redirectscheme.scheme=https
+        - traefik.http.routers.cubejs.tls=true
+        - traefik.http.routers.cubejs.tls.certresolver=le-dns
+        - traefik.http.services.cubejs.loadbalancer.server.port=4000
+volumes:
+  cube_conf: {}
