@@ -35,7 +35,8 @@ services:
       REV_SERVER_TARGET: ${GATEWAY:-192.168.0.1}
       REV_SERVER_DOMAIN: ${LOCAL_DOMAIN:-home}
       DNSMASQ_LISTENING: all
-      FTL_CMD: debug
+      FTL_CMD: no-daemon -- --dns-forward-max 300
+      DNSSEC: "true"
     volumes:
       - "pihole:/etc/pihole"
       - "dnsmasq:/etc/dnsmasq.d"
@@ -45,23 +46,30 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
+        delay: 10s
+        max_attempts: 0
       placement:
         constraints: [node.role == manager]
       labels:
         - "traefik.enable=true"
         - "traefik.tcp.routers.dns.entrypoints=dns"
         - "traefik.tcp.routers.dns.rule=HostSNI(`*`)"
-        - "traefik.tcp.routers.dns.service=pihole-tcp@docker"
+        - "traefik.tcp.routers.dns.service=pihole-tcp@swarm"
         - "traefik.tcp.services.pihole-tcp.loadbalancer.server.port=53"
         - "traefik.udp.routers.dns-udp.entrypoints=dns-udp"
-        - "traefik.udp.routers.dns-udp.service=pihole-udp@docker"
+        - "traefik.udp.routers.dns-udp.service=pihole-udp@swarm"
         - "traefik.udp.services.pihole-udp.loadbalancer.server.port=53"
         - "traefik.http.routers.pihole-http.rule=Host(`pihole.${LOCAL_DOMAIN:-home}`)"
         - "traefik.http.routers.pihole-http.entrypoints=web"
-        - "traefik.http.routers.pihole-http.service=pihole-admin@docker"
+        - "traefik.http.routers.pihole-http.middlewares=pihole-https@swarm"
+        - "traefik.http.middlewares.pihole-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.pihole.rule=Host(`pihole.${LOCAL_DOMAIN:-home}`)"
+        - "traefik.http.routers.pihole.tls=true"
+        - "traefik.http.routers.pihole.tls.certresolver=le-dns"
+        - "traefik.http.routers.pihole.service=pihole-admin@swarm"
         - "traefik.http.services.pihole-admin.loadbalancer.server.port=80"
-        - "traefik.docker.network=traefik-public"
+        - "traefik.swarm.network=traefik-public"
       resources:
           limits:
             cpus: "0.5"
@@ -74,23 +82,23 @@ services:
       - traefik-public
     command: "init -N dnscrypt.${DOMAIN_NAME} -E '127.0.0.1:443'"
     volumes:
-      - dnscrypt_keys:/opt/encrypted-dns/etc/keys
+      - dnscrypt-keys:/opt/encrypted-dns/etc/keys
     deploy:
-      replicas: 3
+      replicas: 1
       restart_policy:
         condition: on-failure
         max_attempts: 3
       labels:
         - "traefik.enable=true"
         - "traefik.udp.routers.dnscrypt-server.entrypoints=dnscrypt-udp"
-        - "traefik.udp.routers.dnscrypt-server.service=dnscrypt-server@docker"
+        - "traefik.udp.routers.dnscrypt-server.service=dnscrypt-server@swarm"
         - "traefik.udp.services.dnscrypt-server.loadbalancer.server.port=443/udp"
         - "traefik.http.routers.dnscrypt-server.entrypoints=websecure"
         - "traefik.http.routers.dnscrypt-server.rule=Host(`dnscrypt.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.dnscrypt-server.service=dnscrypt-server@docker"
+        - "traefik.http.routers.dnscrypt-server.service=dnscrypt-server@swarm"
         - "traefik.http.services.dnscrypt-server.loadbalancer.server.port=443"
         - "traefik.http.routers.dnscrypt-server.tls=true"
-        - "traefik.http.routers.dnscrypt-server.tls.certresolver=le"
+        - "traefik.http.routers.dnscrypt-server.tls.certresolver=le-dns"
       resources:
           limits:
             cpus: "0.2"
@@ -98,31 +106,11 @@ services:
           reservations:
             memory: 64M
     environment:
-      TZ: "America/Santiago"
-  dnscrypt-proxy:
-    image: melchor9000/dnscrypt-proxy
-    networks:
-      - dnscrypt-network
-    volumes:
-      - "dnscrypt-proxy:/etc/dnscrypt-proxy"
-    deploy:
-      mode: replicated
-      replicas: 2
-      restart_policy:
-        condition: on-failure
-        max_attempts: 3
-      resources:
-          limits:
-            memory: 256M
-          reservations:
-            memory: 64M
-    labels:
-      - "traefik.enable=false"
+      TZ: ${USER_TIMEZONE:-UTC}
 volumes:
   pihole:
   dnsmasq:
-  dnscrypt-proxy:
-  dnscrypt_keys: {}
+  dnscrypt-keys: {}
 secrets:
   pihole_webpassword:
     file: ../secrets/pihole/webpassword
