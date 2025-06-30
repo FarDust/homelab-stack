@@ -1,0 +1,461 @@
+version: '3.7'
+networks:
+ traefik-public:
+   external: true
+ traefik:
+   external: true
+services:
+  postgres:
+    image: kartoza/postgis:14-3.1
+    networks:
+      - traefik
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    secrets:
+      - source: postgres_db_password
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      labels:
+        - "traefik.enable=true"
+        # TCP routing for PostgreSQL
+        - "traefik.tcp.routers.postgres.rule=HostSNI(`postgres.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.postgres.entrypoints=host-internal"
+        - "traefik.tcp.routers.postgres.tls=true"
+        - "traefik.tcp.routers.postgres.tls.certresolver=le-dns"
+        - "traefik.tcp.services.postgres.loadbalancer.server.port=5432"
+        - "traefik.swarm.network=traefik"
+        - com.centurylinklabs.watchtower.enable=false
+  influx:
+    image: influxdb
+    networks:
+      - traefik
+    volumes:
+      - influx:/var/lib/influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${ORG}
+      - PRE_CREATE_DB=cadvisor
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      labels:
+          - "traefik.enable=false"
+          - "traefik.swarm.network=traefik"
+  redis:
+    image: bitnami/redis:latest
+    secrets:
+      - redis_password
+    volumes:
+      - redis-data:/data
+    networks:
+      - traefik
+    environment:
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_CACHE}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_CACHE}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_CACHE}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      labels:
+        - "traefik.enable=true"
+        # TCP routing for Redis
+        - "traefik.tcp.routers.security-redis.rule=HostSNI(`redis.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.security-redis.entrypoints=host-internal"
+        - "traefik.tcp.routers.security-redis.tls=true"
+        - "traefik.tcp.routers.security-redis.tls.certresolver=le-dns"
+        - "traefik.tcp.services.security-redis.loadbalancer.server.port=6379"
+        - "traefik.swarm.network=traefik"
+
+  opensearch:
+    image: opensearchproject/opensearch:2.19.1
+    networks:
+      - traefik-public
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    secrets:
+      - opensearch_password
+    environment:
+      - node.name=opensearch-node1
+      - cluster.name=opensearch-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=false
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      - plugins.security.ssl.http.enabled=false
+      - plugins.security.ssl.transport.enabled=true
+      - plugins.security.disabled=false
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_COMPLEX}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_COMPLEX}
+        max_failure_ratio: 0.2
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_COMPLEX}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.opensearch.rule=Host(`opensearch.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.opensearch.entrypoints=websecure"
+        - "traefik.http.routers.opensearch.tls=true"
+        - "traefik.http.routers.opensearch.tls.certresolver=le-dns"
+        - "traefik.http.services.opensearch.loadbalancer.server.port=9200"
+        - "traefik.http.routers.opensearch-http.rule=Host(`opensearch.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.opensearch-http.entrypoints=web"
+        - "traefik.http.routers.opensearch-http.middlewares=opensearch-https@swarm"
+        - "traefik.http.middlewares.opensearch-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+
+  minio:
+    image: quay.io/minio/minio:latest
+    networks:
+      - traefik-public
+    volumes:
+      - minio_data:/data
+    secrets:
+      - minio_access_key
+      - minio_secret_key
+    environment:
+      - MINIO_ROOT_USER_FILE=/run/secrets/minio_access_key
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_secret_key
+    command: server /data --console-address ":9001"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      labels:
+        - "traefik.enable=true"
+        # MinIO API
+        - "traefik.http.routers.minio-api.rule=Host(`minio-api.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.minio-api.entrypoints=websecure"
+        - "traefik.http.routers.minio-api.tls=true"
+        - "traefik.http.routers.minio-api.tls.certresolver=le-dns"
+        - "traefik.http.routers.minio-api.service=minio-api"
+        - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
+        - "traefik.http.routers.minio-api-http.rule=Host(`minio-api.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.minio-api-http.entrypoints=web"
+        - "traefik.http.routers.minio-api-http.service=minio-api"
+        - "traefik.http.routers.minio-api-http.middlewares=minio-api-https@swarm"
+        - "traefik.http.middlewares.minio-api-https.redirectscheme.scheme=https"
+        # MinIO Console
+        - "traefik.http.routers.minio-console.rule=Host(`minio.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.minio-console.entrypoints=websecure"
+        - "traefik.http.routers.minio-console.tls=true"
+        - "traefik.http.routers.minio-console.tls.certresolver=le-dns"
+        - "traefik.http.routers.minio-console.service=minio-console"
+        - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+        - "traefik.http.routers.minio-console-http.rule=Host(`minio.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.minio-console-http.entrypoints=web"
+        - "traefik.http.routers.minio-console-http.service=minio-console"
+        - "traefik.http.routers.minio-console-http.middlewares=minio-console-https@swarm"
+        - "traefik.http.middlewares.minio-console-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+
+  mongodb:
+    image: mongo:latest
+    networks:
+      - traefik
+    volumes:
+      - mongodb_data:/data/db
+    secrets:
+      - mongodb_root_password
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongodb_root_password
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_COMPLEX}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_COMPLEX}
+        max_failure_ratio: 0.2
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_COMPLEX}
+      placement:
+        constraints:
+        - node.labels.AVX != false
+        - node.labels.storage.manager == true
+      labels:
+        - "traefik.enable=true"
+        # TCP routing for MongoDB
+        - "traefik.tcp.routers.mongodb.rule=HostSNI(`mongodb.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.mongodb.entrypoints=host-internal"
+        - "traefik.tcp.routers.mongodb.tls=true"
+        - "traefik.tcp.routers.mongodb.tls.certresolver=le-dns"
+        - "traefik.tcp.services.mongodb.loadbalancer.server.port=27017"
+        - "traefik.swarm.network=traefik"
+        - com.centurylinklabs.watchtower.enable=false
+
+  infinity:
+    image: infiniflow/infinity:v0.6.0-dev3
+    networks:
+      - traefik
+      - traefik-public
+    volumes:
+      - infinity_data:/var/infinity
+    configs:
+      - source: infinity_conf
+        target: /infinity_conf.toml
+    environment:
+      - TZ=${TIMEZONE:-UTC}
+    command: ["-f", "/infinity_conf.toml"]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_COMPLEX}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_COMPLEX}
+        max_failure_ratio: 0.2
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_COMPLEX}
+      placement:
+        constraints:
+        - node.labels.AVX != false
+        - node.labels.storage.manager == true
+      labels:
+        - "traefik.enable=true"
+        # PostgreSQL-compatible port (5432) via TCP
+        - "traefik.tcp.routers.infinity-postgres.rule=HostSNI(`infinity.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.infinity-postgres.entrypoints=host-internal"
+        - "traefik.tcp.routers.infinity-postgres.tls=true"
+        - "traefik.tcp.routers.infinity-postgres.tls.certresolver=le-dns"
+        - "traefik.tcp.routers.infinity-postgres.service=infinity-postgres"
+        - "traefik.tcp.services.infinity-postgres.loadbalancer.server.port=5432"
+        # Thrift client port (23817) via TCP
+        - "traefik.tcp.routers.infinity-thrift.rule=HostSNI(`infinity-thrift.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.infinity-thrift.entrypoints=host-internal"
+        - "traefik.tcp.routers.infinity-thrift.tls=true"
+        - "traefik.tcp.routers.infinity-thrift.tls.certresolver=le-dns"
+        - "traefik.tcp.routers.infinity-thrift.service=infinity-thrift"
+        - "traefik.tcp.services.infinity-thrift.loadbalancer.server.port=23817"
+        # HTTP API port (23820) via HTTPS
+        - "traefik.http.routers.infinity-api.rule=Host(`infinity-api.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.infinity-api.entrypoints=websecure"
+        - "traefik.http.routers.infinity-api.tls=true"
+        - "traefik.http.routers.infinity-api.tls.certresolver=le-dns"
+        - "traefik.http.services.infinity-api.loadbalancer.server.port=23820"
+        - "traefik.http.routers.infinity-api-http.rule=Host(`infinity-api.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.infinity-api-http.entrypoints=web"
+        - "traefik.http.routers.infinity-api-http.middlewares=infinity-api-https@swarm"
+        - "traefik.http.middlewares.infinity-api-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+        - com.centurylinklabs.watchtower.enable=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:23820/admin/node/current"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  supabase-db:
+    image: supabase/postgres:17.4.1.048
+    networks:
+      - traefik
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+      - supabase-db-config:/etc/postgresql-custom
+    configs:
+      - source: supabase_db_realtime_sql
+        target: /docker-entrypoint-initdb.d/migrations/99-realtime.sql
+      - source: supabase_db_webhooks_sql
+        target: /docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql
+      - source: supabase_db_roles_sql
+        target: /docker-entrypoint-initdb.d/init-scripts/99-roles.sql
+      - source: supabase_db_jwt_sql
+        target: /docker-entrypoint-initdb.d/init-scripts/99-jwt.sql
+      - source: supabase_db_supabase_sql
+        target: /docker-entrypoint-initdb.d/migrations/97-_supabase.sql
+      - source: supabase_db_logs_sql
+        target: /docker-entrypoint-initdb.d/migrations/99-logs.sql
+      - source: supabase_db_pooler_sql
+        target: /docker-entrypoint-initdb.d/migrations/99-pooler.sql
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: ${SUPABASE_POSTGRES_PORT:-5432}
+      POSTGRES_PORT: ${SUPABASE_POSTGRES_PORT:-5432}
+      PGPASSWORD: ${SUPABASE_POSTGRES_PASSWORD:?err}
+      POSTGRES_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD:?err}
+      PGDATABASE: ${SUPABASE_POSTGRES_DB:-postgres}
+      POSTGRES_DB: ${SUPABASE_POSTGRES_DB:-postgres}
+      JWT_SECRET: ${SUPABASE_JWT_SECRET:?err}
+      JWT_EXP: ${SUPABASE_JWT_EXPIRY:-3600}
+    command:
+      [
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "log_min_messages=fatal"
+      ]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.supabase-db.rule=HostSNI(`supabase-db.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.supabase-db.entrypoints=host-internal"
+        - "traefik.tcp.routers.supabase-db.tls=true"
+        - "traefik.tcp.routers.supabase-db.tls.certresolver=le-dns"
+        - "traefik.tcp.services.supabase-db.loadbalancer.server.port=${SUPABASE_POSTGRES_PORT:-5432}"
+        - "traefik.swarm.network=traefik"
+
+volumes:
+  # DB data volumes cannot be synced, could cause issues with data integrity
+  postgres_data: {}
+  influx: {}
+  redis-data:
+    driver: local
+  opensearch_data: {}
+  minio_data: {}
+  mongodb_data: {}
+  infinity_data: {}
+  supabase-db-data:
+    driver: local
+  # Config volumes that persists across deployments
+  supabase-db-config:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
+      allow_other: "true"
+      vfs_cache_mode: full
+
+secrets:
+  postgres_db_password:
+    file: ../../secrets/postgres/postgres_db_password
+  redis_password:
+    file: ../../secrets/redis/redis_password
+  opensearch_password:
+    file: ../../secrets/opensearch/opensearch_password
+  minio_access_key:
+    file: ../../secrets/minio/minio_access_key
+  minio_secret_key:
+    file: ../../secrets/minio/minio_secret_key
+  mongodb_root_password:
+    file: ../../secrets/mongodb/mongodb_root_password
+
+configs:
+  infinity_conf:
+    name: infinity_conf-${CONFIG_VERSION:-0}
+    file: ./configs/infinity/infinity_conf.toml
+  supabase_db_realtime_sql:
+    name: supabase_db_realtime_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/realtime.sql
+  supabase_db_webhooks_sql:
+    name: supabase_db_webhooks_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/webhooks.sql
+  supabase_db_roles_sql:
+    name: supabase_db_roles_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/roles.sql
+  supabase_db_jwt_sql:
+    name: supabase_db_jwt_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/jwt.sql
+  supabase_db_supabase_sql:
+    name: supabase_db_supabase_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/_supabase.sql
+  supabase_db_logs_sql:
+    name: supabase_db_logs_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/logs.sql
+  supabase_db_pooler_sql:
+    name: supabase_db_pooler_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/pooler.sql

@@ -1,0 +1,95 @@
+# RAGFlow Document Processing Service
+# Document processing and indexing for retrieval-augmented generation
+
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+
+volumes:
+  ragflow_data:
+    driver: local
+
+configs:
+  ragflow_config_template:
+    file: ./configs/ragflow/service_conf.yaml.template
+    name: ragflow_config_template_${CONFIG_VERSION:-0}
+  ragflow_nginx_conf:
+    file: ./configs/ragflow/nginx_nginx.conf
+    name: ragflow_nginx_conf_${CONFIG_VERSION:-0}
+  ragflow_nginx_proxy:
+    file: ./configs/ragflow/nginx_proxy.conf
+    name: ragflow_nginx_proxy_${CONFIG_VERSION:-0}
+  ragflow_nginx_confd:
+    file: ./configs/ragflow/nginx_conf_d_ragflow.conf
+    name: ragflow_nginx_confd_${CONFIG_VERSION:-0}
+
+services:
+  # RAGFlow - Document Processing for RAG
+  ragflow:
+    image: infiniflow/ragflow:v0.19.1
+    environment:
+      - IN_CONTAINER=true
+      - DOC_ENGINE=opensearch
+      - HF_ENDPOINT=${RAGFLOW_HF_ENDPOINT?err}
+      - MAXTOKENNUM=${MAXTOKENNUM:-8192}
+      - REDIS_HOST=${RAGFLOW_REDIS_HOST?err}
+      - REDIS_PORT=${RAGFLOW_REDIS_PORT?err}
+      - REDIS_PASSWORD=${RAGFLOW_REDIS_PASSWORD?err}
+      - MYSQL_HOST=${RAGFLOW_MYSQL_HOST?err}
+      - MYSQL_PORT=${RAGFLOW_MYSQL_PORT?err}
+      - MYSQL_USER=${RAGFLOW_MYSQL_USER?err}
+      - MYSQL_PASSWORD=${RAGFLOW_MYSQL_PASSWORD?err}
+      - MYSQL_DBNAME=${RAGFLOW_MYSQL_DBNAME?err}
+      - MINIO_HOST=${RAGFLOW_MINIO_HOST?err}
+      - MINIO_PORT=${RAGFLOW_MINIO_PORT?err}
+      - MINIO_USER=${RAGFLOW_MINIO_USER?err}
+      - MINIO_PASSWORD=${RAGFLOW_MINIO_PASSWORD?err}
+      - OS_HOST=${RAGFLOW_OS_HOST?err}
+      - OS_PORT=${RAGFLOW_OS_PORT?err}
+      - OS_USER=${RAGFLOW_OS_USER?err}
+      - OPENSEARCH_PASSWORD=${RAGFLOW_OPENSEARCH_PASSWORD?err}
+      - INFINITY_HOST=${RAGFLOW_INFINITY_HOST?err}
+      - INFINITY_PORT=${RAGFLOW_INFINITY_PORT?err}
+    volumes:
+      - ragflow_data:/ragflow
+    networks:
+      - traefik-public
+      - traefik
+    configs:
+      - source: ragflow_config_template
+        target: /ragflow/conf/service_conf.yaml.template
+      - source: ragflow_nginx_conf
+        target: /etc/nginx/nginx.conf
+      - source: ragflow_nginx_proxy
+        target: /etc/nginx/proxy.conf
+      - source: ragflow_nginx_confd
+        target: /etc/nginx/conf.d/ragflow.conf
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.AVX != false
+          - node.labels.gpu == true
+      labels:
+        - traefik.enable=true
+        # API router for /v1 and /api (higher priority)
+        - traefik.http.routers.ragflow-api.entrypoints=websecure
+        - traefik.http.routers.ragflow-api.rule=Host(`ragflow.${LOCAL_DOMAIN}`) && (PathPrefix(`/v1`) || PathPrefix(`/api`))
+        - traefik.http.routers.ragflow-api.tls=true
+        - traefik.http.routers.ragflow-api.tls.certresolver=le-dns
+        - traefik.http.routers.ragflow-api.priority=100
+        - traefik.http.routers.ragflow-api.service=ragflow-api
+        - traefik.http.services.ragflow-api.loadbalancer.server.port=9380
+        # HTTPS router (main UI, lower priority)
+        - traefik.http.routers.ragflow.entrypoints=websecure
+        - traefik.http.routers.ragflow.rule=Host(`ragflow.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ragflow.tls=true
+        - traefik.http.routers.ragflow.tls.certresolver=le-dns
+        - traefik.http.routers.ragflow.priority=50
+        - traefik.http.routers.ragflow.service=ragflow
+        - traefik.http.services.ragflow.loadbalancer.server.port=80

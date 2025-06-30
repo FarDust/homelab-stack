@@ -1,0 +1,52 @@
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+  security:
+    driver: overlay
+
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    volumes:
+      - crowdsec-config:/etc/crowdsec
+      - crowdsec-data:/var/lib/crowdsec/data/
+      - /var/log:/var/log:ro
+    networks:
+      - traefik-public
+      - traefik
+      - security
+    environment:
+      - COLLECTIONS=crowdsecurity/linux crowdsecurity/traefik
+      - ENROLL_INSTANCE_NAME=${HOST:?err}-cluster
+      - ENROLL_KEY=${CROWSEC_ENROLL_KEY:?err}
+      - ENROLL_TAGS=docker
+    deploy:
+      mode: global
+      placement:
+        constraints:
+        - node.platform.os == linux
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+
+        # API Router
+        - "traefik.http.routers.crowdsec-api.rule=Host(`crowdsec.${LOCAL_DOMAIN:-home}`)"
+        - "traefik.http.routers.crowdsec-api.entrypoints=websecure"
+        - "traefik.http.routers.crowdsec-api.service=crowdsec-api"
+        - "traefik.http.services.crowdsec-api.loadbalancer.server.port=8080"
+        - "traefik.http.routers.crowdsec-api.tls=true"
+        - "traefik.http.routers.crowdsec-api.tls.certresolver=le-dns"
+
+volumes:
+  crowdsec-data:
+    driver: local
+  crowdsec-config:
+    driver: local
