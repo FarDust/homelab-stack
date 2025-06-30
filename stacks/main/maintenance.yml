@@ -1,0 +1,28 @@
+# main-maintenance stack
+version: "3.9"
+
+services:
+  rclone-fixer:
+    image: docker:cli
+    command: ["/bin/sh", "/fix/check.sh"]
+    environment:
+      - RCLONE_FIX_ENABLED=true
+      - RCLONE_FIX_INTERVAL=60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker-plugins/rclone/cache/:/state/
+    configs:
+      - source: rclone-fix-script
+        target: /fix/check.sh
+    deploy:
+      mode: global
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.platform.os == linux
+
+configs:
+  rclone-fix-script:
+    name: rclone-fix-script-${CONFIG_VERSION:-0}
+    file: ./configs/rclone/check.sh
