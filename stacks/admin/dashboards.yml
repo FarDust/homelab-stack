@@ -1,0 +1,173 @@
+version: '3.7'
+networks:
+ traefik-public:
+   external: true
+ traefik:
+   external: true
+services:
+  pgadmin4:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${MAINTAINER_EMAIL:?err}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:?err}
+    networks:
+      - traefik-public
+      - traefik
+    volumes:
+      - pgadmin_data:/pgadmin
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+        order: stop-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        failure_action: pause
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pgadmin4-http.entrypoints=web"
+        - "traefik.http.routers.pgadmin4-http.rule=Host(`pgadmin.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.pgadmin4.entrypoints=websecure"
+        - "traefik.http.routers.pgadmin4.rule=Host(`pgadmin.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.pgadmin4-http.middlewares=pgadmin4-https@swarm"
+        - "traefik.http.middlewares.pgadmin4-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.pgadmin4.tls=true"
+        - "traefik.http.routers.pgadmin4.tls.certresolver=le-dns"
+        - "traefik.http.services.pgadmin4.loadbalancer.server.port=80"
+        - "traefik.swarm.network=traefik-public"
+
+  mongo-express:
+    image: mongo-express:latest
+    networks:
+      - traefik-public
+      - traefik
+    secrets:
+      - mongo_express_cookie_secret
+      - mongo_express_session_secret
+    environment:
+      # MongoDB connection settings (using URL to properly handle special characters)
+      - ME_CONFIG_MONGODB_URL=${MONGODB_URL:?err}
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_MONGODB_TLS=true
+      - ME_CONFIG_MONGODB_TLS_ALLOW_CERTS=false
+      - ME_CONFIG_MONGODB_SSL=true
+      - ME_CONFIG_MONGODB_SSL_VALIDATE=false
+      - ME_CONFIG_BASICAUTH_ENABLED=false
+      # Security settings (file-based secrets)
+      - ME_CONFIG_SITE_COOKIESECRET_FILE=/run/secrets/mongo_express_cookie_secret
+      - ME_CONFIG_SITE_SESSIONSECRET_FILE=/run/secrets/mongo_express_session_secret
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+        order: stop-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        failure_action: pause
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.mongo-express.rule=Host(`mongo-express.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.mongo-express.entrypoints=websecure"
+        - "traefik.http.routers.mongo-express.tls=true"
+        - "traefik.http.routers.mongo-express.tls.certresolver=le-dns"
+        - "traefik.http.routers.mongo-express.middlewares=authelia@swarm"
+        - "traefik.http.services.mongo-express.loadbalancer.server.port=8081"
+        - "traefik.http.routers.mongo-express-http.rule=Host(`mongo-express.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.mongo-express-http.entrypoints=web"
+        - "traefik.http.routers.mongo-express-http.middlewares=mongo-express-https@swarm"
+        - "traefik.http.middlewares.mongo-express-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.19.1
+    networks:
+      - traefik-public
+      - traefik
+    volumes:
+      - opensearch_dashboards_data:/usr/share/opensearch-dashboards/data
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=false
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+        order: stop-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        failure_action: pause
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.opensearch-dashboards.rule=Host(`opensearch-dashboards.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.opensearch-dashboards.entrypoints=websecure"
+        - "traefik.http.routers.opensearch-dashboards.tls=true"
+        - "traefik.http.routers.opensearch-dashboards.tls.certresolver=le-dns"
+        - "traefik.http.services.opensearch-dashboards.loadbalancer.server.port=5601"
+        - "traefik.http.routers.opensearch-dashboards-http.rule=Host(`opensearch-dashboards.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.opensearch-dashboards-http.entrypoints=web"
+        - "traefik.http.routers.opensearch-dashboards-http.middlewares=opensearch-dashboards-https@swarm"
+        - "traefik.http.middlewares.opensearch-dashboards-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+
+volumes:
+  pgadmin_data: {}
+  opensearch_dashboards_data: {}
+
+secrets:
+  mongodb_root_password:
+    file: ../../secrets/mongodb/mongodb_root_password
+  mongo_express_cookie_secret:
+    file: ../../secrets/mongo-express/cookie_secret
+  mongo_express_session_secret:
+    file: ../../secrets/mongo-express/session_secret

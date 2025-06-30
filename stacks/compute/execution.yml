@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  sandbox-executor-manager:
+    image: ${SANDBOX_EXECUTOR_MANAGER_IMAGE:-infiniflow/sandbox-executor-manager:latest}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - traefik-public
+      - traefik
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TIMEZONE:-UTC}
+      - SANDBOX_EXECUTOR_MANAGER_POOL_SIZE=${SANDBOX_EXECUTOR_MANAGER_POOL_SIZE:-3}
+      - SANDBOX_BASE_PYTHON_IMAGE=${SANDBOX_BASE_PYTHON_IMAGE:-infiniflow/sandbox-base-python:latest}
+      - SANDBOX_BASE_NODEJS_IMAGE=${SANDBOX_BASE_NODEJS_IMAGE:-infiniflow/sandbox-base-nodejs:latest}
+      - SANDBOX_ENABLE_SECCOMP=${SANDBOX_ENABLE_SECCOMP:-false}
+      - SANDBOX_MAX_MEMORY=${SANDBOX_MAX_MEMORY:-256m}
+      - SANDBOX_TIMEOUT=${SANDBOX_TIMEOUT:-10s}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sandbox-executor.rule=Host(`execution.${LOCAL_DOMAIN}`)"
+      - "traefik.http.routers.sandbox-executor.entrypoints=websecure"
+      - "traefik.http.routers.sandbox-executor.tls=true"
+      - "traefik.http.routers.sandbox-executor.tls.certresolver=le-dns"
+      - "traefik.http.services.sandbox-executor.loadbalancer.server.port=9385"
+      - "traefik.swarm.network=traefik-public"
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:9385/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true

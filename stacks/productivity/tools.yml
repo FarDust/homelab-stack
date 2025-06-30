@@ -1,0 +1,173 @@
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  productivity-internal:
+    driver: overlay
+    attachable: true
+
+services:
+  stirling-pdf:
+    image: stirlingtools/stirling-pdf:latest-fat
+    networks:
+      - traefik-public
+    environment:
+      - DOCKER_ENABLE_SECURITY=false
+      - LANGS=en_GB
+      - TZ=${USER_TIMEZONE:-UTC}
+    configs:
+      - source: stirlingpdf_custom_settings
+        target: /configs/custom_settings.yml
+    volumes:
+      - stirlingpdf_tessdata:/usr/share/tessdata
+      - stirlingpdf_customfiles:/customFiles
+      - stirlingpdf_logs:/logs
+      - stirlingpdf_pipeline:/pipeline
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "sablier.enable=true"
+        - "sablier.group=productivity"
+        - "traefik.enable=true"
+        - "traefik.http.routers.stirlingpdf.rule=Host(`pdf.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.stirlingpdf.entrypoints=websecure"
+        - "traefik.http.routers.stirlingpdf.tls=true"
+        - "traefik.http.routers.stirlingpdf.tls.certresolver=le-dns"
+        - "traefik.http.services.stirlingpdf.loadbalancer.server.port=8080"
+        - "traefik.http.routers.stirlingpdf.middlewares=authelia@swarm,load-productivity@file"
+        - "traefik.http.routers.stirlingpdf-http.rule=Host(`pdf.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.stirlingpdf-http.entrypoints=web"
+        - "traefik.http.routers.stirlingpdf-http.middlewares=stirlingpdf-https@swarm"
+        - "traefik.http.middlewares.stirlingpdf-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+
+  redis-searxng:
+    image: valkey/valkey:8-alpine
+    networks:
+      - productivity-internal
+    environment:
+      - TZ=${USER_TIMEZONE:-UTC}
+    secrets:
+      - searxng_redis_password
+    entrypoint: >
+      sh -c '
+        REDIS_PASSWORD=$$(cat /run/secrets/searxng_redis_password)
+        exec valkey-server --requirepass "$$REDIS_PASSWORD" --save 60 1 --loglevel warning
+      '
+    volumes:
+      - redis_searxng_data:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "sablier.enable=true"
+        - "sablier.group=productivity"
+
+  searxng:
+    image: searxng/searxng:latest
+    networks:
+      - traefik-public
+      - productivity-internal
+    environment:
+      - SEARXNG_BASE_URL=https://search.${LOCAL_DOMAIN?err}/
+      - SEARXNG_LIMITER=false
+      - SEARXNG_IMAGE_PROXY=true
+      - TZ=${USER_TIMEZONE:-UTC}
+    secrets:
+      - searxng_redis_password
+      - searxng_secret
+    entrypoint: >
+      sh -c '
+        export SEARXNG_SECRET=$$(cat /run/secrets/searxng_secret)
+        export SEARXNG_REDIS_URL="redis://:$$(cat /run/secrets/searxng_redis_password)@redis-searxng:6379/0"
+        exec /usr/local/searxng/entrypoint.sh
+      '
+    volumes:
+      - searxng_config:/etc/searxng:rw
+    configs:
+      - source: searxng_limiter
+        target: /etc/searxng/limiter.toml
+      - source: searxng_settings
+        target: /etc/searxng/settings.yml
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        # API router without auth for /search endpoint (higher priority)
+        - "traefik.http.routers.searxng-api.rule=Host(`search.${LOCAL_DOMAIN}`) && PathPrefix(`/search`)"
+        - "traefik.http.routers.searxng-api.entrypoints=websecure"
+        - "traefik.http.routers.searxng-api.tls=true"
+        - "traefik.http.routers.searxng-api.tls.certresolver=le-dns"
+        - "traefik.http.routers.searxng-api.priority=100"
+        - "traefik.http.routers.searxng-api.service=searxng-api"
+        # Main router with auth for web interface
+        - "traefik.http.routers.searxng-web.rule=Host(`search.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.searxng-web.entrypoints=websecure"
+        - "traefik.http.routers.searxng-web.tls=true"
+        - "traefik.http.routers.searxng-web.tls.certresolver=le-dns"
+        - "traefik.http.routers.searxng-web.middlewares=authelia@swarm"
+        - "traefik.http.routers.searxng-web.priority=50"
+        - "traefik.http.routers.searxng-web.service=searxng-web"
+        # Load balancer services
+        - "traefik.http.services.searxng-api.loadbalancer.server.port=8080"
+        - "traefik.http.services.searxng-web.loadbalancer.server.port=8080"
+        # HTTP redirect
+        - "traefik.http.routers.searxng-http.rule=Host(`search.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.searxng-http.entrypoints=web"
+        - "traefik.http.routers.searxng-http.middlewares=searxng-https@swarm"
+        - "traefik.http.routers.searxng-http.service=searxng-web"
+        - "traefik.http.middlewares.searxng-https.redirectscheme.scheme=https"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+
+volumes:
+  stirlingpdf_tessdata:
+  stirlingpdf_customfiles:
+  stirlingpdf_logs:
+  stirlingpdf_pipeline:
+  searxng_config:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/searxng/config"
+      allow_other: "true"
+      vfs_cache_mode: full
+      poll_interval: 5
+  redis_searxng_data:
+
+secrets:
+  searxng_redis_password:
+    file: ./secrets/searxng_redis_password
+  searxng_secret:
+    file: ./secrets/searxng_secret
+
+configs:
+  stirlingpdf_custom_settings:
+    file: ./configs/stirlingpdf/custom_settings.yml
+  searxng_limiter:
+    file: ./configs/searxng/limiter.toml
+  searxng_settings:
+    file: ./configs/searxng/settings.yml

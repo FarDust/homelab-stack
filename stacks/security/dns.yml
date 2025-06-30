@@ -1,0 +1,116 @@
+version: "3.7"
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+  dnscrypt-network:
+    external: true
+services:
+  pihole:
+    image: pihole/pihole:latest
+    networks:
+      - traefik-public
+      - traefik
+      - dnscrypt-network
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - "85:80"
+      - target: 53
+        published: 53
+        protocol: udp
+        mode: host
+    secrets:
+      - source: pihole_webpassword
+    environment:
+      TZ: "America/Santiago"
+      PROXY_LOCATION: pihole
+      VIRTUAL_HOST: pihole.${LOCAL_DOMAIN:-home}
+      WEBPASSWORD:
+      WEBPASSWORD_FILE: /run/secrets/pihole_webpassword
+      REV_SERVER: "true"
+      REV_SERVER_CIDR: ${CIDR_BLOCK:-192.168.0.0/24}
+      REV_SERVER_TARGET: ${GATEWAY:-192.168.0.1}
+      REV_SERVER_DOMAIN: ${LOCAL_DOMAIN:-home}
+      DNSMASQ_LISTENING: all
+      FTL_CMD: no-daemon -- --dns-forward-max 300
+      DNSSEC: "true"
+    volumes:
+      - "pihole:/etc/pihole"
+      - "dnsmasq:/etc/dnsmasq.d"
+    #   https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+    cap_add:
+      - NET_ADMIN # Recommended but not required (DHCP needs NET_ADMIN)
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 0
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.dns.entrypoints=dns"
+        - "traefik.tcp.routers.dns.rule=HostSNI(`*`)"
+        - "traefik.tcp.routers.dns.service=pihole-tcp@swarm"
+        - "traefik.tcp.services.pihole-tcp.loadbalancer.server.port=53"
+        - "traefik.udp.routers.dns-udp.entrypoints=dns-udp"
+        - "traefik.udp.routers.dns-udp.service=pihole-udp@swarm"
+        - "traefik.udp.services.pihole-udp.loadbalancer.server.port=53"
+        - "traefik.http.routers.pihole-http.rule=Host(`pihole.${LOCAL_DOMAIN:-home}`)"
+        - "traefik.http.routers.pihole-http.entrypoints=web"
+        - "traefik.http.routers.pihole-http.middlewares=pihole-https@swarm"
+        - "traefik.http.middlewares.pihole-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.pihole.rule=Host(`pihole.${LOCAL_DOMAIN:-home}`)"
+        - "traefik.http.routers.pihole.tls=true"
+        - "traefik.http.routers.pihole.tls.certresolver=le-dns"
+        - "traefik.http.routers.pihole.service=pihole-admin@swarm"
+        - "traefik.http.services.pihole-admin.loadbalancer.server.port=80"
+        - "traefik.swarm.network=traefik-public"
+      resources:
+          limits:
+            cpus: "0.5"
+            memory: 2048M
+          reservations:
+            memory: 256M
+  dnscrypt-server:
+    image: jedisct1/dnscrypt-server:latest
+    networks:
+      - traefik-public
+    command: "init -N dnscrypt.${DOMAIN_NAME} -E '127.0.0.1:443'"
+    volumes:
+      - dnscrypt-keys:/opt/encrypted-dns/etc/keys
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.udp.routers.dnscrypt-server.entrypoints=dnscrypt-udp"
+        - "traefik.udp.routers.dnscrypt-server.service=dnscrypt-server@swarm"
+        - "traefik.udp.services.dnscrypt-server.loadbalancer.server.port=443/udp"
+        - "traefik.http.routers.dnscrypt-server.entrypoints=websecure"
+        - "traefik.http.routers.dnscrypt-server.rule=Host(`dnscrypt.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.dnscrypt-server.service=dnscrypt-server@swarm"
+        - "traefik.http.services.dnscrypt-server.loadbalancer.server.port=443"
+        - "traefik.http.routers.dnscrypt-server.tls=true"
+        - "traefik.http.routers.dnscrypt-server.tls.certresolver=le-dns"
+      resources:
+          limits:
+            cpus: "0.2"
+            memory: 128M
+          reservations:
+            memory: 64M
+    environment:
+      TZ: ${USER_TIMEZONE:-UTC}
+volumes:
+  pihole:
+  dnsmasq:
+  dnscrypt-keys: {}
+secrets:
+  pihole_webpassword:
+    file: ../secrets/pihole/webpassword

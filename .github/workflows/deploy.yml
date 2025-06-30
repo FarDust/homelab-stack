@@ -86,7 +86,7 @@ jobs:
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
         run: doppler secrets download -p personal-docker-stack  -c prd_traefik_stack --format=env --no-file > env_vars
-      
+
       - name: 📄 Check .env file
         run: |
           if [ -f env_vars ]; then
@@ -95,7 +95,7 @@ jobs:
             echo ".env file not found"
             exit 1
           fi
-      
+
       - name: 📝 Write secrets to files
         run: |
           echo '${{ steps.get-secrets.outputs.authelia-duo_integration_key }}' | tr -d '\n' > ./secrets/authelia/duo_integration_key
@@ -142,7 +142,7 @@ jobs:
           SSH_HOST: ${{ secrets.TS_DEPLOY_HOST }}
         run: |
           ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST "echo 'SSH connection successful'; exit"
-     
+
       - name: 📁 Create deploy directory
         env:
           SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
@@ -150,15 +150,15 @@ jobs:
         run: |
           ssh -i ${{ steps.setup_ssh.outputs.ssh_key_file }} -p ${{ secrets.SSH_PORT }} $SSH_USERNAME@$SSH_HOST \
           "mkdir -p /tmp/deploy/traefik/"
-      
+
       - name: 📄 List files
         run: |
           ls -al
-      
+
       - name: 📥 Copy files to target computer
         run: |
           rsync -avz ./* ${{ secrets.SSH_USERNAME }}@${{ secrets.TS_DEPLOY_HOST }}:$DEPLOY_FOLDER/
-          
+
       - name: 🗑️ Clear Remote Machine (Post-Action)
         uses: webiny/action-post-run@3.0.0
         with:

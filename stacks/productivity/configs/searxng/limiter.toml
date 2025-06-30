@@ -1,0 +1,8 @@
+# Minimal SearXNG limiter configuration
+# Disable rate limiting
+
+[botdetection.ip_limit]
+filter_link_local = false
+
+[real_ip]
+x_for = 0
