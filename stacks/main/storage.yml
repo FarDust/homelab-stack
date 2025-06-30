@@ -339,7 +339,69 @@ services:
       timeout: 10s
       retries: 120
 
+  supabase-db:
+    image: supabase/postgres:17.4.1.048
+    networks:
+      - traefik
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+      - supabase-db-config:/etc/postgresql-custom
+    configs:
+      - source: supabase_db_realtime_sql
+        target: /docker-entrypoint-initdb.d/migrations/99-realtime.sql
+      - source: supabase_db_webhooks_sql
+        target: /docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql
+      - source: supabase_db_roles_sql
+        target: /docker-entrypoint-initdb.d/init-scripts/99-roles.sql
+      - source: supabase_db_jwt_sql
+        target: /docker-entrypoint-initdb.d/init-scripts/99-jwt.sql
+      - source: supabase_db_supabase_sql
+        target: /docker-entrypoint-initdb.d/migrations/97-_supabase.sql
+      - source: supabase_db_logs_sql
+        target: /docker-entrypoint-initdb.d/migrations/99-logs.sql
+      - source: supabase_db_pooler_sql
+        target: /docker-entrypoint-initdb.d/migrations/99-pooler.sql
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: ${SUPABASE_POSTGRES_PORT:-5432}
+      POSTGRES_PORT: ${SUPABASE_POSTGRES_PORT:-5432}
+      PGPASSWORD: ${SUPABASE_POSTGRES_PASSWORD:?err}
+      POSTGRES_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD:?err}
+      PGDATABASE: ${SUPABASE_POSTGRES_DB:-postgres}
+      POSTGRES_DB: ${SUPABASE_POSTGRES_DB:-postgres}
+      JWT_SECRET: ${SUPABASE_JWT_SECRET:?err}
+      JWT_EXP: ${SUPABASE_JWT_EXPIRY:-3600}
+    command:
+      [
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "log_min_messages=fatal"
+      ]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.supabase-db.rule=HostSNI(`supabase-db.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.supabase-db.entrypoints=host-internal"
+        - "traefik.tcp.routers.supabase-db.tls=true"
+        - "traefik.tcp.routers.supabase-db.tls.certresolver=le-dns"
+        - "traefik.tcp.services.supabase-db.loadbalancer.server.port=${SUPABASE_POSTGRES_PORT:-5432}"
+        - "traefik.swarm.network=traefik"
+
 volumes:
+  # DB data volumes cannot be synced, could cause issues with data integrity
   postgres_data: {}
   influx: {}
   redis-data:
@@ -348,6 +410,16 @@ volumes:
   minio_data: {}
   mongodb_data: {}
   infinity_data: {}
+  supabase-db-data:
+    driver: local
+  # Config volumes that persists across deployments
+  supabase-db-config:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
+      allow_other: "true"
+      vfs_cache_mode: full
+
 secrets:
   postgres_db_password:
     file: ../../secrets/postgres/postgres_db_password
@@ -366,3 +438,24 @@ configs:
   infinity_conf:
     name: infinity_conf-${CONFIG_VERSION:-0}
     file: ./configs/infinity/infinity_conf.toml
+  supabase_db_realtime_sql:
+    name: supabase_db_realtime_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/realtime.sql
+  supabase_db_webhooks_sql:
+    name: supabase_db_webhooks_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/webhooks.sql
+  supabase_db_roles_sql:
+    name: supabase_db_roles_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/roles.sql
+  supabase_db_jwt_sql:
+    name: supabase_db_jwt_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/jwt.sql
+  supabase_db_supabase_sql:
+    name: supabase_db_supabase_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/_supabase.sql
+  supabase_db_logs_sql:
+    name: supabase_db_logs_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/logs.sql
+  supabase_db_pooler_sql:
+    name: supabase_db_pooler_sql-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/docker/volumes/db/pooler.sql
