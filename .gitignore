@@ -1,3 +1,5 @@
+*.tmp_service_deploy_*.yml
+*/.tmp_service_deploy_*.yml
 secrets/*
 .env
 !.keep
