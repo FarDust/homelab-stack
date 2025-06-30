@@ -1,0 +1,3 @@
+[submodule "stacks/main/configs/supabase"]
+	path = stacks/main/configs/supabase
+	url = git@github.com:supabase/supabase.git
