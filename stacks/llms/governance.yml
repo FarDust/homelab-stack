@@ -191,6 +191,18 @@ services:
     networks:
       - traefik
     environment:
+      - DATABASE_URL=${OPEN_WEB_UI_DATABASE_URL?err}
+      - DATABASE_SCHEMA=${OPEN_WEB_UI_DATABASE_SCHEMA?err}
+      - REDIS_URL=${OPEN_WEB_UI_REDIS_URL?err}
+      - VECTOR_DB=qdrant
+      - QDRANT_URI=${QDRANT_ENDPOINT?err}
+      - QDRANT_API_KEY=${QDRANT_API_KEY?err}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID?err}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET?err}
+      - GOOGLE_REDIRECT_URI=https://chat.${LOCAL_DOMAIN}/oauth/google/callback
+      - ENABLE_OAUTH_SIGNUP=true
+      - ENABLE_LOGIN_FORM=false
+      - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - OLLAMA_BASE_URL=http://ollama:11434
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
     volumes:
