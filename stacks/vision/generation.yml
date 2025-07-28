@@ -1,0 +1,85 @@
+services:
+  comfy-gpu:
+    image: us-central1-docker.pkg.dev/landing-fardust/public-docker/comfyui-cuda12.8-cudnn9-runtime:1.2.3
+    command:
+      [
+        "--listen",
+        "--port",
+        "8188",
+        "--database-url",
+        "${COMFYUI_DATABASE_URL:-sqlite:////stable-diffusion/user/comfyui.db}",
+        "--multi-user",
+        "--comfy-api-base",
+        "https://comfy.${LOCAL_DOMAIN?err}",
+      ]
+    volumes:
+      - comfyui_data:/data
+      - comfyui_custom_nodes:/data/config/comfy/custom_nodes
+      - comfyui_output:/stable-diffusion/output
+      - comfyui_cache:/root/.cache
+      - comfyui_config:/stable-diffusion/user
+      - comfyui_models:/stable-diffusion/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.gpu == true
+          - node.labels.gpu.class == high-end
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.comfy-gpu-http.entrypoints=web
+        - traefik.http.routers.comfy-gpu-http.rule=Host(`comfy.${LOCAL_DOMAIN?err}`)
+        - traefik.http.routers.comfy-gpu.entrypoints=websecure
+        - traefik.http.routers.comfy-gpu.rule=Host(`comfy.${LOCAL_DOMAIN?err}`)
+        - traefik.http.routers.comfy-gpu-http.middlewares=comfy-gpu-https@swarm
+        - traefik.http.middlewares.comfy-gpu-https.redirectscheme.scheme=https
+        - traefik.http.routers.comfy-gpu.tls=true
+        - traefik.http.routers.comfy-gpu.tls.certresolver=le-dns
+        - traefik.http.services.comfy-gpu.loadbalancer.server.port=8188
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  comfyui_custom_nodes:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/custom_nodes"
+      allow_other: "true"
+      vfs_cache_mode: full
+  comfyui_data:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/data"
+      allow_other: "true"
+      vfs_cache_mode: full
+  comfyui_models:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/data/models"
+      allow_other: "true"
+      vfs_cache_mode: full
+  comfyui_output:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/output"
+      allow_other: "true"
+      vfs_cache_mode: full
+  comfyui_config:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/config"
+      allow_other: "true"
+      vfs_cache_mode: full
+  comfyui_cache:
+    driver: local
