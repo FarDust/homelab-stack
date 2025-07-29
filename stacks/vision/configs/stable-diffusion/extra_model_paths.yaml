@@ -1,0 +1,19 @@
+a111:
+  base_path: /data
+
+  checkpoints: models/Stable-diffusion
+  configs: models/Stable-diffusion
+  vae: models/VAE
+  loras: models/Lora
+  upscale_models: |
+    models/RealESRGAN
+    models/ESRGAN
+    models/SwinIR
+    models/GFPGAN
+  hypernetworks: models/hypernetworks
+  controlnet: models/ControlNet
+  gligen: models/GLIGEN
+  clip: models/CLIPEncoder
+  embeddings: embeddings
+
+  custom_nodes: config/comfy/custom_nodes

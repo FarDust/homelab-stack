@@ -1,36 +1,57 @@
 services:
   ollama:
     image: ollama/ollama
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - "ollama serve & SERVER_PID=$! && echo 'Ollama server started with PID: '$SERVER_PID && sleep 5 && (ollama pull gemma3:1b && ollama pull llama3.2:1b && ollama pull phi4-mini && ollama pull mistral && ollama pull moondream && ollama pull neural-chat && ollama pull starling-lm && ollama pull llama2-uncensored && ollama pull llava && ollama pull codellama && ollama pull deepseek-r1 && ollama pull granite3.2 && ollama pull llama3.1 && ollama pull nomic-embed-text && echo 'Models installed successfully' &) && wait $SERVER_PID"
     deploy:
       replicas: 1
       placement:
         constraints:
         - node.labels.gpu == true
         - node.labels.gpu.class == high-end
-      # resources:
-      #   limits:
-      #     cpus: '1.5'
-      #     memory: 4.5G
       restart_policy:
         condition: any
         delay: 5s
-        max_attempts: 3
         window: 120s
       labels:
         - traefik.enable=true
-        - traefik.http.routers.ollama-http.entrypoints=web
-        - traefik.http.routers.ollama-http.rule=Host(`ollama.${LOCAL_DOMAIN}`)
         - traefik.http.routers.ollama.entrypoints=websecure
         - traefik.http.routers.ollama.rule=Host(`ollama.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.ollama-http.middlewares=ollama-https@swarm
-        - traefik.http.middlewares.ollama-https.redirectscheme.scheme=https
         - traefik.http.routers.ollama.tls=true
         - traefik.http.routers.ollama.tls.certresolver=le-dns
+        - traefik.http.routers.ollama.priority=100
         - traefik.http.services.ollama.loadbalancer.server.port=11434
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_THREAD=2
+      - OLLAMA_HOST=0.0.0.0
+      - NVIDIA_VISIBLE_DEVICES=all
+    networks:
+      - traefik
+  ollama-low-end:
+    image: ollama/ollama
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.labels.gpu == true
+        - node.labels.gpu.class == low-end
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.ollama-low-end.entrypoints=websecure
+        - traefik.http.routers.ollama-low-end.rule=Host(`ollama.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ollama-low-end.tls=true
+        - traefik.http.routers.ollama-low-end.tls.certresolver=le-dns
+        - traefik.http.routers.ollama-low-end.priority=50
+        - traefik.http.services.ollama-low-end.loadbalancer.server.port=11434
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -124,7 +145,7 @@ services:
           memory: 4G
       placement:
         constraints:
-        - node.labels.gpu == false
+        - node.labels.gpu != true
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -157,7 +178,10 @@ services:
       - OPENROUTER_API_KEY=${LITELLM_OPENROUTER_API_KEY?err}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY?err}
       - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/vertex_ai_credentials
-      - DATABASE_URL=postgresql://${LITELLM_DB_URL?err}/${LITELLM_DB:-postgres}
+      - DATABASE_URL=${LITELLM_DB_URL?err}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD?err}
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
@@ -188,9 +212,17 @@ services:
         - traefik.http.services.litellm.loadbalancer.server.port=4000
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - traefik
     environment:
+      - HOST=0.0.0.0
+      - PORT=8080
       - DATABASE_URL=${OPEN_WEB_UI_DATABASE_URL?err}
       - DATABASE_SCHEMA=${OPEN_WEB_UI_DATABASE_SCHEMA?err}
       - REDIS_URL=${OPEN_WEB_UI_REDIS_URL?err}
@@ -205,14 +237,16 @@ services:
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - OLLAMA_BASE_URL=http://ollama:11434
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+      - USE_CUDA_DOCKER=true
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - open_webui_data:/app/backend/data
     deploy:
-      replicas: 1
+      replicas: 3
       resources:
         limits:
-          cpus: '1'
-          memory: 2G
+          cpus: '4'
+          memory: 8G
       placement:
         constraints:
         - node.labels.gpu == true
