@@ -1,5 +1,20 @@
 litellm_settings:
   vertex_location: "us-central1"
+  callbacks: []
+  cache: True
+  cache_params:
+    type: redis
+    namespace: "litellm.caching.caching"
+    ttl: 240
+    supported_call_types: ["aembedding"]
+    host: os.environ/REDIS_HOST
+    port: os.environ/REDIS_PORT
+    password: os.environ/REDIS_PASSWORD
+
+router_settings:
+  redis_host: os.environ/REDIS_HOST
+  redis_port: os.environ/REDIS_PORT
+  redis_password: os.environ/REDIS_PASSWORD
 
 model_list:
   # OpenAI Models
@@ -604,7 +619,7 @@ model_list:
   # Vertex AI Models
   - model_name: gemini-2.5-flash
     litellm_params:
-      model: vertex_ai/gemini-2.5-flash-preview-05-20
+      model: vertex_ai/gemini-2.5-flash
     model_info:
       owned_by: google
 
@@ -707,6 +722,14 @@ model_list:
     model_info:
       owned_by: nomic
 
+  - model_name: moondream
+    litellm_params:
+      model: ollama/moondream
+      api_base: http://ollama:11434
+    model_info:
+      owned_by: vikhyatk
+
 general_settings:
 
   store_prompts_in_spend_logs: true
+  user_api_key_cache_ttl: 3600

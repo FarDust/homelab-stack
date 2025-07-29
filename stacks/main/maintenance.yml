@@ -1,0 +1,76 @@
+# main-maintenance stack
+version: "3.9"
+networks:
+ traefik:
+   external: true
+services:
+  rclone-fixer:
+    image: docker:cli
+    command: ["/bin/sh", "/fix/check.sh"]
+    environment:
+      - RCLONE_FIX_ENABLED=true
+      - RCLONE_FIX_INTERVAL=60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker-plugins/rclone/cache/:/state/
+    configs:
+      - source: rclone-fix-script
+        target: /fix/check.sh
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.platform.os == linux
+  postgres-backup:
+    image: kartoza/pg-backup:17-3.5
+    networks:
+      - traefik
+    secrets:
+      - source: postgres_db_password
+    volumes:
+      - backups:/backups
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - CRON_SCHEDULE="0 23 * * *"
+      - TZ=${TIMEZONE:-UTC}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+
+volumes:
+  backups:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/postgres"
+      allow_other: "true"
+      vfs_cache_mode: full
+
+secrets:
+  postgres_db_password:
+    name: postgres_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/postgres/postgres_db_password
+configs:
+  rclone-fix-script:
+    name: rclone-fix-script-${CONFIG_VERSION:-0}
+    file: ./configs/rclone/check.sh
