@@ -54,6 +54,13 @@ scrape_configs:
         type: "A"
         port: 9100
 
+    relabel_configs:
+    - source_labels: [__meta_dockerswarm_task_node_id]
+      target_label: node_id
+
+    - source_labels: [__meta_dockerswarm_node_hostname]
+      target_label: node_hostname
+
   - job_name: "traefik"
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
@@ -64,17 +71,17 @@ scrape_configs:
         type: "A"
         port: 8080
 
-  - job_name: "netdata"
+  # - job_name: "netdata"
 
-    metrics_path: /api/v1/allmetrics
-    params:
-      format: [prometheus]
+  #   metrics_path: /api/v1/allmetrics
+  #   params:
+  #     format: [prometheus]
 
-    dns_sd_configs:
-      - names:
-          - "tasks.netdata"
-        type: "A"
-        port: 19999
+  #   dns_sd_configs:
+  #     - names:
+  #         - "tasks.netdata"
+  #       type: "A"
+  #       port: 19999
 
   - job_name: watchtower
     scrape_interval: 15m

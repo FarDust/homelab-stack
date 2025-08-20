@@ -7,6 +7,7 @@ networks:
 services:
   node-exporter:
     image: quay.io/prometheus/node-exporter:latest
+    hostname: "{{.Node.ID}}"
     environment:
       - NODE_ID={{.Node.ID}}
     networks:
@@ -19,19 +20,20 @@ services:
       - "--path.sysfs=/host/sys"
       - "--path.procfs=/host/proc"
       - "--path.rootfs=/rootfs"
-      - "--collector.textfile.directory=/etc/node-exporter/"
       - "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)"
       - "--no-collector.ipvs"
     deploy:
       mode: global
       resources:
         limits:
-          cpus: "0.2"
-          memory: 256M
+          cpus: "0.8"
+          memory: 512M
         reservations:
+          cpus: "0.2"
           memory: 64M
       placement:
-        constraints: [node.role == manager]
+        constraints:
+          - node.platform.os == linux
       labels:
         - "traefik.enable=false"
         - "traefik.swarm.network=traefik"
