@@ -1,0 +1,16 @@
+services:
+  cloudflared-n8n:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_N8N_TUNNEL_TOKEN:?err}
+    environment:
+      - CLOUDFLARE_N8N_TUNNEL_TOKEN=${CLOUDFLARE_N8N_TUNNEL_TOKEN:?err}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true
