@@ -1,7 +1,6 @@
 version: "3.9"
 x-common:
-  authelia-database:
-    &db-environment
+  authelia-database: &db-environment
     POSTGRES_DB: &db-database authelia
     POSTGRES_USER: &db-user "authelia"
     POSTGRES_PASSWORD_FILE: &db-password /run/secrets/authelia_db_password
@@ -11,6 +10,8 @@ networks:
   traefik:
     external: true
   authelia-db:
+    driver: overlay
+  portainer-agents:
     driver: overlay
 services:
   traefik:
@@ -132,15 +133,15 @@ services:
       mode: global
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+          - node.role == manager
+          - node.labels.swarm.leader == true
       update_config:
         parallelism: 5
         delay: 10s
       restart_policy:
         condition: any
       labels:
-        - 'traefik.enable=true'
+        - "traefik.enable=true"
         # HTTP router
         - "traefik.http.routers.dashboard-http.rule=Host(`dashboard.${LOCAL_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`) || PathPrefix(`/`))"
         - "traefik.http.routers.dashboard-http.entrypoints=web"
@@ -155,28 +156,6 @@ services:
         - "traefik.http.routers.dashboard.tls=true"
         - "traefik.http.routers.dashboard.tls.certresolver=le-dns"
         - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
-  traefik-me-certificates:
-    # Allow the usage of *.traefik.me domains with TLS
-    image: alpine
-    command: sh -c "mkdir -p /etc/ssl/traefik/traefik-me
-      && cd /etc/ssl/traefik/traefik-me/
-      && wget traefik.me/cert.pem -O cert.pem
-      && wget traefik.me/privkey.pem -O privkey.pem"
-    volumes:
-      - root-certificates:/etc/ssl/traefik
-    deploy:
-      mode: global
-      placement:
-        constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
-      update_config:
-        parallelism: 5
-        delay: 10s
-      restart_policy:
-        condition: any
-        delay: 72h
-        window: 72h
   sablier-worker:
     image: sablierapp/sablier:1.8.5
     command:
@@ -188,15 +167,15 @@ services:
         aliases:
           - sablier-app
     volumes:
-      - '/var/run/docker.sock:/var/run/docker.sock'
+      - "/var/run/docker.sock:/var/run/docker.sock"
     deploy:
       mode: global
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+          - node.role == manager
+          - node.labels.swarm.leader == true
       labels:
-        - 'traefik.enable=true'
+        - "traefik.enable=true"
         - "traefik.http.routers.sablier.rule=Host(`sablier.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.sablier.entrypoints=web"
         - "traefik.http.routers.sablier.service=sablier"
@@ -270,19 +249,19 @@ services:
       restart_policy:
         condition: any
       labels:
-        - 'traefik.enable=true'
-        - 'traefik.http.routers.authelia.rule=Host(`${AUTHELIA_PREFIX}.${DOMAIN_NAME}`)'
-        - 'traefik.http.routers.authelia.entryPoints=websecure'
-        - 'traefik.http.routers.authelia.tls=true'
+        - "traefik.enable=true"
+        - "traefik.http.routers.authelia.rule=Host(`${AUTHELIA_PREFIX}.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.authelia.entryPoints=websecure"
+        - "traefik.http.routers.authelia.tls=true"
         - "traefik.http.routers.authelia.tls.certresolver=le-dns"
         - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-        - 'traefik.http.middlewares.authelia.forwardAuth.address=http://authelia:9091/api/verify?rd=https%3A%2F%2Fauth.${DOMAIN_NAME}%2F'
-        - 'traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader=true'
-        - 'traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email'
-        - 'traefik.http.middlewares.authelia-basic.forwardAuth.address=http://authelia:9091/api/verify?auth=basic'
-        - 'traefik.http.middlewares.authelia-basic.forwardAuth.trustForwardHeader=true'
-        - 'traefik.http.middlewares.authelia-basic.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email'
-        - 'traefik.swarm.network=traefik-public'
+        - "traefik.http.middlewares.authelia.forwardAuth.address=http://authelia:9091/api/verify?rd=https%3A%2F%2Fauth.${DOMAIN_NAME}%2F"
+        - "traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email"
+        - "traefik.http.middlewares.authelia-basic.forwardAuth.address=http://authelia:9091/api/verify?auth=basic"
+        - "traefik.http.middlewares.authelia-basic.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.authelia-basic.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email"
+        - "traefik.swarm.network=traefik-public"
   authelia-db:
     image: postgres:14-alpine
     networks:
@@ -293,7 +272,7 @@ services:
     volumes:
       - authelia-data:/var/lib/postgresql/data
     environment:
-      << : *db-environment
+      <<: *db-environment
     secrets:
       - source: authelia_db_password
     deploy:
@@ -303,10 +282,10 @@ services:
         condition: any
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+          - node.role == manager
+          - node.labels.swarm.leader == true
       labels:
-        - 'traefik.enable=false'
+        - "traefik.enable=false"
   authelia-redis:
     image: redis:7-alpine
     command:
@@ -328,12 +307,22 @@ services:
         condition: any
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+          - node.role == manager
+          - node.labels.swarm.leader == true
       labels:
-        - 'traefik.enable=false'
+        - "traefik.enable=false"
   prometheus:
     image: prom/prometheus
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:9090/-/healthy >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - traefik-public
       - traefik
@@ -354,6 +343,7 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.size=750GB"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
     deploy:
@@ -361,31 +351,35 @@ services:
         - "traefik.enable=true"
         - "traefik.http.routers.prometheus.service=prometheus@swarm"
         - "traefik.http.routers.prometheus.rule=Host(`prometheus.${LOCAL_DOMAIN:-home}`)"
-        - "traefik.http.routers.prometheus.entrypoints=web"
+        - "traefik.http.routers.prometheus.entrypoints=websecure"
         - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+        - "traefik.http.services.prometheus.loadbalancer.healthcheck.path=/-/ready"
+        - "traefik.http.services.prometheus.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.prometheus.loadbalancer.healthcheck.unhealthyInterval=60s"
+        - "traefik.http.services.prometheus.loadbalancer.healthcheck.timeout=2s"
         - "traefik.swarm.network=traefik-public"
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+          - node.role == manager
+          - node.labels.swarm.leader == true
       restart_policy:
         condition: on-failure
   grafana:
     image: grafana/grafana:latest
     depends_on:
       - prometheus
-    # ! Removing because not sure why the traefik service cannot configure the router with the healthcheck
-    # ! The command wget  http://grafana:3000/api/health is working inside the container, so we keep this to
-    # ! review it later. It's better to have a healthcheck when we have the time to test it well
-    # healthcheck:
-    #   test: ["CMD", "wget", "http://localhost:3000/api/health", "-q", "--tries", "1", "-O", "/dev/null"]
-    #   interval: 1m30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 40s
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     volumes:
       - grafana_data:/var/lib/grafana
-#      - grafana_dashboards:/etc/grafana/provisioning/dashboards
     configs:
       - source: grafana_datasources
         target: /etc/grafana/provisioning/datasources/datasource.yml
@@ -430,6 +424,7 @@ services:
       - GF_DATABASE_USER=${GF_POSTGRES_USER:-postgres}
       - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
       - GF_DATABASE_NAME=${GF_POSTGRES_DB:-postgres}
+      - GF_DATABASE_SSL_MODE=require
     env_file:
       - ./configs/grafana/config.monitoring
     networks:
@@ -439,21 +434,18 @@ services:
       mode: replicated
       replicas: 3
       labels:
-        - "sablier.enable=true"
-        - "sablier.group=maintenance"
+        #- "sablier.enable=true"
+        #- "sablier.group=maintenance"
         - "traefik.enable=true"
         - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN_NAME}`)"
         - "traefik.http.routers.grafana.service=grafana@swarm"
-        - "traefik.http.routers.grafana-http.entrypoints=web"
-        - "traefik.http.routers.grafana-http.rule=Host(`grafana.${DOMAIN_NAME}`)"
         - "traefik.http.routers.grafana.entrypoints=websecure"
-        - "traefik.http.routers.grafana-http.middlewares=grafana-https@swarm"
-        - 'traefik.http.routers.grafana.middlewares=authelia@swarm,load-maintenance@file'
-        - "traefik.http.middlewares.grafana-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.grafana.middlewares=authelia@swarm"
         - "traefik.http.routers.grafana.tls=true"
         - "traefik.http.routers.grafana.tls.certresolver=le-dns"
         - "traefik.http.services.grafana.loadbalancer.server.port=3000"
-        - "traefik.swarm.lbswarm=true"
+        - "traefik.http.services.grafana.loadbalancer.healthcheck.path=/api/health"
+          #- "traefik.swarm.lbswarm=true"
       placement:
         constraints:
           - node.platform.os == linux
@@ -465,13 +457,15 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     networks:
-      - traefik-public
+      - portainer-agents
+    environment:
+      - AGENT_CLUSTER_ADDR=tasks.agent
+      - AGENT_SECRET=${PORTAINER_AGENT_SECRET:?err}
     deploy:
       mode: global
       placement:
         constraints:
-        - node.platform.os == linux
-        - node.role == manager
+          - node.platform.os == linux
   portainer:
     image: portainer/portainer-ce:latest
     command: -H tcp://tasks.agent:9001 --tlsskipverify --admin-password-file /run/secrets/portainer_admin_password
@@ -481,25 +475,28 @@ services:
       - source: portainer_admin_password
     networks:
       - traefik-public
+      - portainer-agents
+    environment:
+      - AGENT_SECRET=${PORTAINER_AGENT_SECRET:?err}
     deploy:
       mode: replicated
       replicas: 1
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+          - node.role == manager
+          - node.labels.swarm.leader == true
       labels:
         #- "sablier.enable=true"
         #- "sablier.group=maintenance"
         - "traefik.enable=true"
-        - 'traefik.http.routers.portainer.middlewares=authelia@swarm,load-maintenance@file'
+        - "traefik.http.routers.portainer.middlewares=authelia@swarm"
         - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN_NAME}`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le-dns"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
         #- "traefik.swarm.lbswarm=true"
       restart_policy:
-          condition: none
+        condition: none
 volumes:
   portainer_data:
     driver: rclone
