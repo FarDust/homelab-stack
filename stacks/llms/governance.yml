@@ -19,10 +19,12 @@ services:
         - traefik.http.routers.ollama.tls.certresolver=le-dns
         - traefik.http.routers.ollama.priority=100
         - traefik.http.services.ollama.loadbalancer.server.port=11434
+        - traefik.http.services.ollama.loadbalancer.healthcheck.path=/api/tags
+        - traefik.http.services.ollama.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.ollama.loadbalancer.healthcheck.timeout=2s
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - OLLAMA_NUM_THREAD=2
       - OLLAMA_HOST=0.0.0.0
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
@@ -52,6 +54,9 @@ services:
         - traefik.http.routers.ollama-low-end.tls.certresolver=le-dns
         - traefik.http.routers.ollama-low-end.priority=50
         - traefik.http.services.ollama-low-end.loadbalancer.server.port=11434
+        - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.path=/api/tags
+        - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.timeout=2s
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -166,6 +171,12 @@ services:
       - localai_data:/usr/share/local-ai/models
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
+    healthcheck:
+      test:  ["CMD-SHELL", "wget -q -O- http://localhost:4000/health/liveliness >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     command:
       - --config
       - /app/config/config.yaml
@@ -182,6 +193,7 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD?err}
+      - OLLAMA_API_BASE=https://ollama.${LOCAL_DOMAIN?err}
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
@@ -189,7 +201,7 @@ services:
       - source: vertex_ai_credentials
         target: vertex_ai_credentials
     deploy:
-      replicas: 1
+      replicas: 3
       resources:
         limits:
           cpus: '1'
@@ -201,15 +213,14 @@ services:
         window: 120s
       labels:
         - traefik.enable=true
-        - traefik.http.routers.litellm-http.entrypoints=web
-        - traefik.http.routers.litellm-http.rule=Host(`litellm.${LOCAL_DOMAIN}`)
         - traefik.http.routers.litellm.entrypoints=websecure
         - traefik.http.routers.litellm.rule=Host(`litellm.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.litellm-http.middlewares=litellm-https@swarm
-        - traefik.http.middlewares.litellm-https.redirectscheme.scheme=https
         - traefik.http.routers.litellm.tls=true
         - traefik.http.routers.litellm.tls.certresolver=le-dns
         - traefik.http.services.litellm.loadbalancer.server.port=4000
+        - traefik.http.services.litellm.loadbalancer.healthcheck.path=/health/readiness
+        - traefik.http.services.litellm.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.litellm.loadbalancer.healthcheck.timeout=2s
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     healthcheck:
@@ -223,9 +234,13 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8080
+      - WEBUI_URL=https://chat.${LOCAL_DOMAIN}
+      - WEBUI_SECRET_KEY=${OPEN_WEB_UI_SECRET_KEY?err}
+      - WEBUI_SESSION_COOKIE_SECURE=true
       - DATABASE_URL=${OPEN_WEB_UI_DATABASE_URL?err}
       - DATABASE_SCHEMA=${OPEN_WEB_UI_DATABASE_SCHEMA?err}
       - REDIS_URL=${OPEN_WEB_UI_REDIS_URL?err}
+      - REDIS_KEY_PREFIX=open-webui
       - VECTOR_DB=qdrant
       - QDRANT_URI=${QDRANT_ENDPOINT?err}
       - QDRANT_API_KEY=${QDRANT_API_KEY?err}
@@ -239,6 +254,10 @@ services:
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
       - USE_CUDA_DOCKER=true
       - NVIDIA_VISIBLE_DEVICES=all
+      - ENABLE_WEBSOCKET_SUPPORT=true
+      - WEBSOCKET_MANAGER=redis
+      - WEBSOCKET_REDIS_URL=${OPEN_WEB_UI_WEBSOCKETS_REDIS_URL?err}
+      - SOCKETIO_TRANSPORTS=websocket
     volumes:
       - open_webui_data:/app/backend/data
     deploy:
@@ -257,15 +276,21 @@ services:
         window: 120s
       labels:
         - traefik.enable=true
-        - traefik.http.routers.open-webui-http.entrypoints=web
-        - traefik.http.routers.open-webui-http.rule=Host(`chat.${LOCAL_DOMAIN}`)
         - traefik.http.routers.open-webui.entrypoints=websecure
         - traefik.http.routers.open-webui.rule=Host(`chat.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.open-webui-http.middlewares=open-webui-https@swarm
-        - traefik.http.middlewares.open-webui-https.redirectscheme.scheme=https
         - traefik.http.routers.open-webui.tls=true
         - traefik.http.routers.open-webui.tls.certresolver=le-dns
+        - traefik.http.routers.open-webui.service=open-webui
         - traefik.http.services.open-webui.loadbalancer.server.port=8080
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie=true
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.name=owui
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.httpOnly=true
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.secure=true
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.sameSite=lax
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.maxAge=86400
+        - traefik.http.services.open-webui.loadbalancer.healthcheck.path=/health
+        - traefik.http.services.open-webui.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.open-webui.loadbalancer.healthcheck.timeout=2s
 networks:
   traefik:
     external: true

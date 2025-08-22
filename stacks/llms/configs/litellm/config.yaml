@@ -95,6 +95,69 @@ model_list:
     model_info:
       owned_by: openai
 
+  - model_name: gpt-5
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-nano
+    litellm_params:
+      model: openai/gpt-5-nano
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-chat-latest
+    litellm_params:
+      model: openai/gpt-5-chat-latest
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-2025-08-07
+    litellm_params:
+      model: openai/gpt-5-2025-08-07
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-mini-2025-08-07
+    litellm_params:
+      model: openai/gpt-5-mini-2025-08-07
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-nano-2025-08-07
+    litellm_params:
+      model: openai/gpt-5-nano-2025-08-07
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-4.1
+    litellm_params:
+      model: openai/gpt-4.1
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-4.1-2025-04-14
+    litellm_params:
+      model: openai/gpt-4.1-2025-04-14
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
   - model_name: text-embedding-3-small
     litellm_params:
       model: openai/text-embedding-3-small
@@ -623,111 +686,313 @@ model_list:
     model_info:
       owned_by: google
 
+  - model_name: gemini-2.5-pro
+    litellm_params:
+      model: vertex_ai/gemini-2.5-pro
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-2.5-flash-preview
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash-preview-05-20
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-2.5-flash-lite
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash-lite
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-2.5-flash-lite-preview
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash-lite-06-17
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-live-2.5-flash-preview
+    litellm_params:
+      model: vertex_ai/gemini-live-2.5-flash-preview
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-2.5-flash-exp-native-audio-thinking-dialog
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash-exp-native-audio-thinking-dialog
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-2.5-flash-preview-tts
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash-preview-tts
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-2.5-pro-preview-tts
+    litellm_params:
+      model: vertex_ai/gemini-2.5-pro-preview-tts
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-embedding-001
+    litellm_params:
+      model: vertex_ai/gemini-embedding-001
+    model_info:
+      owned_by: google
+
+  # Vertex AI Claude Models
+  - model_name: claude-sonnet-4
+    litellm_params:
+      model: vertex_ai/claude-sonnet-4@20250514
+    model_info:
+      owned_by: anthropic
+
+  - model_name: claude-3-5-sonnet
+    litellm_params:
+      model: vertex_ai/claude-3-5-sonnet@20240620
+    model_info:
+      owned_by: anthropic
+
+  - model_name: claude-3-sonnet
+    litellm_params:
+      model: vertex_ai/claude-3-sonnet@20240229
+    model_info:
+      owned_by: anthropic
+
+  - model_name: claude-3-haiku
+    litellm_params:
+      model: vertex_ai/claude-3-haiku@20240307
+    model_info:
+      owned_by: anthropic
+
+  - model_name: claude-3-7-sonnet
+    litellm_params:
+      model: vertex_ai/claude-3-7-sonnet@20250219
+    model_info:
+      owned_by: anthropic
+
+  # Vertex AI Qwen Models
+  - model_name: qwen3-235b-instruct
+    litellm_params:
+      model: vertex_ai/qwen/qwen3-235b-a22b-instruct-2507-maas
+    model_info:
+      owned_by: alibaba
+
+  - model_name: qwen3-coder-480b-instruct
+    litellm_params:
+      model: vertex_ai/qwen/qwen3-coder-480b-a35b-instruct-maas
+    model_info:
+      owned_by: alibaba
+
+  # Vertex AI Imagen Models
+  - model_name: imagen-4.0-ultra-generate
+    litellm_params:
+      model: vertex_ai/imagen-4.0-ultra-generate-001
+    model_info:
+      owned_by: google
+
   # Ollama Models
   - model_name: gemma3-1b
     litellm_params:
       model: ollama/gemma3:1b
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: google
 
   - model_name: llama3-1b
     litellm_params:
       model: ollama/llama3.2:1b
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: phi4-mini
     litellm_params:
       model: ollama/phi4-mini
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: microsoft
 
   - model_name: mistral
     litellm_params:
       model: ollama/mistral
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: mistral
 
   - model_name: moondream
     litellm_params:
       model: ollama/moondream
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: vikhyatk
 
   - model_name: neural-chat
     litellm_params:
       model: ollama/neural-chat
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: intel
 
   - model_name: starling-lm
     litellm_params:
       model: ollama/starling-lm
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: berkeley-nest
 
   - model_name: llama2-uncensored
     litellm_params:
       model: ollama/llama2-uncensored
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: llava
     litellm_params:
       model: ollama/llava
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: lmsys
 
   - model_name: codellama
     litellm_params:
       model: ollama/codellama
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: deepseek-r1
     litellm_params:
       model: ollama/deepseek-r1
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: deepseek
 
   - model_name: granite3-2
     litellm_params:
       model: ollama/granite3.2
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: google
 
   - model_name: llama3-1
     litellm_params:
       model: ollama/llama3.1
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: nomic-embed-text
     litellm_params:
       model: ollama/nomic-embed-text
-      api_base: http://ollama:11434
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: nomic
 
-  - model_name: moondream
+  # Additional Ollama Models - DeepSeek variants
+  - model_name: deepseek-r1-14b
     litellm_params:
-      model: ollama/moondream
-      api_base: http://ollama:11434
+      model: ollama/deepseek-r1:14b
+      api_base: os.environ/OLLAMA_API_BASE
     model_info:
-      owned_by: vikhyatk
+      owned_by: deepseek
+      parameter_size: "14.8B"
+      quantization_level: "Q4_K_M"
+
+  - model_name: deepseek-r1-7b
+    litellm_params:
+      model: ollama/deepseek-r1:7b
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: deepseek
+      parameter_size: "7.6B"
+      quantization_level: "Q4_K_M"
+
+  - model_name: deepseek-coder-v2
+    litellm_params:
+      model: ollama/deepseek-coder-v2:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: deepseek
+      parameter_size: "15.7B"
+      quantization_level: "Q4_0"
+
+  # Qwen models
+  - model_name: qwen2-5-coder-14b
+    litellm_params:
+      model: ollama/qwen2.5-coder:14b-instruct-q4_K_M
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+      parameter_size: "14.8B"
+      quantization_level: "Q4_K_M"
+
+  - model_name: qwen2-5-14b
+    litellm_params:
+      model: ollama/qwen2.5:14b-instruct-q4_K_M
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+      parameter_size: "14.8B"
+      quantization_level: "Q4_K_M"
+
+  - model_name: qwen3
+    litellm_params:
+      model: ollama/qwen3:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+      parameter_size: "8.2B"
+      quantization_level: "Q4_K_M"
+
+  # Llama variants
+  - model_name: llama3-1-8b-q4
+    litellm_params:
+      model: ollama/llama3.1:8b-instruct-q4_0
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: meta
+      parameter_size: "8.0B"
+      quantization_level: "Q4_0"
+
+  # Gemma variants
+  - model_name: gemma2-9b
+    litellm_params:
+      model: ollama/gemma2:9b-instruct-q4_0
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: google
+      parameter_size: "9.2B"
+      quantization_level: "Q4_0"
+
+  - model_name: gemma3-4b
+    litellm_params:
+      model: ollama/gemma3:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: google
+      parameter_size: "4.3B"
+      quantization_level: "Q4_K_M"
+
+  # Specialized models
+  - model_name: smallthinker
+    litellm_params:
+      model: ollama/smallthinker:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: unknown
+      parameter_size: "3.4B"
+      quantization_level: "Q8_0"
+
+  - model_name: gpt-oss-20b
+    litellm_params:
+      model: ollama/gpt-oss:20b
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: unknown
+      parameter_size: "20.9B"
+      quantization_level: "MXFP4"
 
 general_settings:
 
