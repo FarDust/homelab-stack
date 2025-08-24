@@ -243,7 +243,7 @@ services:
       - DATABASE_URL=${OPEN_WEB_UI_DATABASE_URL?err}
       - DATABASE_SCHEMA=${OPEN_WEB_UI_DATABASE_SCHEMA?err}
       - REDIS_URL=${OPEN_WEB_UI_REDIS_URL?err}
-      - REDIS_KEY_PREFIX="open-webui"
+      - REDIS_KEY_PREFIX=open-webui
       - VECTOR_DB=qdrant
       - QDRANT_URI=${QDRANT_ENDPOINT?err}
       - QDRANT_API_KEY=${QDRANT_API_KEY?err}
