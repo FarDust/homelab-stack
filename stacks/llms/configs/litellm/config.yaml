@@ -1,6 +1,8 @@
 litellm_settings:
   vertex_location: "us-central1"
-  callbacks: []
+  callbacks: ["langfuse"]
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
   cache: True
   cache_params:
     type: redis
@@ -794,91 +796,91 @@ model_list:
   # Ollama Models
   - model_name: gemma3-1b
     litellm_params:
-      model: ollama/gemma3:1b
+      model: ollama_chat/gemma3:1b
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: google
 
   - model_name: llama3-1b
     litellm_params:
-      model: ollama/llama3.2:1b
+      model: ollama_chat/llama3.2:1b
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: phi4-mini
     litellm_params:
-      model: ollama/phi4-mini
+      model: ollama_chat/phi4-mini
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: microsoft
 
   - model_name: mistral
     litellm_params:
-      model: ollama/mistral
+      model: ollama_chat/mistral
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: mistral
 
   - model_name: moondream
     litellm_params:
-      model: ollama/moondream
+      model: ollama_chat/moondream
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: vikhyatk
 
   - model_name: neural-chat
     litellm_params:
-      model: ollama/neural-chat
+      model: ollama_chat/neural-chat
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: intel
 
   - model_name: starling-lm
     litellm_params:
-      model: ollama/starling-lm
+      model: ollama_chat/starling-lm
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: berkeley-nest
 
   - model_name: llama2-uncensored
     litellm_params:
-      model: ollama/llama2-uncensored
+      model: ollama_chat/llama2-uncensored
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: llava
     litellm_params:
-      model: ollama/llava
+      model: ollama_chat/llava
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: lmsys
 
   - model_name: codellama
     litellm_params:
-      model: ollama/codellama
+      model: ollama_chat/codellama
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
 
   - model_name: deepseek-r1
     litellm_params:
-      model: ollama/deepseek-r1
+      model: ollama_chat/deepseek-r1
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: deepseek
 
   - model_name: granite3-2
     litellm_params:
-      model: ollama/granite3.2
+      model: ollama_chat/granite3.2
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: google
 
   - model_name: llama3-1
     litellm_params:
-      model: ollama/llama3.1
+      model: ollama_chat/llama3.1
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
@@ -893,7 +895,7 @@ model_list:
   # Additional Ollama Models - DeepSeek variants
   - model_name: deepseek-r1-14b
     litellm_params:
-      model: ollama/deepseek-r1:14b
+      model: ollama_chat/deepseek-r1:14b
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: deepseek
@@ -902,7 +904,7 @@ model_list:
 
   - model_name: deepseek-r1-7b
     litellm_params:
-      model: ollama/deepseek-r1:7b
+      model: ollama_chat/deepseek-r1:7b
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: deepseek
@@ -911,7 +913,7 @@ model_list:
 
   - model_name: deepseek-coder-v2
     litellm_params:
-      model: ollama/deepseek-coder-v2:latest
+      model: ollama_chat/deepseek-coder-v2:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: deepseek
@@ -921,7 +923,7 @@ model_list:
   # Qwen models
   - model_name: qwen2-5-coder-14b
     litellm_params:
-      model: ollama/qwen2.5-coder:14b-instruct-q4_K_M
+      model: ollama_chat/qwen2.5-coder:14b-instruct-q4_K_M
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: alibaba
@@ -930,7 +932,7 @@ model_list:
 
   - model_name: qwen2-5-14b
     litellm_params:
-      model: ollama/qwen2.5:14b-instruct-q4_K_M
+      model: ollama_chat/qwen2.5:14b-instruct-q4_K_M
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: alibaba
@@ -939,7 +941,7 @@ model_list:
 
   - model_name: qwen3
     litellm_params:
-      model: ollama/qwen3:latest
+      model: ollama_chat/qwen3:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: alibaba
@@ -949,7 +951,7 @@ model_list:
   # Llama variants
   - model_name: llama3-1-8b-q4
     litellm_params:
-      model: ollama/llama3.1:8b-instruct-q4_0
+      model: ollama_chat/llama3.1:8b-instruct-q4_0
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: meta
@@ -959,7 +961,7 @@ model_list:
   # Gemma variants
   - model_name: gemma2-9b
     litellm_params:
-      model: ollama/gemma2:9b-instruct-q4_0
+      model: ollama_chat/gemma2:9b-instruct-q4_0
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: google
@@ -968,7 +970,7 @@ model_list:
 
   - model_name: gemma3-4b
     litellm_params:
-      model: ollama/gemma3:latest
+      model: ollama_chat/gemma3:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: google
@@ -978,7 +980,7 @@ model_list:
   # Specialized models
   - model_name: smallthinker
     litellm_params:
-      model: ollama/smallthinker:latest
+      model: ollama_chat/smallthinker:latest
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: unknown
@@ -987,7 +989,7 @@ model_list:
 
   - model_name: gpt-oss-20b
     litellm_params:
-      model: ollama/gpt-oss:20b
+      model: ollama_chat/gpt-oss:20b
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
       owned_by: unknown
