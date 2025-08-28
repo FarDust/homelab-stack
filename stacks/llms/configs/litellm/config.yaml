@@ -776,12 +776,14 @@ model_list:
   # Vertex AI Qwen Models
   - model_name: qwen3-235b-instruct
     litellm_params:
+      vertex_location: us-south1
       model: vertex_ai/qwen/qwen3-235b-a22b-instruct-2507-maas
     model_info:
       owned_by: alibaba
 
   - model_name: qwen3-coder-480b-instruct
     litellm_params:
+      vertex_location: us-south1
       model: vertex_ai/qwen/qwen3-coder-480b-a35b-instruct-maas
     model_info:
       owned_by: alibaba
