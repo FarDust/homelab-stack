@@ -400,6 +400,40 @@ services:
         - "traefik.tcp.services.supabase-db.loadbalancer.server.port=${SUPABASE_POSTGRES_PORT:-5432}"
         - "traefik.swarm.network=traefik"
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    hostname: clickhouse
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-clickhouse}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD?err} # TODO: Change to CLICKHOUSE_PASSWORD_FILE
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB:-clickhouse}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+    networks:
+      - traefik
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+        - node.labels.storage.manager == true
+      labels:
+        - "traefik.enable=true"
+        # HTTP interface via Traefik
+        - "traefik.http.routers.clickhouse.rule=Host(`clickhouse.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.clickhouse.entrypoints=websecure"
+        - "traefik.http.routers.clickhouse.tls=true"
+        - "traefik.http.routers.clickhouse.tls.certresolver=le-dns"
+        - "traefik.http.services.clickhouse.loadbalancer.server.port=8123"
+        # TCP native protocol via Traefik
+        - "traefik.tcp.routers.clickhouse-native.rule=HostSNI(`service.clickhouse.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.clickhouse-native.entrypoints=host-internal"
+        - "traefik.tcp.routers.clickhouse-native.tls=true"
+        - "traefik.tcp.routers.clickhouse-native.tls.certresolver=le-dns"
+        - "traefik.tcp.services.clickhouse-native.loadbalancer.server.port=9000"
+        - "traefik.swarm.network=traefik"
+
 volumes:
   # DB data volumes cannot be synced, could cause issues with data integrity
   postgres_data: {}
@@ -417,6 +451,18 @@ volumes:
     driver: rclone
     driver_opts:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
+      allow_other: "true"
+      vfs_cache_mode: full
+  clickhouse-data:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/clickhouse/data"
+      allow_other: "true"
+      vfs_cache_mode: full
+  clickhouse-logs:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/clickhouse/logs"
       allow_other: "true"
       vfs_cache_mode: full
 
