@@ -9,3 +9,5 @@ supabase_target.yaml
 *.swp
 .cache_ggshield
 *.backup
+reports/
+!reports/.keep
