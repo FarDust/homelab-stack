@@ -171,12 +171,6 @@ services:
       - localai_data:/usr/share/local-ai/models
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
-    healthcheck:
-      test:  ["CMD-SHELL", "wget -q -O- http://localhost:4000/health/liveliness >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
     command:
       - --config
       - /app/config/config.yaml
@@ -209,11 +203,15 @@ services:
         limits:
           cpus: '1'
           memory: 2G
+      placement:
+        preferences:
+          - spread: node.id
+        max_replicas_per_node: 2
       restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+        condition: any
+        delay: 30s
+        max_attempts: 8640
+        window: 12h
       labels:
         - traefik.enable=true
         - traefik.http.routers.litellm.entrypoints=websecure
@@ -272,11 +270,14 @@ services:
       placement:
         constraints:
         - node.labels.gpu == true
+        preferences:
+          - spread: node.id
+        max_replicas_per_node: 2
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 5s
-        max_attempts: 3
-        window: 120s
+        max_attempts: 8640
+        window: 12h
       labels:
         - traefik.enable=true
         - traefik.http.routers.open-webui.entrypoints=websecure

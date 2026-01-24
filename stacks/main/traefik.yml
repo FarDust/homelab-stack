@@ -1,4 +1,4 @@
-version: "3.9"
+version: '3.9'
 x-common:
   authelia-database: &db-environment
     POSTGRES_DB: &db-database authelia
@@ -9,6 +9,9 @@ networks:
     external: true
   traefik:
     external: true
+  certs-dumper:
+    driver: overlay
+    internal: true
   authelia-db:
     driver: overlay
   portainer-agents:
@@ -17,110 +20,105 @@ services:
   traefik:
     image: traefik:latest
     command:
-      - "--log.level=INFO"
-      - "--api=true"
-      - "--api.dashboard=true"
-      - "--ping=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=traefik"
-      - "--providers.swarm=true"
-      - "--providers.swarm.watch"
-      - "--providers.swarm.exposedbydefault=false"
-      - "--providers.swarm.allowEmptyServices=true"
-      - "--entryPoints.web.address=:80"
-      - "--entryPoints.websecure.address=:443"
-      - "--entryPoints.dns.address=:53"
-      - "--entryPoints.dns-udp.address=:53/udp"
-      - "--entryPoints.dnscrypt-udp.address=:443/udp"
-      - "--entryPoints.discovery-udp.address=:5353/udp"
-      - "--entryPoints.gameserver.address=:27015"
-      - "--entryPoints.gameserver-udp.address=:34197/udp"
-      - "--entrypoints.host-internal.address=:${INTERNAL_PORT:-5578}/tcp"
-      - "--entryPoints.web.http.redirections.entryPoint.to=websecure"
-      - "--entryPoints.web.http.redirections.entryPoint.scheme=https"
-      - "--entryPoints.web.forwardedHeaders.trustedIPs=${TRUSTED_IPS}"
-      - "--entryPoints.web.proxyProtocol.trustedIPs=${TRUSTED_IPS}"
-      - "--entryPoints.web.forwardedHeaders.insecure=false"
-      - "--entryPoints.web.proxyProtocol.insecure=false"
-      - "--entryPoints.websecure.forwardedHeaders.trustedIPs=${TRUSTED_IPS}"
-      - "--entryPoints.websecure.proxyProtocol.trustedIPs=${TRUSTED_IPS}"
-      - "--entryPoints.websecure.forwardedHeaders.insecure=false"
-      - "--entryPoints.websecure.proxyProtocol.insecure=false"
-      - "--certificatesResolvers.le.acme.httpchallenge=true"
-      - "--certificatesResolvers.le.acme.email=${MAINTAINER_EMAIL}"
-      - "--certificatesResolvers.le.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesResolvers.le.acme.httpChallenge.entryPoint=web"
-      - "--certificatesResolvers.le-dns.acme.dnschallenge=true"
-      - "--certificatesResolvers.le-dns.acme.storage=/letsencrypt/cloudflare.json"
-      - "--certificatesResolvers.le-dns.acme.email=${MAINTAINER_EMAIL}"
-      - "--certificatesResolvers.le-dns.acme.dnschallenge.provider=cloudflare"
-      - "--certificatesResolvers.le-dns.acme.dnschallenge.delaybeforecheck=10"
-      - "--certificatesResolvers.le-dns.acme.dnsChallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
-      - "--metrics.prometheus=true"
-      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
-      # - "--providers.redis.endpoints=${REDIS_ENDPOINT:-redis}:6379"
-      - "--experimental.plugins.sablier.moduleName=github.com/sablierapp/sablier"
-      - "--experimental.plugins.sablier.version=v1.8.5"
-      - "--providers.file.directory=/etc/traefik/configs/"
-      - "--accesslog=true"
+    - --log.level=INFO
+    - --api=true
+    - --api.dashboard=true
+    - --ping=true
+    - --providers.docker=true
+    - --providers.docker.exposedbydefault=false
+    - --providers.docker.network=traefik
+    - --providers.swarm=true
+    - --providers.swarm.watch
+    - --providers.swarm.exposedbydefault=false
+    - --providers.swarm.allowEmptyServices=true
+    - --entryPoints.web.address=:80
+    - --entryPoints.websecure.address=:443
+    - --entryPoints.dns.address=:53
+    - --entryPoints.dns-udp.address=:53/udp
+    - --entryPoints.dnscrypt-udp.address=:443/udp
+    - --entryPoints.discovery-udp.address=:5353/udp
+    - --entryPoints.gameserver.address=:27015
+    - --entryPoints.gameserver-udp.address=:34197/udp
+    - --entrypoints.host-internal.address=:${INTERNAL_PORT:-5578}/tcp
+    - --entryPoints.web.http.redirections.entryPoint.to=websecure
+    - --entryPoints.web.http.redirections.entryPoint.scheme=https
+    - --entryPoints.web.forwardedHeaders.trustedIPs=${TRUSTED_IPS}
+    - --entryPoints.web.proxyProtocol.trustedIPs=${TRUSTED_IPS}
+    - --entryPoints.web.forwardedHeaders.insecure=false
+    - --entryPoints.web.proxyProtocol.insecure=false
+    - --entryPoints.websecure.forwardedHeaders.trustedIPs=${TRUSTED_IPS}
+    - --entryPoints.websecure.proxyProtocol.trustedIPs=${TRUSTED_IPS}
+    - --entryPoints.websecure.forwardedHeaders.insecure=false
+    - --entryPoints.websecure.proxyProtocol.insecure=false
+    - --certificatesResolvers.le.acme.httpchallenge=true
+    - --certificatesResolvers.le.acme.email=${MAINTAINER_EMAIL}
+    - --certificatesResolvers.le.acme.storage=/letsencrypt/acme.json
+    - --certificatesResolvers.le.acme.httpChallenge.entryPoint=web
+    - --certificatesResolvers.le-dns.acme.dnschallenge=true
+    - --certificatesResolvers.le-dns.acme.storage=/letsencrypt/cloudflare.json
+    - --certificatesResolvers.le-dns.acme.email=${MAINTAINER_EMAIL}
+    - --certificatesResolvers.le-dns.acme.dnschallenge.provider=cloudflare
+    - --certificatesResolvers.le-dns.acme.dnschallenge.delaybeforecheck=10
+    - --certificatesResolvers.le-dns.acme.dnsChallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+    - --metrics.prometheus=true
+    - --metrics.prometheus.buckets=0.1,0.3,1.2,5.0
+    - --experimental.plugins.sablier.moduleName=github.com/sablierapp/sablier
+    - --experimental.plugins.sablier.version=v1.8.5
+    - --providers.file.directory=/etc/traefik/configs/
+    - --accesslog=true
     healthcheck:
-      test: "wget --spider http://localhost:8080/ping || exit 1"
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      disable: true
     ports:
-      - target: 53
-        published: 53
-        protocol: tcp
-        mode: ingress
-      - target: 443
-        published: 443
-        protocol: udp
-        mode: ingress
-      - target: 5353
-        published: 5353
-        protocol: udp
-        mode: ingress
-      - target: 443
-        published: 443
-        protocol: tcp
-        mode: ingress
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: ingress
-      - target: 34197
-        published: 34197
-        protocol: udp
-        mode: ingress
-      - target: 27015
-        published: 27015
-        protocol: tcp
-        mode: ingress
-      - target: 5578
-        published: 5578
-        protocol: tcp
-        mode: ingress
+    - target: 53
+      published: 53
+      protocol: tcp
+      mode: ingress
+    - target: 443
+      published: 443
+      protocol: udp
+      mode: ingress
+    - target: 5353
+      published: 5353
+      protocol: udp
+      mode: ingress
+    - target: 443
+      published: 443
+      protocol: tcp
+      mode: ingress
+    - target: 80
+      published: 80
+      protocol: tcp
+      mode: ingress
+    - target: 34197
+      published: 34197
+      protocol: udp
+      mode: ingress
+    - target: 27015
+      published: 27015
+      protocol: tcp
+      mode: ingress
+    - target: 5578
+      published: 5578
+      protocol: tcp
+      mode: ingress
     networks:
-      - traefik
-      - traefik-public
+    - traefik
+    - traefik-public
     configs:
-      - source: traefik_conf
-        target: /etc/traefik/configs/static.yml
-      - source: traefik_tls
-        target: /etc/traefik/configs/tls.yml
+    - source: traefik_conf
+      target: /etc/traefik/configs/static.yml
+    - source: traefik_tls
+      target: /etc/traefik/configs/tls.yml
     secrets:
-      - source: cloudflare_dns_api_token
-      - source: cloudflare_zone_api_token
+    - source: cloudflare_dns_api_token
+    - source: cloudflare_zone_api_token
     environment:
-      - CF_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_dns_api_token
-      - CF_ZONE_API_TOKEN_FILE=/run/secrets/cloudflare_zone_api_token
-      - CLOUDFLARE_PROPAGATION_TIMEOUT=360
-      - CLOUDFLARE_TTL=120
-      - CLOUDFLARE_POLLING_INTERVAL=5
-      - LOCAL_DOMAIN=${LOCAL_DOMAIN:-traefik.me}
+    - CF_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_dns_api_token
+    - CF_ZONE_API_TOKEN_FILE=/run/secrets/cloudflare_zone_api_token
+    - CLOUDFLARE_PROPAGATION_TIMEOUT=360
+    - CLOUDFLARE_TTL=120
+    - CLOUDFLARE_POLLING_INTERVAL=5
+    - LOCAL_DOMAIN=${LOCAL_DOMAIN:-traefik.me}
     volumes:
       # To persist certificates
       - traefik-certificates:/letsencrypt
@@ -159,42 +157,41 @@ services:
   sablier-worker:
     image: sablierapp/sablier:1.8.5
     command:
-      - start
-      - --provider.name=swarm
-      - --server.port=10000
+    - start
+    - --provider.name=swarm
+    - --server.port=10000
     networks:
       traefik-public:
         aliases:
-          - sablier-app
+        - sablier-app
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
+    - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       mode: global
       placement:
         constraints:
-          - node.role == manager
-          - node.labels.swarm.leader == true
+        - node.role == manager
+        - node.labels.swarm.leader == true
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.sablier.rule=Host(`sablier.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.sablier.entrypoints=web"
-        - "traefik.http.routers.sablier.service=sablier"
-        - "traefik.http.services.sablier.loadbalancer.server.port=10000"
-        - "traefik.http.routers.sablier.middlewares=authelia@swarm"
-        - "traefik.http.routers.sablier.tls=true"
-        - "traefik.http.routers.sablier.tls.certresolver=le-dns"
-        - "traefik.swarm.network=traefik-public"
+      - traefik.enable=true
+      - traefik.http.routers.sablier.rule=Host(`sablier.${LOCAL_DOMAIN}`)
+      - traefik.http.routers.sablier.entrypoints=web
+      - traefik.http.routers.sablier.service=sablier
+      - traefik.http.services.sablier.loadbalancer.server.port=10000
+      - traefik.http.routers.sablier.middlewares=authelia@swarm
+      - traefik.http.routers.sablier.tls=true
+      - traefik.http.routers.sablier.tls.certresolver=le-dns
+      - traefik.swarm.network=traefik-public
   authelia-users:
-    # This will load users once per stack startup
     image: alpine
     command:
-      - sh
-      - -c
-      - cat $$AUTHELIA_USERS_FILE > /config/users.yml
+    - sh
+    - -c
+    - cat $$AUTHELIA_USERS_FILE > /config/users.yml
     secrets:
-      - source: authelia_default_users
+    - source: authelia_default_users
     volumes:
-      - authelia-configs:/config
+    - authelia-configs:/config
     environment:
       AUTHELIA_USERS_FILE: /run/secrets/authelia_default_users
     deploy:
@@ -204,25 +201,25 @@ services:
   authelia:
     image: authelia/authelia
     depends_on:
-      - authelia-db
-      - authelia-redis
+    - authelia-db
+    - authelia-redis
     networks:
-      - traefik-public
-      - authelia-db
+    - traefik-public
+    - authelia-db
     secrets:
-      - source: authelia_jwt_secret
-      - source: authelia_duo_secret_key
-      - source: authelia_duo_integration_key
-      - source: authelia_session_secret
-      - source: authelia_db_password
-      - source: authelia_encryption_key
-      - source: authelia_redis_password
-      - source: sendgrid_smtp_password
+    - source: authelia_jwt_secret
+    - source: authelia_duo_secret_key
+    - source: authelia_duo_integration_key
+    - source: authelia_session_secret
+    - source: authelia_db_password
+    - source: authelia_encryption_key
+    - source: authelia_redis_password
+    - source: sendgrid_smtp_password
     configs:
-      - source: authelia_config
-        target: /etc/authelia/configuration.yml
+    - source: authelia_config
+      target: /etc/authelia/configuration.yml
     volumes:
-      - authelia-configs:/config
+    - authelia-configs:/config
     environment:
       TZ: ${USER_TIMEZONE}
       AUTHELIA_JWT_SECRET_FILE: /run/secrets/authelia_jwt_secret
@@ -249,32 +246,32 @@ services:
       restart_policy:
         condition: any
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.authelia.rule=Host(`${AUTHELIA_PREFIX}.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.authelia.entryPoints=websecure"
-        - "traefik.http.routers.authelia.tls=true"
-        - "traefik.http.routers.authelia.tls.certresolver=le-dns"
-        - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-        - "traefik.http.middlewares.authelia.forwardAuth.address=http://authelia:9091/api/verify?rd=https%3A%2F%2Fauth.${DOMAIN_NAME}%2F"
-        - "traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader=true"
-        - "traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email"
-        - "traefik.http.middlewares.authelia-basic.forwardAuth.address=http://authelia:9091/api/verify?auth=basic"
-        - "traefik.http.middlewares.authelia-basic.forwardAuth.trustForwardHeader=true"
-        - "traefik.http.middlewares.authelia-basic.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email"
-        - "traefik.swarm.network=traefik-public"
+      - traefik.enable=true
+      - traefik.http.routers.authelia.rule=Host(`${AUTHELIA_PREFIX}.${DOMAIN_NAME}`)
+      - traefik.http.routers.authelia.entryPoints=websecure
+      - traefik.http.routers.authelia.tls=true
+      - traefik.http.routers.authelia.tls.certresolver=le-dns
+      - traefik.http.services.authelia.loadbalancer.server.port=9091
+      - traefik.http.middlewares.authelia.forwardAuth.address=http://authelia:9091/api/verify?rd=https%3A%2F%2Fauth.${DOMAIN_NAME}%2F
+      - traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader=true
+      - traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email
+      - traefik.http.middlewares.authelia-basic.forwardAuth.address=http://authelia:9091/api/verify?auth=basic
+      - traefik.http.middlewares.authelia-basic.forwardAuth.trustForwardHeader=true
+      - traefik.http.middlewares.authelia-basic.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email
+      - traefik.swarm.network=traefik-public
   authelia-db:
     image: postgres:14-alpine
     networks:
-      - authelia-db
+    - authelia-db
     configs:
-      - source: authelia_postgres_init
-        target: /docker-entrypoint-initdb.d/init.sql
+    - source: authelia_postgres_init
+      target: /docker-entrypoint-initdb.d/init.sql
     volumes:
-      - authelia-data:/var/lib/postgresql/data
+    - authelia-data:/var/lib/postgresql/data
     environment:
       <<: *db-environment
     secrets:
-      - source: authelia_db_password
+    - source: authelia_db_password
     deploy:
       mode: replicated
       replicas: 1
@@ -282,22 +279,22 @@ services:
         condition: any
       placement:
         constraints:
-          - node.role == manager
-          - node.labels.swarm.leader == true
+        - node.role == manager
+        - node.labels.swarm.leader == true
       labels:
-        - "traefik.enable=false"
+      - traefik.enable=false
   authelia-redis:
     image: redis:7-alpine
     command:
-      - /bin/ash
-      - -c
-      - redis-server --requirepass $$(cat $$REDIS_PASSWORD_FILE)
+    - /bin/ash
+    - -c
+    - redis-server --requirepass $$(cat $$REDIS_PASSWORD_FILE)
     networks:
-      - authelia-db
+    - authelia-db
     volumes:
-      - authelia-redis-config:/usr/local/etc/redis
+    - authelia-redis-config:/usr/local/etc/redis
     secrets:
-      - source: authelia_redis_password
+    - source: authelia_redis_password
     environment:
       REDIS_PASSWORD_FILE: /run/secrets/authelia_redis_password
     deploy:
@@ -307,215 +304,252 @@ services:
         condition: any
       placement:
         constraints:
-          - node.role == manager
-          - node.labels.swarm.leader == true
+        - node.role == manager
+        - node.labels.swarm.leader == true
       labels:
-        - "traefik.enable=false"
+      - traefik.enable=false
   prometheus:
     image: prom/prometheus
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:9090/-/healthy >/dev/null 2>&1 || exit 1",
-        ]
+      - CMD-SHELL
+      - wget -qO- http://localhost:9090/-/healthy >/dev/null 2>&1 || exit 1
       interval: 1m30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
-      - traefik-public
-      - traefik
+    - traefik-public
+    - traefik
     volumes:
-      - prometheus_data:/prometheus
+    - prometheus_data:/prometheus
     configs:
-      - source: prometheus_config
-        target: /etc/prometheus/prometheus.yml
-      - source: prometheus_rules
-        target: /etc/prometheus/alert.rules
-      - source: prometheus_supabase_target
-        target: /etc/prometheus/targets/supabase_target.yaml
+    - source: prometheus_config
+      target: /etc/prometheus/prometheus.yml
+    - source: prometheus_rules
+      target: /etc/prometheus/alert.rules
+    - source: prometheus_supabase_target
+      target: /etc/prometheus/targets/supabase_target.yaml
     secrets:
-      - source: watchtower_auth_token
-        target: watchtower_auth_token
-      - source: supabase_service_role_key
-        target: supabase_service_role_key
+    - source: watchtower_auth_token
+      target: watchtower_auth_token
+    - source: supabase_service_role_key
+      target: supabase_service_role_key
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.size=750GB"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --storage.tsdb.retention.size=750GB
+    - --web.console.libraries=/usr/share/prometheus/console_libraries
+    - --web.console.templates=/usr/share/prometheus/consoles
     deploy:
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.prometheus.service=prometheus@swarm"
-        - "traefik.http.routers.prometheus.rule=Host(`prometheus.${LOCAL_DOMAIN:-home}`)"
-        - "traefik.http.routers.prometheus.entrypoints=websecure"
-        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
-        - "traefik.http.services.prometheus.loadbalancer.healthcheck.path=/-/ready"
-        - "traefik.http.services.prometheus.loadbalancer.healthcheck.interval=10s"
-        - "traefik.http.services.prometheus.loadbalancer.healthcheck.unhealthyInterval=60s"
-        - "traefik.http.services.prometheus.loadbalancer.healthcheck.timeout=2s"
-        - "traefik.swarm.network=traefik-public"
+      - traefik.enable=true
+      - traefik.http.routers.prometheus.service=prometheus@swarm
+      - traefik.http.routers.prometheus.rule=Host(`prometheus.${LOCAL_DOMAIN:-home}`)
+      - traefik.http.routers.prometheus.entrypoints=websecure
+      - traefik.http.services.prometheus.loadbalancer.server.port=9090
+      - traefik.http.services.prometheus.loadbalancer.healthcheck.path=/-/ready
+      - traefik.http.services.prometheus.loadbalancer.healthcheck.interval=10s
+      - traefik.http.services.prometheus.loadbalancer.healthcheck.unhealthyInterval=60s
+      - traefik.http.services.prometheus.loadbalancer.healthcheck.timeout=2s
+      - traefik.swarm.network=traefik-public
       placement:
         constraints:
-          - node.role == manager
-          - node.labels.swarm.leader == true
+        - node.role == manager
+        - node.labels.swarm.leader == true
       restart_policy:
         condition: on-failure
   grafana:
     image: grafana/grafana:latest
     depends_on:
-      - prometheus
+    - prometheus
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1",
-        ]
+      - CMD-SHELL
+      - wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1
       interval: 1m30s
       timeout: 10s
       retries: 3
       start_period: 40s
     volumes:
-      - grafana_data:/var/lib/grafana
+    - grafana_data:/var/lib/grafana
     configs:
-      - source: grafana_datasources
-        target: /etc/grafana/provisioning/datasources/datasource.yml
-      - source: grafana_dashboards
-        target: /etc/grafana/provisioning/dashboards/dashboards.yml
-      - source: grafana_dashboard_docker
-        target: /etc/grafana/provisioning/dashboards/json/docker.json
-      - source: grafana_dashboard_traefik
-        target: /etc/grafana/provisioning/dashboards/json/traefik_rev4.json
-      - source: grafana_dashboard_nextdns
-        target: /etc/grafana/provisioning/dashboards/json/nextdns.json
-      - source: grafana_dashboard_docker_swarm
-        target: /etc/grafana/provisioning/dashboards/json/custom/docker_swarm_dashboard.json
-      - source: grafana_dashboard_system_anomalies
-        target: /etc/grafana/provisioning/dashboards/json/custom/system_anomalies_dashboard.json
-      - source: grafana_dashboard_watchtower
-        target: /etc/grafana/provisioning/dashboards/json/custom/watchtower_dashboard.json
+    - source: grafana_datasources
+      target: /etc/grafana/provisioning/datasources/datasource.yml
+    - source: grafana_dashboards
+      target: /etc/grafana/provisioning/dashboards/dashboards.yml
+    - source: grafana_dashboard_docker
+      target: /etc/grafana/provisioning/dashboards/json/docker.json
+    - source: grafana_dashboard_traefik
+      target: /etc/grafana/provisioning/dashboards/json/traefik_rev4.json
+    - source: grafana_dashboard_nextdns
+      target: /etc/grafana/provisioning/dashboards/json/nextdns.json
+    - source: grafana_dashboard_docker_swarm
+      target: /etc/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
+    - source: grafana_dashboard_system_anomalies
+      target: /etc/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
+    - source: grafana_dashboard_watchtower
+      target: /etc/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
     secrets:
-      - source: google_oauth_secret
-      - source: grafana_admin_password
-      - source: sendgrid_smtp_password
-      - source: grafana_database_password
-        target: postgres_db_password
+    - source: google_oauth_secret
+    - source: grafana_admin_password
+    - source: sendgrid_smtp_password
+    - source: grafana_database_password
+      target: postgres_db_password
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
-      - GF_SERVER_DOMAIN=grafana.${DOMAIN_NAME}
-      - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN_NAME}/
-      - GF_SMTP_ENABLED=true
-      - GF_SMTP_HOST=smtp.sendgrid.net:587
-      - GF_SMTP_USER=${SMTP_USER}
-      - GF_SMTP_PASSWORD__FILE=/run/secrets/sendgrid_smtp_password
-      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM}
-      - GF_AUTH_GOOGLE_ENABLED=true
-      - GF_AUTH_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GF_AUTH_GOOGLE_CLIENT_SECRET__FILE=/run/secrets/google_oauth_secret
-      - GF_AUTH_GOOGLE_ALLOWED_DOMAINS=gmail.com
-      - GF_AUTH_GOOGLE_ALLOW_SIGN_UP=false
-      - GF_RENDERING_SERVER_URL=http://renderer:8081/render
-      - GF_RENDERING_CALLBACK_URL=https://grafana.${DOMAIN_NAME}/
-      - GF_DATABASE_TYPE=postgres
-      - GF_DATABASE_HOST=${GF_DATABASE_HOST:-postgres:5432}
-      - GF_DATABASE_USER=${GF_POSTGRES_USER:-postgres}
-      - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
-      - GF_DATABASE_NAME=${GF_POSTGRES_DB:-postgres}
-      - GF_DATABASE_SSL_MODE=require
+    - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+    - GF_SERVER_DOMAIN=grafana.${DOMAIN_NAME}
+    - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN_NAME}/
+    - GF_SMTP_ENABLED=true
+    - GF_SMTP_HOST=smtp.sendgrid.net:587
+    - GF_SMTP_USER=${SMTP_USER}
+    - GF_SMTP_PASSWORD__FILE=/run/secrets/sendgrid_smtp_password
+    - GF_SMTP_FROM_ADDRESS=${SMTP_FROM}
+    - GF_AUTH_GOOGLE_ENABLED=true
+    - GF_AUTH_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    - GF_AUTH_GOOGLE_CLIENT_SECRET__FILE=/run/secrets/google_oauth_secret
+    - GF_AUTH_GOOGLE_ALLOWED_DOMAINS=gmail.com
+    - GF_AUTH_GOOGLE_ALLOW_SIGN_UP=false
+    - GF_RENDERING_SERVER_URL=http://renderer:8081/render
+    - GF_RENDERING_CALLBACK_URL=https://grafana.${DOMAIN_NAME}/
+    - GF_DATABASE_TYPE=postgres
+    - GF_DATABASE_HOST=${GF_DATABASE_HOST:-postgres:5432}
+    - GF_DATABASE_USER=${GF_POSTGRES_USER:-postgres}
+    - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
+    - GF_DATABASE_NAME=${GF_POSTGRES_DB:-postgres}
+    - GF_DATABASE_SSL_MODE=require
     env_file:
-      - ./configs/grafana/config.monitoring
+    - ./configs/grafana/config.monitoring
     networks:
-      - traefik
-      - traefik-public
+    - traefik
+    - traefik-public
     deploy:
       mode: replicated
       replicas: 3
       labels:
-        #- "sablier.enable=true"
-        #- "sablier.group=maintenance"
-        - "traefik.enable=true"
-        - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.grafana.service=grafana@swarm"
-        - "traefik.http.routers.grafana.entrypoints=websecure"
-        - "traefik.http.routers.grafana.middlewares=authelia@swarm"
-        - "traefik.http.routers.grafana.tls=true"
-        - "traefik.http.routers.grafana.tls.certresolver=le-dns"
-        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
-        - "traefik.http.services.grafana.loadbalancer.healthcheck.path=/api/health"
-          #- "traefik.swarm.lbswarm=true"
+      - traefik.enable=true
+      - traefik.http.routers.grafana-api.rule=Host(`grafana.${DOMAIN_NAME}`) && PathPrefix(`/api`)
+      - traefik.http.routers.grafana-api.entrypoints=websecure
+      - traefik.http.routers.grafana-api.tls=true
+      - traefik.http.routers.grafana-api.tls.certresolver=le-dns
+      - traefik.http.routers.grafana-api.priority=100
+      - traefik.http.routers.grafana-api.service=grafana-api
+      - traefik.http.routers.grafana-web.rule=Host(`grafana.${DOMAIN_NAME}`)
+      - traefik.http.routers.grafana-web.service=grafana-web@swarm
+      - traefik.http.routers.grafana-web.entrypoints=websecure
+      - traefik.http.routers.grafana-web.middlewares=authelia@swarm
+      - traefik.http.routers.grafana-web.tls=true
+      - traefik.http.routers.grafana-web.tls.certresolver=le-dns
+      - traefik.http.routers.grafana-web.priority=50
+      - traefik.http.services.grafana-api.loadbalancer.server.port=3000
+      - traefik.http.services.grafana-api.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.grafana-web.loadbalancer.server.port=3000
+      - traefik.http.services.grafana-web.loadbalancer.healthcheck.path=/api/health
       placement:
         constraints:
-          - node.platform.os == linux
+        - node.platform.os == linux
+        max_replicas_per_node: 2
+        preferences:
+        - spread: node.hostname
       restart_policy:
         condition: none
   agent:
     image: portainer/agent:latest
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    - /var/run/docker.sock:/var/run/docker.sock
+    - /var/lib/docker/volumes:/var/lib/docker/volumes
     networks:
-      - portainer-agents
+    - traefik
     environment:
-      - AGENT_CLUSTER_ADDR=tasks.agent
-      - AGENT_SECRET=${PORTAINER_AGENT_SECRET:?err}
+    - AGENT_CLUSTER_ADDR=tasks.agent
+    - AGENT_SECRET=${PORTAINER_AGENT_SECRET:?err}
     deploy:
       mode: global
       placement:
         constraints:
-          - node.platform.os == linux
+        - node.platform.os == linux
   portainer:
     image: portainer/portainer-ce:latest
     command: -H tcp://tasks.agent:9001 --tlsskipverify --admin-password-file /run/secrets/portainer_admin_password
     volumes:
-      - portainer_data:/data
+    - portainer_data:/data
     secrets:
-      - source: portainer_admin_password
+    - source: portainer_admin_password
     networks:
-      - traefik-public
-      - portainer-agents
+    - traefik-public
+    - traefik
     environment:
-      - AGENT_SECRET=${PORTAINER_AGENT_SECRET:?err}
+    - AGENT_SECRET=${PORTAINER_AGENT_SECRET:?err}
     deploy:
       mode: replicated
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
-          - node.labels.swarm.leader == true
+        - node.role == manager
+        - node.labels.swarm.leader == true
       labels:
-        #- "sablier.enable=true"
-        #- "sablier.group=maintenance"
-        - "traefik.enable=true"
-        - "traefik.http.routers.portainer.middlewares=authelia@swarm"
-        - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN_NAME}`)"
-        - "traefik.http.routers.portainer.entrypoints=websecure"
-        - "traefik.http.routers.portainer.tls.certresolver=le-dns"
-        - "traefik.http.services.portainer.loadbalancer.server.port=9000"
-        #- "traefik.swarm.lbswarm=true"
+      - traefik.enable=true
+      - traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN_NAME}`)
+      - traefik.http.routers.portainer.entrypoints=websecure
+      - traefik.http.routers.portainer.tls.certresolver=le-dns
+      - traefik.http.services.portainer.loadbalancer.server.port=9000
       restart_policy:
         condition: none
+  certs-dumper:
+    image: ldez/traefik-certs-dumper:v2.9.3
+    command:
+      - file
+      - --version
+      - v2
+      - --watch
+      - --source
+      - /letsencrypt/cloudflare.json
+      - --dest
+      - /lego
+      - --domain-subdir
+      - --crt-name=fullchain
+      - --key-name=privkey
+      - --crt-ext=.pem
+      - --key-ext=.pem
+      - --clean=false
+    volumes:
+      - traefik-certificates:/letsencrypt:ro
+      - lego-certs:/lego:rw
+    networks:
+      - certs-dumper
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5m
 volumes:
   portainer_data:
     driver: rclone
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/portainer/data"
-      allow_other: "true"
+      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/portainer/data
+      allow_other: 'true'
       vfs_cache_mode: full
   traefik-configs: {}
   authelia-configs: {}
   authelia-data: {}
   authelia-redis-config: {}
-  traefik-certificates:
+  traefik-certificates: null
+  lego-certs:
+    driver: rclone
+    driver_opts:
+      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs
+      allow_other: 'true'
+      vfs_cache_mode: full
   root-certificates: {}
   prometheus_data: {}
   grafana_data:
     driver: rclone
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/grafana/data"
-      allow_other: "true"
+      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/grafana/data
+      allow_other: 'true'
       vfs_cache_mode: full
 configs:
   traefik_conf:
