@@ -8,3 +8,4 @@ supabase_target.yaml
 **/secrets/
 *.swp
 .cache_ggshield
+*.backup
