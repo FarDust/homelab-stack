@@ -1,14 +1,15 @@
 ragflow:
   host: ${RAGFLOW_HOST:-0.0.0.0}
   http_port: 9380
-mysql:
-  name: '${MYSQL_DBNAME:-rag_flow}'
-  user: '${MYSQL_USER:-root}'
-  password: '${MYSQL_PASSWORD}'
-  host: '${MYSQL_HOST:-mysql}'
-  port: ${MYSQL_PORT}
-  max_connections: 900
-  stale_timeout: 300
+postgres:
+  name: '${POSTGRES_DBNAME:-rag_flow}'
+  user: '${POSTGRES_USER:-postgres}'
+  password: '${POSTGRES_PASSWORD}'
+  host: '${POSTGRES_HOST:-postgres}'
+  port: ${POSTGRES_PORT}
+  max_connections: 100
+  stale_timeout: 30
+  sslmode: '${POSTGRES_SSLMODE:-require}'
 minio:
   user: '${MINIO_USER:-rag_flow}'
   password: '${MINIO_PASSWORD}'
@@ -21,9 +22,6 @@ os:
   hosts: '${OS_HOST:-opensearch01}:${OS_PORT}'
   username: '${OS_USER:-admin}'
   password: '${OPENSEARCH_PASSWORD}'
-infinity:
-  uri: '${INFINITY_HOST:-infinity}:${INFINITY_PORT}'
-  db_name: 'default_db'
 redis:
   db: 1
   password: '${REDIS_PASSWORD}'
@@ -64,16 +62,6 @@ redis:
 #   secret: 'secret'
 #   tenant_id: 'tenant_id'
 #   container_name: 'container_name'
-# user_default_llm:
-#   factory: 'Tongyi-Qianwen'
-#   api_key: 'sk-xxxxxxxxxxxxx'
-#   base_url: ''
-#   default_models:
-#     chat_model: 'qwen-plus'
-#     embedding_model: 'BAAI/bge-large-zh-v1.5@BAAI'
-#     rerank_model: ''
-#     asr_model: ''
-#     image2text_model: ''
 # oauth:
 #   oauth2:
 #     display_name: "OAuth2"
@@ -97,14 +85,25 @@ redis:
 #     client_id: "your_client_id"
 #     client_secret: "your_client_secret"
 #     redirect_uri: "https://your-app.com/v1/user/oauth/callback/github"
-# authentication:
-#   client:
-#     switch: false
-#     http_app_key:
-#     http_secret_key:
-#   site:
-#     switch: false
-# permission:
-#   switch: false
-#   component: false
-#   dataset: false
+authentication:
+  client:
+    switch: false
+    http_app_key: '${RAGFLOW_HTTP_APP_KEY}'
+    http_secret_key: '${RAGFLOW_HTTP_SECRET_KEY}'
+  site:
+    switch: false
+permission:
+  switch: false
+  component: false
+  dataset: false
+
+user_default_llm:
+  factory: "OpenAI"
+  api_key: "${RAGFLOW_LITELLM_API_KEY}"
+  base_url: "https://litellm.${LOCAL_DOMAIN}/v1"
+  default_models:
+    chat_model: "gpt-5-chat-latest"
+    embedding_model: "text-embedding-3-small"
+    rerank_model: "rerank-english-v3.0"
+    asr_model: "whisper-1"
+    image2text_model: "gpt-4o"
