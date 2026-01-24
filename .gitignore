@@ -11,3 +11,11 @@ supabase_target.yaml
 *.backup
 reports/
 !reports/.keep
+/*.py
+/*.sh
+/*.md
+!README.md
+/*.txt
+/*.log
+*.png
+/*.json
