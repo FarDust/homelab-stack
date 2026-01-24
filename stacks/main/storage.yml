@@ -11,12 +11,15 @@ services:
       - traefik
     volumes:
       - postgres_data:/var/lib/postgresql/
+      - postgres_certs:/lego/certs:ro
     secrets:
       - source: postgres_db_password
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - SSL_CERT_FILE=/lego/certs/fullchain.pem
+      - SSL_KEY_FILE=/lego/certs/privkey.pem
     deploy:
       replicas: 1
       restart_policy:
@@ -36,13 +39,15 @@ services:
         constraints:
         - node.role == manager
         - node.labels.swarm.leader == true
+        - node.labels.storage.manager == true
+        - node.labels.load.tier == light
+        - node.labels.node.ephemeral != true
       labels:
         - "traefik.enable=true"
         # TCP routing for PostgreSQL
         - "traefik.tcp.routers.postgres.rule=HostSNI(`postgres.${LOCAL_DOMAIN?err}`)"
         - "traefik.tcp.routers.postgres.entrypoints=host-internal"
-        - "traefik.tcp.routers.postgres.tls=true"
-        - "traefik.tcp.routers.postgres.tls.certresolver=le-dns"
+        - "traefik.tcp.routers.postgres.tls.passthrough=true"
         - "traefik.tcp.services.postgres.loadbalancer.server.port=5432"
         - "traefik.swarm.network=traefik"
         - com.centurylinklabs.watchtower.enable=false
@@ -109,8 +114,9 @@ services:
         monitor: ${ROLLBACK_MONITOR_CACHE}
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+        - node.labels.storage.manager == true
+        - node.labels.load.tier == heavy
+        - node.labels.node.ephemeral != true
       labels:
         - "traefik.enable=true"
         # TCP routing for Redis
@@ -157,8 +163,9 @@ services:
         monitor: ${ROLLBACK_MONITOR_COMPLEX}
       placement:
         constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
+        - node.labels.storage.manager == true
+        - node.labels.load.tier == heavy
+        - node.labels.node.ephemeral != true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.opensearch.rule=Host(`opensearch.${LOCAL_DOMAIN}`)"
@@ -274,7 +281,7 @@ services:
         - com.centurylinklabs.watchtower.enable=false
 
   infinity:
-    image: infiniflow/infinity:v0.6.0-dev3
+    image: infiniflow/infinity:v0.6.15
     networks:
       - traefik
       - traefik-public
@@ -400,6 +407,59 @@ services:
         - "traefik.tcp.services.supabase-db.loadbalancer.server.port=${SUPABASE_POSTGRES_PORT:-5432}"
         - "traefik.swarm.network=traefik"
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    networks:
+      - traefik
+      - traefik-public
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    secrets:
+      - qdrant_api_key
+    environment:
+      - QDRANT__SERVICE__API_KEY_FILE=/run/secrets/qdrant_api_key
+      - QDRANT__SERVICE__ENABLE_TLS=false
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.labels.AVX != false
+        - node.labels.storage.manager == true
+      labels:
+        - "traefik.enable=true"
+        # HTTP API via websecure (for web access)
+        - "traefik.http.routers.qdrant.rule=Host(`qdrant.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.qdrant.entrypoints=websecure"
+        - "traefik.http.routers.qdrant.tls=true"
+        - "traefik.http.routers.qdrant.tls.certresolver=le-dns"
+        - "traefik.http.services.qdrant.loadbalancer.server.port=6333"
+        - "traefik.http.routers.qdrant-http.rule=Host(`qdrant.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.qdrant-http.entrypoints=web"
+        - "traefik.http.routers.qdrant-http.middlewares=qdrant-https@swarm"
+        - "traefik.http.middlewares.qdrant-https.redirectscheme.scheme=https"
+        # gRPC via TCP
+        - "traefik.tcp.routers.qdrant-grpc.rule=HostSNI(`qdrant.${LOCAL_DOMAIN}`)"
+        - "traefik.tcp.routers.qdrant-grpc.entrypoints=host-internal"
+        - "traefik.tcp.routers.qdrant-grpc.tls=true"
+        - "traefik.tcp.routers.qdrant-grpc.tls.certresolver=le-dns"
+        - "traefik.tcp.services.qdrant-grpc.loadbalancer.server.port=6334"
+        - "traefik.swarm.network=traefik-public"
+
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     hostname: clickhouse
@@ -408,7 +468,7 @@ services:
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD?err} # TODO: Change to CLICKHOUSE_PASSWORD_FILE
       - CLICKHOUSE_DB=${CLICKHOUSE_DB:-clickhouse}
     volumes:
-      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-olap-data:/var/lib/clickhouse
       - clickhouse-logs:/var/log/clickhouse-server
     networks:
       - traefik
@@ -418,6 +478,8 @@ services:
       placement:
         constraints:
         - node.labels.storage.manager == true
+        - node.labels.load.tier == heavy
+        - node.labels.node.ephemeral != true
       labels:
         - "traefik.enable=true"
         # HTTP interface via Traefik
@@ -437,6 +499,16 @@ services:
 volumes:
   # DB data volumes cannot be synced, could cause issues with data integrity
   postgres_data: {}
+  postgres_certs:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/postgres.${LOCAL_DOMAIN?err}"
+      allow_other: "true"
+      vfs_cache_mode: full
+      uid: "101"
+      gid: "103"
+      file_perms: "600"
+      dir_perms: "700"
   influx: {}
   redis-data:
     driver: local
@@ -444,6 +516,8 @@ volumes:
   minio_data: {}
   mongodb_data: {}
   infinity_data: {}
+  qdrant_storage:
+    driver: local
   supabase-db-data:
     driver: local
   # Config volumes that persists across deployments
@@ -453,12 +527,8 @@ volumes:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
       allow_other: "true"
       vfs_cache_mode: full
-  clickhouse-data:
-    driver: rclone
-    driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/clickhouse/data"
-      allow_other: "true"
-      vfs_cache_mode: full
+  clickhouse-olap-data:
+    driver: local
   clickhouse-logs:
     driver: rclone
     driver_opts:
@@ -479,6 +549,8 @@ secrets:
     file: ../../secrets/minio/minio_secret_key
   mongodb_root_password:
     file: ../../secrets/mongodb/mongodb_root_password
+  qdrant_api_key:
+    file: ../../secrets/qdrant/api_key
 
 configs:
   infinity_conf:
