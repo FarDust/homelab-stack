@@ -100,7 +100,7 @@ Examples:
 - `stacks/admin/dashboards.yml` → deploy as `admin-dashboards` → services `admin-dashboards_*`
 - `stacks/productivity/tools.yml` → deploy as `productivity-tools` → services `productivity-tools_*`
 
-Deploy command: `docker stack deploy -c <filename>.yml <folder>-<filename> --detach=false`
+Deploy command: `uv run cluster-utils deploy --help`
 Exception: Use default detach behavior for stacks with sidecars that die after deploy (e.g., traefik.yml)
 
 ## File Structure Patterns
