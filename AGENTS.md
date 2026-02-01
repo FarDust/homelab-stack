@@ -123,6 +123,7 @@ stacks/[stack]/
 - **Always run `source .env` before any deployment**
 - If Docker Swarm config errors occur, increment `CONFIG_VERSION` in `.env` (e.g., from 89 to 90)
 - Config versioning resolves conflicts with existing swarm configurations
+- **Never skip verifications** (tests, checks, or validation steps); if a verification cannot be run, state why and provide the exact alternative confirmation performed.
 
 ## Volume Naming
 - Pattern: `servicename_data` for data volumes
