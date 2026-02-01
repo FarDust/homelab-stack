@@ -125,6 +125,13 @@ stacks/[stack]/
 - Config versioning resolves conflicts with existing swarm configurations
 - **Never skip verifications** (tests, checks, or validation steps); if a verification cannot be run, state why and provide the exact alternative confirmation performed.
 
+## Collaboration in No-TTY Environments
+- **Use tmux as the shared TTY** for interactive steps (GPG passphrase, prompts).
+- **Run commands inside the tmux pane**, not from a non-TTY shell.
+- **Set `GPG_TTY` to the tmux pane TTY** before signing:
+  - `export GPG_TTY=$(tmux display-message -p -t <session> '#{pane_tty}')`
+- **Workflow**: agent triggers command inside tmux → user attaches, enters passphrase → user detaches → agent verifies output and closes session.
+
 ## Volume Naming
 - Pattern: `servicename_data` for data volumes
 - Local driver for simple volumes
