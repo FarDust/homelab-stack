@@ -7,6 +7,7 @@ This directory contains the core infrastructure services for the Docker Swarm cl
 - **traefik.yml**: Reverse proxy, load balancer, SSL termination, and authentication (Traefik + Authelia)
 - **storage.yml**: Database and storage services (PostgreSQL, Redis, OpenSearch, MinIO, MongoDB, InfluxDB)
 - **monitoring.yml**: Observability and maintenance (Node Exporter, cAdvisor, Grafana Renderer, Watchtower, DNS/Speed exporters)
+- **bridges.yml**: External service bridges and vendor agents (Netdata parent bridge)
 - **security.yml**: Security monitoring and threat detection (CrowdSec)
 
 ## Traefik Architecture
