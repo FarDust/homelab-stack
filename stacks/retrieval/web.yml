@@ -60,21 +60,21 @@ services:
       - "traefik.http.services.firecrawl-api.loadbalancer.server.port=3002"
       - "traefik.swarm.network=traefik"
 
-       # streaming fluido
+       # smooth streaming
       - traefik.http.services.firecrawl-api.loadbalancer.responseforwarding.flushinterval=100ms
 
-      # buffers grandes para payloads
+      # large buffers for payloads
       - traefik.http.routers.firecrawl-api.middlewares=firecrawl-buffer,firecrawl-retry
       - traefik.http.middlewares.firecrawl-buffer.buffering.maxRequestBodyBytes=67108864
       - traefik.http.middlewares.firecrawl-buffer.buffering.memRequestBodyBytes=8388608
       - traefik.http.middlewares.firecrawl-buffer.buffering.maxResponseBodyBytes=268435456
       - traefik.http.middlewares.firecrawl-buffer.buffering.memResponseBodyBytes=8388608
 
-      # reintentos básicos
+      # basic retries
       - traefik.http.middlewares.firecrawl-retry.retry.attempts=3
       - traefik.http.middlewares.firecrawl-retry.retry.initialInterval=500ms
 
-      # healthcheck
+      # health check
       - traefik.http.services.firecrawl-api.loadbalancer.healthcheck.path=/v0/health/readiness
       - traefik.http.services.firecrawl-api.loadbalancer.healthcheck.interval=10s
       - traefik.http.services.firecrawl-api.loadbalancer.healthcheck.timeout=3s
