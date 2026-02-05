@@ -1712,7 +1712,7 @@
             "thresholdsStyle": {
               "mode": "off"
             },
-            "axisSoftMax": 100
+            "axisSoftMax": 2
           },
           "mappings": [],
           "thresholds": {
@@ -1728,7 +1728,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "cores"
         },
         "overrides": []
       },
@@ -1764,7 +1764,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "builder",
-          "expr": "sum by(container_label_com_docker_swarm_service_name) (rate(container_cpu_usage_seconds_total{container_label_com_docker_stack_namespace=~\"$containergroup\"}[$interval])) * 100",
+          "expr": "sum by(container_label_com_docker_swarm_service_name) (rate(container_cpu_usage_seconds_total{container_label_com_docker_stack_namespace=~\"$containergroup\"}[$interval]))",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
