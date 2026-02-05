@@ -188,7 +188,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) ((max by (instance) ((node_filesystem_size_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\",instance=~\"$server:.*\"} - node_filesystem_free_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\",instance=~\"$server:.*\"} )/ node_filesystem_size_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\", instance=~\"$server:.*\"})) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) ((max by (instance) ((node_filesystem_size_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\",instance=~\"$server_instance\"} - node_filesystem_free_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\",instance=~\"$server_instance\"} )/ node_filesystem_size_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\", instance=~\"$server_instance\"})) * on(instance) group_left(nodename) node_uname_info)",
           "hide": false,
           "intervalFactor": 2,
           "legendFormat": "{{nodename}}",
@@ -275,7 +275,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) (((node_memory_SwapTotal_bytes{instance=~'$server:.*'} - node_memory_SwapFree_bytes{instance=~'$server:.*'})) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) (((node_memory_SwapTotal_bytes{instance=~'$server_instance'} - node_memory_SwapFree_bytes{instance=~'$server_instance'})) * on(instance) group_left(nodename) node_uname_info)",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{nodename}}",
@@ -445,7 +445,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) ((((node_memory_MemTotal_bytes{instance=~\"$server:.*\"} - node_memory_MemAvailable_bytes{instance=~\"$server:.*\"}) / node_memory_MemTotal_bytes{instance=~\"$server:.*\"}) * 100) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) ((((node_memory_MemTotal_bytes{instance=~\"$server_instance\"} - node_memory_MemAvailable_bytes{instance=~\"$server_instance\"}) / node_memory_MemTotal_bytes{instance=~\"$server_instance\"}) * 100) * on(instance) group_left(nodename) node_uname_info)",
           "intervalFactor": 2,
           "legendFormat": "{{nodename}}",
           "range": true,
@@ -534,7 +534,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) ((node_load1{instance=~\"$server:.*\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu_seconds_total{instance=~\"$server:.*\"}))) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) ((node_load1{instance=~\"$server_instance\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu_seconds_total{instance=~\"$server_instance\"}))) * on(instance) group_left(nodename) node_uname_info)",
           "intervalFactor": 2,
           "legendFormat": "{{nodename}}",
           "range": true,
@@ -784,7 +784,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) ((node_load1{instance=~\"$server:.*\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu_seconds_total{instance=~\"$server:.*\"}))) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) ((node_load1{instance=~\"$server_instance\"} / count by(job, instance)(count by(job, instance, cpu)(node_cpu_seconds_total{instance=~\"$server_instance\"}))) * on(instance) group_left(nodename) node_uname_info)",
           "intervalFactor": 2,
           "legendFormat": "{{nodename}}",
           "range": true,
@@ -1023,7 +1023,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) (sum by(instance) (node_memory_MemAvailable_bytes{instance=~\"$server:.*\"}) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) (sum by(instance) (node_memory_MemAvailable_bytes{instance=~\"$server_instance\"}) * on(instance) group_left(nodename) node_uname_info)",
           "hide": false,
           "intervalFactor": 2,
           "legendFormat": "{{nodename}} Available",
@@ -1037,7 +1037,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) (sum by(instance) (node_memory_MemTotal_bytes{instance=~\"$server:.*\"} - node_memory_MemAvailable_bytes{instance=~\"$server:.*\"}) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) (sum by(instance) (node_memory_MemTotal_bytes{instance=~\"$server_instance\"} - node_memory_MemAvailable_bytes{instance=~\"$server_instance\"}) * on(instance) group_left(nodename) node_uname_info)",
           "hide": false,
           "intervalFactor": 2,
           "legendFormat": "{{nodename}} Unavailable",
@@ -1290,7 +1290,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(process_cpu_seconds_total{instance=~\"$server:.*\", job=\"node-exporter\"}[$interval])) * 100",
+          "expr": "sum by (instance) (rate(process_cpu_seconds_total{instance=~\"$server_instance\", job=\"node-exporter\"}[$interval])) * 100",
           "hide": true,
           "interval": "",
           "intervalFactor": 2,
@@ -1318,7 +1318,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "process_cpu_seconds_total{instance=~\"$server:.*\"}",
+          "expr": "process_cpu_seconds_total{instance=~\"$server_instance\"}",
           "hide": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -1331,7 +1331,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "max by(nodename) ((100 *\r\nsum by (instance) (\r\n  rate(node_cpu_seconds_total{\r\n    instance=~\"$server:.*\",\r\n    job=\"node-exporter\",\r\n    mode=~\"user|system\"\r\n  }[$__rate_interval])\r\n)\r\n/ on (instance) group_left\r\ncount by (instance) (count by (cpu, instance) (\r\n  node_cpu_seconds_total{instance=~\"$server:.*\", job=\"node-exporter\"}\r\n))\r\n) * on(instance) group_left(nodename) node_uname_info)",
+          "expr": "max by(nodename) ((100 *\r\nsum by (instance) (\r\n  rate(node_cpu_seconds_total{\r\n    instance=~\"$server_instance\",\r\n    job=\"node-exporter\",\r\n    mode=~\"user|system\"\r\n  }[$__rate_interval])\r\n)\r\n/ on (instance) group_left\r\ncount by (instance) (count by (cpu, instance) (\r\n  node_cpu_seconds_total{instance=~\"$server_instance\", job=\"node-exporter\"}\r\n))\r\n) * on(instance) group_left(nodename) node_uname_info)",
           "hide": false,
           "instant": false,
           "legendFormat": "{{nodename}}",
@@ -1473,7 +1473,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "sum(max by (device, instance) (node_filesystem_size_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\", instance=~\"$server:.*\"} - node_filesystem_free_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\",  device!=\"snapfuse\", instance=~\"$server:.*\"}))",
+          "expr": "sum(max by (device, instance) (node_filesystem_size_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\", device!=\"snapfuse\", instance=~\"$server_instance\"} - node_filesystem_free_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\",  device!=\"snapfuse\", instance=~\"$server_instance\"}))",
           "hide": false,
           "instant": false,
           "legendFormat": "Used Disk Space",
@@ -1486,7 +1486,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "sum(max by (device, instance) (node_filesystem_free_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\",  device!=\"snapfuse\", instance=~\"$server:.*\"}))",
+          "expr": "sum(max by (device, instance) (node_filesystem_free_bytes{fstype!=\"tmpfs\",  fstype!=\"vfat\",  device!=\"snapfuse\", instance=~\"$server_instance\"}))",
           "hide": false,
           "instant": false,
           "legendFormat": "Free Disk Space",
@@ -2816,7 +2816,7 @@
         "type": "interval"
       },
       {
-        "allValue": "",
+        "allValue": ".*",
         "current": {
           "text": [
             "All"
@@ -2829,19 +2829,47 @@
           "type": "prometheus",
           "uid": "PBFA97CFB590B2093"
         },
-        "definition": "label_values(node_boot_time_seconds, instance)",
+        "definition": "label_values(node_uname_info, nodename)",
         "includeAll": true,
         "label": "Node",
         "multi": true,
         "name": "server",
         "options": [],
         "query": {
-          "query": "label_values(node_boot_time_seconds, instance)",
+          "query": "label_values(node_uname_info, nodename)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
-        "regex": "/([^:]+):.*/",
+        "regex": "",
         "type": "query"
+      },
+      {
+        "name": "server_instance",
+        "label": "Node Instance",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{nodename=~\"${server:regex}\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "definition": "label_values(node_uname_info{nodename=~\"${server:regex}\"}, instance)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "hide": 2,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": []
       }
     ]
   },
