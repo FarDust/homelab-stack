@@ -109,7 +109,7 @@
           "step": 1800
         }
       ],
-      "title": "Uptime",
+      "title": "\u23f1\ufe0f Node Uptime",
       "type": "stat"
     },
     {
@@ -197,7 +197,7 @@
           "step": 1800
         }
       ],
-      "title": "Disk space",
+      "title": "\ud83d\udcbe Disk Utilization",
       "type": "gauge"
     },
     {
@@ -284,7 +284,7 @@
           "step": 1800
         }
       ],
-      "title": "Swap",
+      "title": "\ud83e\uddee Swap Used",
       "type": "gauge"
     },
     {
@@ -358,15 +358,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "count by (instance) (rate(container_last_seen{name=~\".+\"}[$interval]))",
+          "expr": "count by (nodename) (label_replace(container_last_seen{name=~\".+\"}, \"nodename\", \"$1\", \"instance\", \"([^:]+):.*\"))",
           "intervalFactor": 2,
-          "legendFormat": "{{instance}}",
+          "legendFormat": "{{nodename}}",
           "range": true,
           "refId": "A",
           "step": 1800
         }
       ],
-      "title": "Containers",
+      "title": "\ud83d\udce6 Container Count",
       "type": "stat"
     },
     {
@@ -453,7 +453,7 @@
           "step": 1800
         }
       ],
-      "title": "Memory",
+      "title": "\ud83e\uddee Memory Used (%)",
       "type": "gauge"
     },
     {
@@ -542,7 +542,7 @@
           "step": 1800
         }
       ],
-      "title": "Load",
+      "title": "\ud83d\udcc8 Load Avg (1m)",
       "type": "stat"
     },
     {
@@ -679,7 +679,7 @@
           "refId": "C"
         }
       ],
-      "title": "Network Traffic",
+      "title": "\ud83c\udf10 Host Network (All Interfaces)",
       "type": "timeseries"
     },
     {
@@ -723,7 +723,8 @@
             },
             "thresholdsStyle": {
               "mode": "line+area"
-            }
+            },
+            "axisSoftMax": 1
           },
           "mappings": [],
           "thresholds": {
@@ -803,7 +804,7 @@
           "step": 600
         }
       ],
-      "title": "Load",
+      "title": "\ud83d\udcc8 Load Avg (1m) \u2014 Per CPU",
       "type": "timeseries"
     },
     {
@@ -847,7 +848,8 @@
             },
             "thresholdsStyle": {
               "mode": "line+area"
-            }
+            },
+            "axisSoftMax": 4294967296
           },
           "mappings": [],
           "min": 0,
@@ -1130,7 +1132,7 @@
           "step": 40
         }
       ],
-      "title": "Available Memory",
+      "title": "\ud83e\uddee Memory Available",
       "type": "timeseries"
     },
     {
@@ -1175,7 +1177,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 100
           },
           "mappings": [],
           "thresholds": {
@@ -1339,7 +1342,7 @@
           "refId": "G"
         }
       ],
-      "title": "CPU Usage",
+      "title": "\ud83e\udde0 CPU Utilization",
       "type": "timeseries"
     },
     {
@@ -1383,7 +1386,8 @@
             },
             "thresholdsStyle": {
               "mode": "line+area"
-            }
+            },
+            "axisSoftMax": 536870912000
           },
           "mappings": [],
           "min": 0,
@@ -1507,7 +1511,7 @@
           "refId": "A"
         }
       ],
-      "title": "Used Disk Space",
+      "title": "\ud83d\udcbe Disk Used",
       "type": "timeseries"
     },
     {
@@ -1551,7 +1555,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 10485760
           },
           "mappings": [],
           "thresholds": {
@@ -1662,7 +1667,7 @@
           "step": 600
         }
       ],
-      "title": "Disk I/O",
+      "title": "\ud83d\udcbd Disk Throughput (I/O)",
       "type": "timeseries"
     },
     {
@@ -1706,7 +1711,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 100
           },
           "mappings": [],
           "thresholds": {
@@ -1730,7 +1736,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 32
       },
       "id": 1,
       "options": {
@@ -1769,7 +1775,7 @@
           "step": 240
         }
       ],
-      "title": "CPU Usage per Container",
+      "title": "\ud83e\udde0 CPU per Container",
       "type": "timeseries"
     },
     {
@@ -1813,7 +1819,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 4294967296
           },
           "mappings": [],
           "thresholds": {
@@ -1837,7 +1844,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 32
       },
       "id": 10,
       "options": {
@@ -1886,7 +1893,7 @@
           "step": 240
         }
       ],
-      "title": "Memory Usage per Container",
+      "title": "\ud83e\uddee Memory per Container",
       "type": "timeseries"
     },
     {
@@ -1930,7 +1937,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 2097152
           },
           "mappings": [],
           "thresholds": {
@@ -1954,7 +1962,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 39
       },
       "id": 9,
       "options": {
@@ -2003,7 +2011,7 @@
           "step": 10
         }
       ],
-      "title": "Sent Network Traffic per Container",
+      "title": "\ud83d\udce4 Container Network (Tx)",
       "type": "timeseries"
     },
     {
@@ -2050,7 +2058,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 2097152
           },
           "mappings": [],
           "thresholds": {
@@ -2074,7 +2083,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 39
       },
       "id": 8,
       "options": {
@@ -2122,7 +2131,7 @@
           "step": 10
         }
       ],
-      "title": "Received Network Traffic per Container",
+      "title": "\ud83d\udce5 Container Network (Rx)",
       "type": "timeseries"
     },
     {
@@ -2166,7 +2175,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "axisSoftMax": 536870912
           },
           "mappings": [],
           "thresholds": {
@@ -2190,7 +2200,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 46
       },
       "id": 34,
       "options": {
@@ -2239,7 +2249,7 @@
           "step": 240
         }
       ],
-      "title": "Memory Swap per Container",
+      "title": "\ud83e\uddee Swap per Container",
       "type": "timeseries"
     },
     {
@@ -2299,7 +2309,7 @@
         "h": 10,
         "w": 9,
         "x": 0,
-        "y": 41
+        "y": 67
       },
       "id": 37,
       "options": {
@@ -2366,7 +2376,7 @@
           "step": 240
         }
       ],
-      "title": "Usage memory",
+      "title": "\ud83e\uddee Memory Used",
       "transformations": [
         {
           "id": "reduce",
@@ -2473,7 +2483,7 @@
         "h": 10,
         "w": 15,
         "x": 9,
-        "y": 41
+        "y": 67
       },
       "id": 35,
       "options": {
@@ -2521,7 +2531,7 @@
           "step": 240
         }
       ],
-      "title": "Remaining memory",
+      "title": "\ud83e\uddee Memory Free",
       "transformations": [
         {
           "id": "reduce",
@@ -2609,7 +2619,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 77
       },
       "id": 36,
       "options": {
@@ -2658,7 +2668,7 @@
           "step": 240
         }
       ],
-      "title": "Limit memory",
+      "title": "\ud83e\uddee Memory Limit",
       "transformations": [
         {
           "id": "reduce",
@@ -2682,6 +2692,507 @@
         }
       ],
       "type": "table"
+    },
+    {
+      "id": 38,
+      "title": "\ud83e\udde0 Non\u2011Swarm CPU",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 50,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMax": 2
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "cores"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (name, image) (rate(container_cpu_usage_seconds_total{container_label_com_docker_swarm_service_name!~\".+\", id!=\"/\"}[$__rate_interval]))",
+          "legendFormat": "{{name}} ({{image}})",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "pluginVersion": "12.2.0-16952534486"
+    },
+    {
+      "id": 39,
+      "title": "\ud83e\uddee Non\u2011Swarm Memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 50,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMax": 4294967296
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (name, image) (container_memory_usage_bytes{container_label_com_docker_swarm_service_name!~\".+\", id!=\"/\"})",
+          "legendFormat": "{{name}} ({{image}})",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "pluginVersion": "12.2.0-16952534486"
+    },
+    {
+      "id": 40,
+      "title": "\ud83e\uddee Non\u2011Swarm Swap",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 30,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMax": 536870912
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
+      "pluginVersion": "12.2.0-16952534486",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sum by(name, image) (container_memory_swap{container_label_com_docker_swarm_service_name!~\".+\", id!=\"/\"})",
+          "legendFormat": "{{name}} ({{image}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "title": "\ud83d\udce5 Non\u2011Swarm Network (Rx)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMax": 2097152
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Last",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "pluginVersion": "12.2.0-16952534486",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sum by(name, image) (rate(container_network_receive_bytes_total{container_label_com_docker_swarm_service_name!~\".+\", id!=\"/\"}[$__rate_interval]))",
+          "legendFormat": "{{name}} ({{image}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "title": "\ud83d\udce4 Non\u2011Swarm Network (Tx)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMax": 2097152
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "alertThreshold": true,
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "pluginVersion": "12.2.0-16952534486",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sum by(name, image) (rate(container_network_transmit_bytes_total{container_label_com_docker_swarm_service_name!~\".+\", id!=\"/\"}[$__rate_interval]))",
+          "legendFormat": "{{name}} ({{image}})",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "preload": false,
