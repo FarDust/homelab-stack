@@ -23,7 +23,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -52,11 +52,12 @@ services:
         - "traefik.swarm.network=traefik"
         - com.centurylinklabs.watchtower.enable=false
   influx:
-    image: influxdb
+    image: influxdb:latest
     networks:
       - traefik
     volumes:
       - influx:/var/lib/influxdb
+      - influx_certs:/etc/ssl/influxdb:ro
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
@@ -64,10 +65,12 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=${ORG}
       - DOCKER_INFLUXDB_INIT_BUCKET=${ORG}
       - PRE_CREATE_DB=cadvisor
+      - INFLUXD_TLS_CERT=/etc/ssl/influxdb/fullchain.pem
+      - INFLUXD_TLS_KEY=/etc/ssl/influxdb/privkey.pem
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -84,8 +87,13 @@ services:
         - node.role == manager
         - node.labels.swarm.leader == true
       labels:
-          - "traefik.enable=false"
-          - "traefik.swarm.network=traefik"
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.influx.rule=HostSNI(`influx.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.influx.entrypoints=host-internal"
+        - "traefik.tcp.routers.influx.tls.passthrough=true"
+        - "traefik.tcp.routers.influx.tls.certresolver=le-dns"
+        - "traefik.tcp.services.influx.loadbalancer.server.port=8086"
+        - "traefik.swarm.network=traefik"
   redis:
     image: bitnami/redis:latest
     secrets:
@@ -100,7 +108,7 @@ services:
       mode: replicated
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_CACHE}
@@ -120,11 +128,11 @@ services:
       labels:
         - "traefik.enable=true"
         # TCP routing for Redis
-        - "traefik.tcp.routers.security-redis.rule=HostSNI(`redis.${LOCAL_DOMAIN?err}`)"
-        - "traefik.tcp.routers.security-redis.entrypoints=host-internal"
-        - "traefik.tcp.routers.security-redis.tls=true"
-        - "traefik.tcp.routers.security-redis.tls.certresolver=le-dns"
-        - "traefik.tcp.services.security-redis.loadbalancer.server.port=6379"
+        - "traefik.tcp.routers.redis.rule=HostSNI(`redis.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.redis.entrypoints=host-internal"
+        - "traefik.tcp.routers.redis.tls=true"
+        - "traefik.tcp.routers.redis.tls.certresolver=le-dns"
+        - "traefik.tcp.services.redis.loadbalancer.server.port=6379"
         - "traefik.swarm.network=traefik"
 
   opensearch:
@@ -149,7 +157,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 15s
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_COMPLEX}
@@ -195,7 +203,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -220,6 +228,9 @@ services:
         - "traefik.http.routers.minio-api.tls.certresolver=le-dns"
         - "traefik.http.routers.minio-api.service=minio-api"
         - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
+        - "traefik.http.services.minio-api.loadbalancer.healthcheck.path=/minio/health/live"
+        - "traefik.http.services.minio-api.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.minio-api.loadbalancer.healthcheck.timeout=3s"
         - "traefik.http.routers.minio-api-http.rule=Host(`minio-api.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.minio-api-http.entrypoints=web"
         - "traefik.http.routers.minio-api-http.service=minio-api"
@@ -253,7 +264,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 15s
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_COMPLEX}
@@ -296,7 +307,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 15s
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_COMPLEX}
@@ -347,12 +358,13 @@ services:
       retries: 120
 
   supabase-db:
-    image: supabase/postgres:17.4.1.048
+    image: supabase/postgres:17.6.1.079
     networks:
       - traefik
     volumes:
       - supabase-db-data:/var/lib/postgresql/data
       - supabase-db-config:/etc/postgresql-custom
+      - supabase-db-certs:/lego/certs:ro
     configs:
       - source: supabase_db_realtime_sql
         target: /docker-entrypoint-initdb.d/migrations/99-realtime.sql
@@ -368,6 +380,16 @@ services:
         target: /docker-entrypoint-initdb.d/migrations/99-logs.sql
       - source: supabase_db_pooler_sql
         target: /docker-entrypoint-initdb.d/migrations/99-pooler.sql
+      - source: supabase_db_hba_conf
+        target: /etc/postgresql/pg_hba.conf
+        uid: "101"
+        gid: "102"
+        mode: 0440
+      - source: supabase_db_custom_overrides_conf
+        target: /etc/postgresql-custom/custom-overrides.conf
+        uid: "101"
+        gid: "102"
+        mode: 0440
     environment:
       POSTGRES_HOST: /var/run/postgresql
       PGPORT: ${SUPABASE_POSTGRES_PORT:-5432}
@@ -384,7 +406,15 @@ services:
         "-c",
         "config_file=/etc/postgresql/postgresql.conf",
         "-c",
-        "log_min_messages=fatal"
+        "hba_file=/etc/postgresql/pg_hba.conf",
+        "-c",
+        "log_min_messages=fatal",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/lego/certs/fullchain.pem",
+        "-c",
+        "ssl_key_file=/lego/certs/privkey.pem"
       ]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
@@ -394,7 +424,18 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
       placement:
         constraints:
           - node.role == manager
@@ -402,8 +443,7 @@ services:
         - "traefik.enable=true"
         - "traefik.tcp.routers.supabase-db.rule=HostSNI(`supabase-db.${LOCAL_DOMAIN?err}`)"
         - "traefik.tcp.routers.supabase-db.entrypoints=host-internal"
-        - "traefik.tcp.routers.supabase-db.tls=true"
-        - "traefik.tcp.routers.supabase-db.tls.certresolver=le-dns"
+        - "traefik.tcp.routers.supabase-db.tls.passthrough=true"
         - "traefik.tcp.services.supabase-db.loadbalancer.server.port=${SUPABASE_POSTGRES_PORT:-5432}"
         - "traefik.swarm.network=traefik"
 
@@ -424,7 +464,7 @@ services:
     deploy:
       replicas: 1
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -469,12 +509,23 @@ services:
       - CLICKHOUSE_DB=${CLICKHOUSE_DB:-clickhouse}
     volumes:
       - clickhouse-olap-data:/var/lib/clickhouse
-      - clickhouse-logs:/var/log/clickhouse-server
     networks:
       - traefik
     deploy:
       mode: replicated
       replicas: 1
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: 0
+      update_config:
+        order: stop-first
+        failure_action: pause
+        monitor: ${RESTART_DELAY_STANDARD}
+        max_failure_ratio: 0
+      rollback_config:
+        order: stop-first
+        monitor: ${RESTART_DELAY_STANDARD}
       placement:
         constraints:
         - node.labels.storage.manager == true
@@ -510,6 +561,16 @@ volumes:
       file_perms: "600"
       dir_perms: "700"
   influx: {}
+  influx_certs:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/influx.${LOCAL_DOMAIN?err}"
+      allow_other: "true"
+      vfs_cache_mode: full
+      uid: "1000"
+      gid: "1000"
+      file_perms: "600"
+      dir_perms: "700"
   redis-data:
     driver: local
   opensearch_data: {}
@@ -527,6 +588,16 @@ volumes:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
       allow_other: "true"
       vfs_cache_mode: full
+  supabase-db-certs:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/supabase-db.${LOCAL_DOMAIN?err}"
+      allow_other: "true"
+      vfs_cache_mode: full
+      uid: "101"
+      gid: "102"
+      file_perms: "600"
+      dir_perms: "700"
   clickhouse-olap-data:
     driver: local
   clickhouse-logs:
@@ -577,3 +648,9 @@ configs:
   supabase_db_pooler_sql:
     name: supabase_db_pooler_sql-${CONFIG_VERSION:-0}
     file: ./configs/supabase/docker/volumes/db/pooler.sql
+  supabase_db_hba_conf:
+    name: supabase_db_hba_conf-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/pg_hba.conf
+  supabase_db_custom_overrides_conf:
+    name: supabase_db_custom_overrides_conf-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/postgresql-custom-overrides.conf
