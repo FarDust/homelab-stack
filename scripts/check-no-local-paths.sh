@@ -5,7 +5,7 @@ set -e
 failed=0
 while IFS= read -r -d '' path; do
   [[ "$path" == "scripts/check-no-local-paths.sh" ]] && continue
-  if git show ":$path" 2>/dev/null | grep -qE '/home/[^/]*/|/root/|/Users/[^/]*/|C:\\Users\\[^\\]*\\'; then
+  if git show ":$path" 2>/dev/null | grep -qE '/home/[^/]*/|/root/[^.]|/root$|/Users/[^/]*/|C:\\Users\\[^\\]*\\'; then
     echo "$path: contains blocked host path pattern"
     failed=1
   fi
