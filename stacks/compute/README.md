@@ -19,6 +19,7 @@ This directory contains execution environment services for the Docker Swarm clus
 Execution services use Docker Swarm node labels for placement:
 
 ### Common Label Patterns
+See `docs/node-labels.md` for the full label catalog and conventions.
 ```yaml
 placement:
   constraints:
@@ -28,6 +29,10 @@ placement:
     - node.labels.gpu == true                # GPU access required
     - node.labels.gpu == false               # CPU-only execution
     - node.labels.storage.manager == true    # High-performance storage
+    - node.labels.site.class == cloud        # Cloud vs datacenter placement
+    - node.labels.instance.class == virtual  # VM vs bare metal placement
+    - node.labels.site.name == oracle        # Provider or site identifier
+    - node.labels.region == sa-east-1        # Region or on-prem segment
 ```
 
 ## Service Configuration Patterns
