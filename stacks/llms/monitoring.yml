@@ -43,13 +43,12 @@ services:
       LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: ${LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:-true}
       LANGFUSE_INGESTION_QUEUE_DELAY_MS: ${LANGFUSE_INGESTION_QUEUE_DELAY_MS:-}
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: ${LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS:-}
-      REDIS_HOST: ${REDIS_HOST:-redis}
-      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_HOST: redis.${LOCAL_DOMAIN?err}
+      REDIS_PORT: ${INTERNAL_PORT:-5578}
       REDIS_AUTH: ${REDIS_PASSWORD?err}
-      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
-      REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
-      REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
-      REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
+      REDIS_TLS_ENABLED: "true"
+      REDIS_TLS_CA_PATH: /etc/ssl/certs/ca-certificates.crt
+      REDIS_TLS_SERVERNAME: redis.${LOCAL_DOMAIN?err}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
       SMTP_CONNECTION_URL: ${SMTP_CONNECTION_URL:-}
     deploy:
@@ -91,18 +90,20 @@ services:
     deploy:
       replicas: 2
       restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 120s
+        condition: any
+        delay: 1m
+        max_attempts: 0
+        window: 300s
       resources:
         limits:
           cpus: '1'
-          memory: 2G
+          memory: 4G
       placement:
         constraints:
           - node.platform.os == linux
           - node.platform.arch == x86_64
+        preferences:
+          - spread: node.hostname
       labels:
         - traefik.enable=true
         - traefik.http.routers.langfuse.entrypoints=websecure
