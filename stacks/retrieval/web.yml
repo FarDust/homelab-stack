@@ -11,8 +11,8 @@ x-common-firecrawl-env: &common-firecrawl-env
   REDIS_RATE_LIMIT_URL: ${FIRECRAWL_REDIS_URL:-redis://redis:6379}
   PLAYWRIGHT_MICROSERVICE_URL: ${PLAYWRIGHT_MICROSERVICE_URL:-http://playwright:3000/scrape}
   USE_DB_AUTHENTICATION: ${USE_DB_AUTHENTICATION:-false}
-  OPENAI_API_KEY: ${FIRECRAWL_OPENAI_API_KEY}
-  OPENAI_BASE_URL: ${FIRECRAWL_OPENAI_BASE_URL}
+  OPENAI_API_KEY: ${FIRECRAWL_OPENAI_BASE_URL}
+  OPENAI_BASE_URL: ${FIRECRAWL_OPENAI_API_KEY}
   MODEL_NAME: ${FIRECRAWL_MODEL_NAME}
   MODEL_EMBEDDING_NAME: ${FIRECRAWL_MODEL_EMBEDDING_NAME}
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
@@ -50,36 +50,41 @@ services:
       timeout: 3s
       retries: 5
       start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firecrawl-api.rule=Host(`firecrawl.${LOCAL_DOMAIN}`)"
+      - "traefik.http.routers.firecrawl-api.entrypoints=websecure"
+      - "traefik.http.routers.firecrawl-api.tls=true"
+      - "traefik.http.routers.firecrawl-api.tls.certresolver=le-dns"
+      - "traefik.http.routers.firecrawl-api.service=firecrawl-api"
+      - "traefik.http.services.firecrawl-api.loadbalancer.server.port=3002"
+      - "traefik.swarm.network=traefik"
+
+       # streaming fluido
+      - traefik.http.services.firecrawl-api.loadbalancer.responseforwarding.flushinterval=100ms
+
+      # buffers grandes para payloads
+      - traefik.http.routers.firecrawl-api.middlewares=firecrawl-buffer,firecrawl-retry
+      - traefik.http.middlewares.firecrawl-buffer.buffering.maxRequestBodyBytes=67108864
+      - traefik.http.middlewares.firecrawl-buffer.buffering.memRequestBodyBytes=8388608
+      - traefik.http.middlewares.firecrawl-buffer.buffering.maxResponseBodyBytes=268435456
+      - traefik.http.middlewares.firecrawl-buffer.buffering.memResponseBodyBytes=8388608
+
+      # reintentos básicos
+      - traefik.http.middlewares.firecrawl-retry.retry.attempts=3
+      - traefik.http.middlewares.firecrawl-retry.retry.initialInterval=500ms
+
+      # healthcheck
+      - traefik.http.services.firecrawl-api.loadbalancer.healthcheck.path=/v0/health/readiness
+      - traefik.http.services.firecrawl-api.loadbalancer.healthcheck.interval=10s
+      - traefik.http.services.firecrawl-api.loadbalancer.healthcheck.timeout=3s
     deploy:
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.firecrawl-api.rule=Host(`firecrawl.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.firecrawl-api.entrypoints=websecure"
-        - "traefik.http.routers.firecrawl-api.tls=true"
-        - "traefik.http.routers.firecrawl-api.tls.certresolver=le-dns"
-        - "traefik.http.routers.firecrawl-api.service=firecrawl-api"
-        - "traefik.http.services.firecrawl-api.loadbalancer.server.port=3002"
-        - "traefik.swarm.network=traefik"
-        - "traefik.http.services.firecrawl-api.loadbalancer.responseforwarding.flushinterval=100ms"
-        - "traefik.http.routers.firecrawl-api.middlewares=firecrawl-buffer,firecrawl-retry"
-        - "traefik.http.middlewares.firecrawl-buffer.buffering.maxRequestBodyBytes=67108864"
-        - "traefik.http.middlewares.firecrawl-buffer.buffering.memRequestBodyBytes=8388608"
-        - "traefik.http.middlewares.firecrawl-buffer.buffering.maxResponseBodyBytes=268435456"
-        - "traefik.http.middlewares.firecrawl-buffer.buffering.memResponseBodyBytes=8388608"
-        - "traefik.http.middlewares.firecrawl-retry.retry.attempts=3"
-        - "traefik.http.middlewares.firecrawl-retry.retry.initialInterval=500ms"
-        - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.path=/v0/health/readiness"
-        - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.interval=10s"
-        - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.timeout=3s"
       mode: replicated
       replicas: 3
       restart_policy:
-        condition: any
-        delay: 30s
-      placement:
-        preferences:
-          - spread: node.id
-        max_replicas_per_node: 2
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
 
   firecrawl-worker:
     <<: *common-firecrawl-service
@@ -92,13 +97,10 @@ services:
       mode: replicated
       replicas: 5
       restart_policy:
-        condition: any
-        delay: 30s
-      placement:
-        constraints:
-          - node.labels.load.tier == heavy
-        preferences:
-          - spread: node.id
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
 
 networks:
   traefik:
