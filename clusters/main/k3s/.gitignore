@@ -1,0 +1,4 @@
+*.yaml
+!*.template
+k3s.env
+node-ufw-k8s-routes.sh
