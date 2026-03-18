@@ -1,0 +1,7 @@
+crds:
+  enabled: true
+
+csi:
+  enableRbdDriver: false
+  enableCephfsDriver: true
+  provisionerReplicas: 1

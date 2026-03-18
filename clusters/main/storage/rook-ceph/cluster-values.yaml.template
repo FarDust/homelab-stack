@@ -1,0 +1,109 @@
+operatorNamespace: "${ROOK_NAMESPACE}"
+
+configOverride: |
+  [global]
+  osd_pool_default_size = ${ROOK_CEPH_POOL_REPLICA_SIZE}
+  osd_pool_default_min_size = 1
+
+toolbox:
+  enabled: true
+
+monitoring:
+  enabled: false
+
+cephClusterSpec:
+  mon:
+    count: ${ROOK_MON_COUNT}
+  mgr:
+    count: ${ROOK_MGR_COUNT}
+  resources:
+    mon:
+      requests:
+        cpu: "${ROOK_MON_CPU_REQUEST}"
+        memory: "${ROOK_MON_MEM_REQUEST}"
+    mgr:
+      requests:
+        cpu: "${ROOK_MGR_CPU_REQUEST}"
+        memory: "${ROOK_MGR_MEM_REQUEST}"
+    osd:
+      requests:
+        cpu: "${ROOK_OSD_CPU_REQUEST}"
+        memory: "${ROOK_OSD_MEM_REQUEST}"
+    mds:
+      requests:
+        cpu: "${ROOK_MDS_CPU_REQUEST}"
+        memory: "${ROOK_MDS_MEM_REQUEST}"
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    storageClassDeviceSets:
+      - name: set-a
+        count: ${ROOK_OSD_COUNT}
+        portable: true
+        placement:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: cluster.example.io/storage.manager  # override with your node label
+                      operator: In
+                      values:
+                        - "true"
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - rook-ceph-osd
+                topologyKey: kubernetes.io/hostname
+        tuneDeviceClass: false
+        encrypted: false
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              storageClassName: "${ROOK_OSD_STORAGE_CLASS}"
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: "${ROOK_OSD_PVC_SIZE}"
+              volumeMode: Block
+
+cephBlockPools: []
+cephObjectStores: []
+
+cephFileSystems:
+  - name: "${ROOK_CEPHFS_NAME}"
+    spec:
+      metadataPool:
+        replicated:
+          size: ${ROOK_CEPH_POOL_REPLICA_SIZE}
+      dataPools:
+        - failureDomain: host
+          replicated:
+            size: ${ROOK_CEPH_POOL_REPLICA_SIZE}
+          name: data0
+      metadataServer:
+        activeCount: 1
+        activeStandby: false
+    storageClass:
+      enabled: true
+      isDefault: false
+      name: "${ROOK_CEPHFS_SC_NAME}"
+      pool: data0
+      reclaimPolicy: Delete
+      allowVolumeExpansion: true
+      volumeBindingMode: Immediate
+      parameters:
+        csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+        csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+        csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+        csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+        csi.storage.k8s.io/controller-publish-secret-name: rook-csi-cephfs-provisioner
+        csi.storage.k8s.io/controller-publish-secret-namespace: "{{ .Release.Namespace }}"
+        csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+        csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+        csi.storage.k8s.io/fstype: ext4

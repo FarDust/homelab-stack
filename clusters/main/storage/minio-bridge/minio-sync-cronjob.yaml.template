@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ${K8S_SYNC_JOB_NAME}
+  namespace: ${K8S_SYNC_NAMESPACE}
+spec:
+  schedule: "${K8S_SYNC_CRON_SCHEDULE}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            ${K8S_SYNC_NODE_SELECTOR_KEY}: "${K8S_SYNC_NODE_SELECTOR_VALUE}"
+          containers:
+            - name: sync
+              image: quay.io/minio/mc:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ceu
+                - |
+                  insecure_flag=""
+                  if [ "$${MINIO_INSECURE}" = "true" ]; then
+                    insecure_flag="--insecure"
+                  fi
+
+                  mc $${insecure_flag} alias set minio "$${MINIO_ENDPOINT}" "$${MINIO_ACCESS_KEY}" "$${MINIO_SECRET_KEY}"
+
+                  mkdir -p "$${SYNC_SOURCE_PATH}"
+                  src="$${SYNC_SOURCE_PATH%/}/"
+                  prefix="$${MINIO_PREFIX#/}"
+                  dst="minio/$${MINIO_BUCKET}/$${prefix}"
+                  mc $${insecure_flag} mirror --overwrite "$${src}" "$${dst}"
+              envFrom:
+                - secretRef:
+                    name: ${K8S_SYNC_SECRET_NAME}
+              volumeMounts:
+                - name: cephfs-data
+                  mountPath: /data
+          volumes:
+            - name: cephfs-data
+              persistentVolumeClaim:
+                claimName: ${K8S_SYNC_PVC_NAME}
