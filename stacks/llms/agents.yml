@@ -1,0 +1,355 @@
+version: "3.9"
+
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+
+services:
+
+  hermes:
+    image: python:3.11-slim
+    networks:
+      - traefik
+      - traefik-public
+    configs:
+      - source: llms-agents_hermes_init
+        target: /usr/local/bin/hermes-init.sh
+        mode: 0555
+      - source: llms-agents_hermes_config
+        target: /etc/hermes/config.base.yaml
+        mode: 0444
+    secrets:
+      - source: hermes_telegram_bot_token
+    environment:
+      - HERMES_HOME=/var/lib/hermes
+      - OPENAI_BASE_URL=http://litellm:4000/v1
+      - OPENAI_API_KEY=${OPENDEVIN_LITELLM_API_KEY:?err}
+      - LLM_MODEL=${HERMES_DEFAULT_MODEL:-gemini-2.5-flash}
+      - TERMINAL_ENV=${HERMES_TERMINAL_ENV:-local}
+      - MESSAGING_CWD=/workspace
+      - TELEGRAM_ALLOWED_USERS=${HERMES_TELEGRAM_ALLOWED_USERS:?err}
+      - HERMES_CONFIG_FORCE_REFRESH=${HERMES_CONFIG_FORCE_REFRESH:-0}
+    command:
+      - /usr/local/bin/hermes-init.sh
+    working_dir: /workspace
+    volumes:
+      - hermes_install:/opt/hermes
+      - hermes_source:/opt/hermes-src
+      - hermes_home:/var/lib/hermes
+      - hermes_workspace:/workspace
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.node.ephemeral != true
+          - node.hostname == ${LLMS_AGENTS_NODE_HOSTNAME?err}
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: continue
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+
+  honcho:
+    image: python:3.13-slim
+    networks:
+      - traefik
+      - traefik-public
+    configs:
+      - source: llms-agents_honcho_init
+        target: /usr/local/bin/honcho-init.sh
+        mode: 0555
+    secrets:
+      - source: honcho_db_password
+      - source: redis_password
+    environment:
+      - HONCHO_HOME=/var/lib/honcho
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=honcho
+      - DB_USER=honcho
+      - DB_SCHEMA=public
+      - AUTH_USE_AUTH=false
+      - CACHE_ENABLED=true
+      - CACHE_NAMESPACE=honcho
+      - HONCHO_REDIS_DB=${HONCHO_REDIS_DB:-9}
+      - LLM_OPENAI_COMPATIBLE_BASE_URL=http://litellm:4000/v1
+      - LLM_OPENAI_COMPATIBLE_API_KEY=${OPENDEVIN_LITELLM_API_KEY:?err}
+      - LLM_EMBEDDING_PROVIDER=openrouter
+      - DERIVER_PROVIDER=custom
+      - DERIVER_MODEL=${HONCHO_DERIVER_MODEL:-gpt-5-mini}
+      - SUMMARY_PROVIDER=custom
+      - SUMMARY_MODEL=${HONCHO_SUMMARY_MODEL:-gpt-5-mini}
+      - DREAM_ENABLED=false
+      - TELEMETRY_ENABLED=false
+      - METRICS_ENABLED=false
+      - LOG_LEVEL=${HONCHO_LOG_LEVEL:-INFO}
+    command:
+      - /usr/local/bin/honcho-init.sh
+      - api
+    volumes:
+      - honcho_source:/opt/honcho-src
+      - honcho_home:/var/lib/honcho
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.node.ephemeral != true
+          - node.hostname == ${LLMS_AGENTS_NODE_HOSTNAME?err}
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.honcho.rule=Host(`honcho.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.honcho.entrypoints=websecure"
+        - "traefik.http.routers.honcho.tls=true"
+        - "traefik.http.routers.honcho.tls.certresolver=le-dns"
+        - "traefik.http.services.honcho.loadbalancer.server.port=8000"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+
+  honcho-deriver:
+    image: python:3.13-slim
+    networks:
+      - traefik
+    configs:
+      - source: llms-agents_honcho_init
+        target: /usr/local/bin/honcho-init.sh
+        mode: 0555
+    secrets:
+      - source: honcho_db_password
+      - source: redis_password
+    environment:
+      - HONCHO_HOME=/var/lib/honcho
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=honcho
+      - DB_USER=honcho
+      - DB_SCHEMA=public
+      - AUTH_USE_AUTH=false
+      - CACHE_ENABLED=true
+      - CACHE_NAMESPACE=honcho
+      - HONCHO_REDIS_DB=${HONCHO_REDIS_DB:-9}
+      - LLM_OPENAI_COMPATIBLE_BASE_URL=http://litellm:4000/v1
+      - LLM_OPENAI_COMPATIBLE_API_KEY=${OPENDEVIN_LITELLM_API_KEY:?err}
+      - LLM_EMBEDDING_PROVIDER=openrouter
+      - DERIVER_PROVIDER=custom
+      - DERIVER_MODEL=${HONCHO_DERIVER_MODEL:-gpt-5-mini}
+      - SUMMARY_PROVIDER=custom
+      - SUMMARY_MODEL=${HONCHO_SUMMARY_MODEL:-gpt-5-mini}
+      - DREAM_ENABLED=false
+      - TELEMETRY_ENABLED=false
+      - METRICS_ENABLED=false
+      - LOG_LEVEL=${HONCHO_LOG_LEVEL:-INFO}
+    command:
+      - /usr/local/bin/honcho-init.sh
+      - deriver
+    volumes:
+      - honcho_source:/opt/honcho-src
+      - honcho_home:/var/lib/honcho
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.node.ephemeral != true
+          - node.hostname == ${LLMS_AGENTS_NODE_HOSTNAME?err}
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+
+  opencode:
+    image: ghcr.io/sst/opencode:v1.2.15
+    networks:
+      - traefik-public
+    configs:
+      - source: llms-agents_opencode_config
+        target: /root/.config/opencode/opencode.json
+    secrets:
+      - source: opencode_server_password
+      - source: opencode_litellm_api_key
+    environment:
+      - OPENCODE_LITELLM_BASE_URL=https://litellm.${LOCAL_DOMAIN?:err}/v1
+      - OPENCODE_SERVER_USERNAME=opencode
+    command:
+      - sh
+      - -lc
+      - >
+        export OPENDEVIN_LITELLM_API_KEY="$$(cat /run/secrets/opencode_litellm_api_key)" &&
+        export OPENCODE_SERVER_PASSWORD="$$(cat /run/secrets/opencode_server_password)" &&
+        exec opencode serve --hostname 0.0.0.0 --port 4096 --cors "https://opencode.${LOCAL_DOMAIN}"
+    working_dir: /workspace
+    volumes:
+      - opencode_data:/root/.local/share/opencode
+      - opencode_workspace:/workspace
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.opencode.rule=Host(`opencode.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.opencode.entrypoints=websecure"
+        - "traefik.http.routers.opencode.tls=true"
+        - "traefik.http.routers.opencode.tls.certresolver=le-dns"
+        - "traefik.http.services.opencode.loadbalancer.server.port=4096"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+
+  openhands:
+    image: docker.all-hands.dev/all-hands-ai/openhands
+    networks:
+      - traefik-public
+    environment:
+      - SANDBOX_RUNTIME_CONTAINER_IMAGE=docker.all-hands.dev/all-hands-ai/runtime:0.41-nikolaik
+      - SANDBOX_VOLUMES=sandbox-workspace-1:/workspace/sandbox-1,sandbox-workspace-2:/workspace/sandbox-2,sandbox-workspace-3:/workspace/sandbox-3
+      - LOG_ALL_EVENTS=true
+      - DEBUG=true
+      # LiteLLM Configuration
+      - LLM_BASE_URL=https://litellm.${LOCAL_DOMAIN?:err}/v1
+      - LLM_API_KEY=${OPENDEVIN_LITELLM_API_KEY:?err}
+      - LLM_MODEL=${OPENHANDS_DEFAULT_MODEL:-litellm_proxy/gemini-2.5-flash}
+      - LLM_CUSTOM_LLM_PROVIDER=litellm
+      - GITHUB_TOKEN=${OPENDEVIN_GITHUB_TOKEN}
+      - USER_CONSENTS_TO_ANALYTICS=false
+      # https://github.com/All-Hands-AI/OpenHands/blob/main/openhands/runtime/impl/docker/docker_runtime.py#L284
+      # https://github.com/All-Hands-AI/OpenHands/blob/main/openhands/runtime/impl/docker/docker_runtime.py#L376
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - openhands-state:/.openhands-state
+      - sandbox-workspace-1:/workspace/sandbox-1
+      - sandbox-workspace-2:/workspace/sandbox-2
+      - sandbox-workspace-3:/workspace/sandbox-3
+    extra_hosts:
+      - "host.docker.internal:${HOST_IP}"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "sablier.enable=true"
+        - "sablier.group=llms"
+        - "traefik.enable=true"
+        - "traefik.http.routers.openhands.rule=Host(`openhands.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.openhands.entrypoints=websecure"
+        - "traefik.http.routers.openhands.tls=true"
+        - "traefik.http.routers.openhands.tls.certresolver=le-dns"
+        - "traefik.http.services.openhands.loadbalancer.server.port=3000"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+volumes:
+  honcho_source:
+    driver: local
+  honcho_home:
+    driver: local
+  hermes_install:
+    driver: local
+  hermes_source:
+    driver: local
+  hermes_home:
+    driver: local
+  hermes_workspace:
+    driver: local
+  opencode_data:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/opencode/data"
+      allow_other: "true"
+      vfs_cache_mode: full
+  opencode_workspace:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/opencode/workspace"
+      allow_other: "true"
+      vfs_cache_mode: full
+  openhands-state:
+    driver: local
+  sandbox-workspace-1:
+    driver: local
+  sandbox-workspace-2:
+    driver: local
+  sandbox-workspace-3:
+    driver: local
+
+configs:
+  llms-agents_hermes_init:
+    name: llms-agents_hermes_init-${CONFIG_VERSION:-0}
+    file: ./configs/hermes/init.sh
+  llms-agents_hermes_config:
+    name: llms-agents_hermes_config-${CONFIG_VERSION:-0}
+    file: ./configs/hermes/config.yaml
+  llms-agents_honcho_init:
+    name: llms-agents_honcho_init-${CONFIG_VERSION:-0}
+    file: ./configs/honcho/init.sh
+  llms-agents_opencode_config:
+    name: llms-agents_opencode_config-${CONFIG_VERSION:-0}
+    file: ./configs/opencode/opencode.json
+
+secrets:
+  honcho_db_password:
+    file: ../../secrets/honcho/db_password
+  hermes_telegram_bot_token:
+    file: ../../secrets/hermes/telegram_bot_token
+  opencode_server_password:
+    file: ../../secrets/opencode/server_password
+  opencode_litellm_api_key:
+    file: ../../secrets/opencode/api_key
+  redis_password:
+    file: ../../secrets/redis/redis_password

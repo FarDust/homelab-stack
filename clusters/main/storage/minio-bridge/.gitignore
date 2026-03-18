@@ -1,0 +1,3 @@
+*.yaml
+!*.template
+minio-bridge.env

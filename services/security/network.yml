@@ -1,0 +1,37 @@
+services:
+  ntopng:
+    container_name: ntopng
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ntopng_data:/var/lib/ntopng
+      - ntopng_config:/etc/ntopng
+      - ntopng_logs:/var/log/ntopng
+      - ntopng_redis_data:/var/lib/redis
+      - ./ntopng-redis.conf:/etc/redis/redis.conf:ro
+    command:
+      [
+        "--dont-change-user",
+        "--http-port", "${HOST_DOCKER_GW:?err}:3005",
+        "--https-port", "0",
+        "--interface", "${NTOPNG_INTERFACE_PHYSICAL:-eth0}",
+        "--interface", "${NTOPNG_INTERFACE_VPC:-tailscale0}",
+        "--interface", "${NTOPNG_INTERFACE_DOCKER:-docker0}",
+        "--dns-mode", "1",
+        "-F", "clickhouse;service.clickhouse.${LOCAL_DOMAIN:?err}:${INTERNAL_PORT:-5578};${CLICKHOUSE_USER:-clickhouse};${CLICKHOUSE_PASSWORD:?err};ntopng",
+        "--redis", "/var/run/redis/redis.sock@0",
+        "--community"
+      ]
+    image: ntop/ntopng
+    restart: unless-stopped
+
+volumes:
+  ntopng_data:
+  ntopng_config:
+  ntopng_logs:
+  ntopng_redis_data:

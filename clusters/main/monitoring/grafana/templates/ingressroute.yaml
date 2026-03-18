@@ -1,0 +1,27 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "grafana.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`grafana.{{ .Values.ingress.host }}`)
+      kind: Rule
+      services:
+        - name: {{ include "grafana.fullname" . }}
+          port: {{ .Values.service.port }}
+      {{- if .Values.ingress.authelia.enabled }}
+      middlewares:
+        - name: authelia
+          namespace: {{ .Values.ingress.authelia.namespace }}
+      {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    certResolver: {{ .Values.ingress.tls.certResolver }}
+  {{- end }}
+{{- end }}

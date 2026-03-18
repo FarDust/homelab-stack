@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${BEEAI_NAMESPACE}
+  labels:
+    app.kubernetes.io/part-of: llms
+    app.kubernetes.io/name: beeai

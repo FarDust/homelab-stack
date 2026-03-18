@@ -36,6 +36,7 @@ The homelab stack is organized around several core components:
 - **Traefik**: Reverse proxy and edge router providing SSL termination, routing, and load balancing
 - **Authelia**: Single Sign-On (SSO) authentication for your services
 - **Monitoring**: Prometheus and Grafana for metrics collection and visualization
+- **Uptime**: Gatus and Uptime Kuma for human-facing service status checks
 - **Databases**: PostgreSQL, InfluxDB, and Redis for various storage needs
 - **LLMs**: Local AI models with Ollama, AnythingLLM, LocalAI, and LiteLLM
 
@@ -400,6 +401,8 @@ For the DNS challenge to work properly, you need two separate Cloudflare API tok
 ## Monitoring & Observability
 
 The stack includes a robust monitoring solution based on Prometheus and Grafana to help you keep track of your homelab's health and performance. This is especially important when running multiple stacks with varying resource requirements.
+
+Uptime/status pages are a complementary layer (for example, Gatus and Uptime Kuma). They are operator-facing views and do not replace telemetry collectors/exporters.
 
 > **Note**: While basic monitoring is included in the traefik-stack, deploying the dedicated monitoring-stack.yml is highly recommended to squeeze the full potential of Grafana with additional data sources, collectors, and specialized dashboards.
 

@@ -37,11 +37,12 @@ services:
         - traefik.http.routers.mcp-grafana.middlewares=sse-headers
 
   mcp-playwright:
-    image: mcp/playwright
+    image: mcp/playwright:latest
     command:
       - "--config=/config/config.json"
       - "--host=0.0.0.0"
       - "--port=8931"
+      - "--allowed-hosts=mcp-playwright.${LOCAL_DOMAIN},localhost:8931"
     configs:
       - source: playwright_config
         target: /config/config.json
@@ -105,12 +106,19 @@ services:
         - traefik.http.routers.mcp-notion.middlewares=sse-headers
 
   mcp-inspector:
-    image: node:20-alpine
-    command: >
-      sh -c "mkdir -p /app && cd /app &&
-             npm init -y &&
-             npm install @modelcontextprotocol/inspector@0.11.0 &&
-             npx @modelcontextprotocol/inspector"
+    image: node:22-alpine
+    command:
+      - "npx"
+      - "-y"
+      - "@modelcontextprotocol/inspector@0.21.0"
+    environment:
+      - HOST=0.0.0.0
+      - CLIENT_PORT=6274
+      - SERVER_PORT=6277
+      - MCP_PROXY_FULL_ADDRESS=https://mcp-inspector-proxy.${LOCAL_DOMAIN}
+      - MCP_AUTO_OPEN_ENABLED=false
+      - DANGEROUSLY_OMIT_AUTH=true
+      - ALLOWED_ORIGINS=https://mcp-inspector.${LOCAL_DOMAIN},http://localhost:6274
     networks:
       - traefik
     deploy:
@@ -127,9 +135,26 @@ services:
         - traefik.http.routers.mcp-inspector.rule=Host(`mcp-inspector.${LOCAL_DOMAIN}`)
         - traefik.http.routers.mcp-inspector.tls=true
         - traefik.http.routers.mcp-inspector.tls.certresolver=le-dns
+        - traefik.http.routers.mcp-inspector.middlewares=mcp-inspector-proxy-redirect
+        - traefik.http.routers.mcp-inspector.service=mcp-inspector
         - traefik.http.services.mcp-inspector.loadbalancer.server.port=6274
         - traefik.http.services.mcp-inspector.loadbalancer.passHostHeader=true
         - traefik.http.routers.mcp-inspector-http.middlewares=https-redirect
+        - traefik.http.routers.mcp-inspector-http.service=mcp-inspector
+        - traefik.http.middlewares.mcp-inspector-proxy-redirect.redirectregex.regex=^https://mcp-inspector\\.${LOCAL_DOMAIN}/?$$
+        - traefik.http.middlewares.mcp-inspector-proxy-redirect.redirectregex.replacement=https://mcp-inspector.${LOCAL_DOMAIN}/?MCP_PROXY_FULL_ADDRESS=https://mcp-inspector-proxy.${LOCAL_DOMAIN}
+        - traefik.http.middlewares.mcp-inspector-proxy-redirect.redirectregex.permanent=false
+        - traefik.http.routers.mcp-inspector-proxy-http.entrypoints=web
+        - traefik.http.routers.mcp-inspector-proxy-http.rule=Host(`mcp-inspector-proxy.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-inspector-proxy.entrypoints=websecure
+        - traefik.http.routers.mcp-inspector-proxy.rule=Host(`mcp-inspector-proxy.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.mcp-inspector-proxy.tls=true
+        - traefik.http.routers.mcp-inspector-proxy.tls.certresolver=le-dns
+        - traefik.http.routers.mcp-inspector-proxy.service=mcp-inspector-proxy
+        - traefik.http.services.mcp-inspector-proxy.loadbalancer.server.port=6277
+        - traefik.http.services.mcp-inspector-proxy.loadbalancer.passHostHeader=true
+        - traefik.http.routers.mcp-inspector-proxy-http.middlewares=https-redirect
+        - traefik.http.routers.mcp-inspector-proxy-http.service=mcp-inspector-proxy
 
 networks:
   traefik:

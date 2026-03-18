@@ -1,0 +1,13 @@
+apiVersion: v2
+name: grafana
+description: Grafana monitoring platform with GCS backend and PostgreSQL
+type: application
+version: 1.0.0
+appVersion: "latest"
+keywords:
+  - grafana
+  - monitoring
+  - visualization
+home: https://grafana.com
+sources:
+  - https://github.com/grafana/grafana

@@ -1,0 +1,14 @@
+[Unit]
+Description=Normalize mount propagation for K3s and Longhorn
+After=local-fs.target
+Before=k3s.service k3s-agent.service
+ConditionPathIsDirectory=/var/lib
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -ec 'mkdir -p /var/lib/kubelet /var/lib/longhorn; for path in / /var/lib/kubelet /var/lib/longhorn; do target="$(findmnt -T "$path" -n -o TARGET 2>/dev/null || true)"; [ -n "$target" ] || continue; mount --make-rshared "$target"; done'
+ExecStart=/bin/sh -ec 'for path in / /var/lib/kubelet /var/lib/longhorn; do findmnt -T "$path" -n -o TARGET,PROPAGATION || true; done'
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,48 @@
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: default-data-path
+  namespace: longhorn-system
+value: "${LONGHORN_DEFAULT_DATA_PATH}"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: default-replica-count
+  namespace: longhorn-system
+value: "${LONGHORN_DEFAULT_REPLICA_COUNT}"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: replica-soft-anti-affinity
+  namespace: longhorn-system
+value: "${LONGHORN_REPLICA_SOFT_ANTI_AFFINITY}"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: replica-auto-balance
+  namespace: longhorn-system
+value: "${LONGHORN_REPLICA_AUTO_BALANCE}"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: storage-over-provisioning-percentage
+  namespace: longhorn-system
+value: "${LONGHORN_STORAGE_OVERPROVISIONING_PERCENTAGE}"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: storage-minimal-available-percentage
+  namespace: longhorn-system
+value: "${LONGHORN_STORAGE_MINIMAL_AVAILABLE_PERCENTAGE}"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: create-default-disk-labeled-nodes
+  namespace: longhorn-system
+value: "${LONGHORN_CREATE_DEFAULT_DISK_LABELED_NODES}"

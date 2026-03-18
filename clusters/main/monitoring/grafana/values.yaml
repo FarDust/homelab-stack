@@ -1,0 +1,137 @@
+# Grafana Helm Chart Values
+# Environment variables should be provided via --set or external values file
+# Secrets must be created externally before deploying this chart
+
+namespace: main-monitoring
+
+image:
+  repository: grafana/grafana
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+service:
+  type: ClusterIP
+  port: 3000
+
+# Ingress using Traefik IngressRoute CRD
+ingress:
+  enabled: true
+  className: traefik
+  # host: set via --set ingress.host=$DOMAIN_NAME
+  # Expects Authelia middleware in main-traefik namespace
+  authelia:
+    enabled: true
+    namespace: main-traefik
+  tls:
+    enabled: true
+    certResolver: le-dns
+
+# GCS persistence via CSI driver
+persistence:
+  enabled: true
+  accessMode: ReadWriteMany
+  size: 10Gi
+  gcs:
+    enabled: true
+    # bucketName: set via --set persistence.gcs.bucketName=$GCS_SYNC_STORAGE_BUCKET/grafana/data
+    mountOptions:
+      - implicit-dirs
+      - file-mode=0666
+      - dir-mode=0777
+
+# Database configuration
+# Values should be set via --set flags from environment
+database:
+  type: postgres
+  # host: set via --set database.host=$GF_DATABASE_HOST
+  # name: set via --set database.name=$GF_POSTGRES_DB
+  # user: set via --set database.user=$GF_POSTGRES_USER
+  sslMode: require
+
+# Auth configuration
+auth:
+  google:
+    enabled: true
+    # clientId: set via --set auth.google.clientId=$GOOGLE_CLIENT_ID
+    allowedDomains: "gmail.com"
+    allowSignUp: false
+
+# SMTP configuration
+smtp:
+  enabled: true
+  host: "smtp.sendgrid.net:587"
+  # user: set via --set smtp.user=$SMTP_USER
+  # fromAddress: set via --set smtp.fromAddress=$SMTP_FROM
+
+# Rendering service
+rendering:
+  enabled: true
+  serverUrl: "http://renderer:8081/render"
+  # callbackUrl: set via --set rendering.callbackUrl=https://grafana.$DOMAIN_NAME/
+
+# Server configuration
+# serverDomain: set via --set serverDomain=$DOMAIN_NAME
+# serverRootUrl: set via --set serverRootUrl=https://grafana.$DOMAIN_NAME/
+
+# Grafana settings (from config.monitoring)
+settings:
+  usersAllowSignUp: false
+  logFilters: "rendering:debug"
+  unifiedAlertingEnabled: true
+  alertingEnabled: false
+  installPlugins:
+    - grafana-image-renderer
+    - grafana-llm-app
+
+# External secrets (must be created before deployment)
+secrets:
+  adminPassword: grafana-admin-password
+  databasePassword: grafana-database-password
+  googleOAuth: grafana-google-oauth
+  smtpPassword: grafana-smtp-password
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+healthChecks:
+  liveness:
+    path: /api/health
+    initialDelaySeconds: 40
+    periodSeconds: 90
+    timeoutSeconds: 10
+  readiness:
+    path: /api/health
+    initialDelaySeconds: 40
+    periodSeconds: 90
+    timeoutSeconds: 10
+
+podSecurityContext:
+  fsGroup: 472
+  runAsUser: 472
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+          topologyKey: kubernetes.io/hostname
+
+serviceAccount:
+  create: true

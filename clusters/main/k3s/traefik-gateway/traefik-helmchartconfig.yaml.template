@@ -1,0 +1,27 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      web:
+        exposedPort: 8080
+      websecure:
+        exposedPort: 8443
+    providers:
+      kubernetesGateway:
+        enabled: true
+    gateway:
+      listeners:
+        web:
+          namespacePolicy: All
+        websecure:
+          port: 8443
+          protocol: HTTPS
+          namespacePolicy: All
+          certificateRefs:
+            - name: ${K3S_TRAEFIK_GATEWAY_TLS_SECRET_NAME}
+              kind: Secret
+              group: ""

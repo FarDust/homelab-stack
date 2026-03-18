@@ -1,5 +1,6 @@
 litellm_settings:
   vertex_location: "us-central1"
+  drop_params: true
   callbacks: ["langfuse"]
   success_callback: ["langfuse"]
   failure_callback: ["langfuse"]
@@ -17,6 +18,11 @@ router_settings:
   redis_host: os.environ/REDIS_HOST
   redis_port: os.environ/REDIS_PORT
   redis_password: os.environ/REDIS_PASSWORD
+  # Local-first aliases for automation workloads (e.g. n8n).
+  # Existing model names are unchanged; these add stable route targets.
+  fallbacks:
+    - {"n8n-chat": ["n8n-chat-fallback", "gemini-2.5-flash"]}
+    - {"n8n-code": ["n8n-code-fallback", "gemini-2.5-flash-lite"]}
 
 model_list:
   # OpenAI Models
@@ -36,7 +42,8 @@ model_list:
 
   - model_name: chatgpt-4o-latest
     litellm_params:
-      model: openai/chatgpt-4o-latest
+      # OpenAI retired chatgpt-4o-latest; keep alias name for compatibility.
+      model: openai/gpt-5-chat-latest
       api_key: os.environ/OPENAI_API_KEY
     model_info:
       owned_by: openai
@@ -64,7 +71,8 @@ model_list:
 
   - model_name: o1-mini
     litellm_params:
-      model: openai/o1-mini
+      # Preserve legacy alias, route to currently available reasoning tier.
+      model: openai/o4-mini
       api_key: os.environ/OPENAI_API_KEY
     model_info:
       owned_by: openai
@@ -121,6 +129,69 @@ model_list:
   - model_name: gpt-5-chat-latest
     litellm_params:
       model: openai/gpt-5-chat-latest
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.2
+    litellm_params:
+      model: openai/gpt-5.2
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.2-chat-latest
+    litellm_params:
+      model: openai/gpt-5.2-chat-latest
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.2-pro
+    litellm_params:
+      model: openai/gpt-5.2-pro
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5-codex
+    litellm_params:
+      model: openai/gpt-5-codex
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.1-codex
+    litellm_params:
+      model: openai/gpt-5.1-codex
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.1-codex-max
+    litellm_params:
+      model: openai/gpt-5.1-codex-max
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.1-codex-mini
+    litellm_params:
+      model: openai/gpt-5.1-codex-mini
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.2-codex
+    litellm_params:
+      model: openai/gpt-5.2-codex
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      owned_by: openai
+
+  - model_name: gpt-5.3-codex
+    litellm_params:
+      model: openai/gpt-5.3-codex
       api_key: os.environ/OPENAI_API_KEY
     model_info:
       owned_by: openai
@@ -569,21 +640,21 @@ model_list:
   # GitHub Models - OpenAI (Azure OpenAI)
   - model_name: github.gpt-4-1
     litellm_params:
-      model: github/gpt-4-1
+      model: github/gpt-4.1
       api_key: os.environ/GITHUB_API_KEY
     model_info:
       owned_by: openai
 
   - model_name: github.gpt-4-1-mini
     litellm_params:
-      model: github/gpt-4-1-mini
+      model: github/gpt-4.1-mini
       api_key: os.environ/GITHUB_API_KEY
     model_info:
       owned_by: openai
 
   - model_name: github.gpt-4-1-nano
     litellm_params:
-      model: github/gpt-4-1-nano
+      model: github/gpt-4.1-nano
       api_key: os.environ/GITHUB_API_KEY
     model_info:
       owned_by: openai
@@ -696,7 +767,8 @@ model_list:
 
   - model_name: gemini-2.5-flash-preview
     litellm_params:
-      model: vertex_ai/gemini-2.5-flash-preview-05-20
+      # Preserve core alias, route to currently available GA model.
+      model: vertex_ai/gemini-2.5-flash
     model_info:
       owned_by: google
 
@@ -708,19 +780,22 @@ model_list:
 
   - model_name: gemini-2.5-flash-lite-preview
     litellm_params:
-      model: vertex_ai/gemini-2.5-flash-lite-06-17
+      model: vertex_ai/gemini-2.5-flash-lite
     model_info:
       owned_by: google
 
   - model_name: gemini-live-2.5-flash-preview
     litellm_params:
-      model: vertex_ai/gemini-live-2.5-flash-preview
+      # Official replacement is a Live API model; current project lacks access.
+      # Keep alias callable via GA chat path.
+      model: vertex_ai/gemini-2.5-flash
     model_info:
       owned_by: google
 
   - model_name: gemini-2.5-flash-exp-native-audio-thinking-dialog
     litellm_params:
-      model: vertex_ai/gemini-2.5-flash-exp-native-audio-thinking-dialog
+      # Official replacement is Live/native-audio; map alias to callable GA path for now.
+      model: vertex_ai/gemini-2.5-flash
     model_info:
       owned_by: google
 
@@ -739,6 +814,41 @@ model_list:
   - model_name: gemini-embedding-001
     litellm_params:
       model: vertex_ai/gemini-embedding-001
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-3-pro-preview
+    litellm_params:
+      model: vertex_ai/gemini-3-pro-preview
+      vertex_location: global
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-3-pro
+    litellm_params:
+      model: vertex_ai/gemini-3-pro-preview
+      vertex_location: global
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-3-flash-preview
+    litellm_params:
+      model: vertex_ai/gemini-3-flash-preview
+      vertex_location: global
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-3-flash
+    litellm_params:
+      model: vertex_ai/gemini-3-flash-preview
+      vertex_location: global
+    model_info:
+      owned_by: google
+
+  - model_name: gemini-3-pro-image-preview
+    litellm_params:
+      model: vertex_ai/gemini-3-pro-image-preview
+      vertex_location: global
     model_info:
       owned_by: google
 
@@ -796,6 +906,40 @@ model_list:
       owned_by: google
 
   # Ollama Models
+  - model_name: n8n-chat
+    litellm_params:
+      model: ollama_chat/gpt-oss:20b
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: openai
+
+  - model_name: n8n-chat-fallback
+    litellm_params:
+      model: vertex_ai/gemini-3-flash-preview
+      vertex_location: global
+    model_info:
+      owned_by: google
+
+  - model_name: n8n-code
+    litellm_params:
+      model: vertex_ai/gemini-2.5-flash
+    model_info:
+      owned_by: google
+
+  - model_name: n8n-code-fallback
+    litellm_params:
+      model: ollama_chat/qwen3:latest
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+
+  - model_name: n8n-embedding
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: nomic
+
   - model_name: gemma3-1b
     litellm_params:
       model: ollama_chat/gemma3:1b
