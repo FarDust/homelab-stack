@@ -1,16 +1,21 @@
 services:
   comfy-gpu:
-    image: us-central1-docker.pkg.dev/landing-fardust/public-docker/comfyui-cuda12.8-cudnn9-runtime:1.2.3
+    image: us-central1-docker.pkg.dev/landing-fardust/public-docker/comfyui-cuda12.8-cudnn9-runtime:0.0.0-refs-pull-2-merge.20260203-005047
     command:
       [
         "--listen",
         "--port",
         "8188",
+        "--enable-manager",
         "--database-url",
         "${COMFYUI_DATABASE_URL:-sqlite:////stable-diffusion/user/comfyui.db}",
         "--multi-user",
         "--comfy-api-base",
         "https://comfy.${LOCAL_DOMAIN?err}",
+        "--verbose",
+        "DEBUG",
+        "--front-end-version",
+        "Comfy-Org/ComfyUI_frontend@latest",
       ]
     volumes:
       - comfyui_data:/data
