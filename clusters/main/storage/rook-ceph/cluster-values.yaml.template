@@ -45,7 +45,7 @@ cephClusterSpec:
             requiredDuringSchedulingIgnoredDuringExecution:
               nodeSelectorTerms:
                 - matchExpressions:
-                    - key: cluster.example.io/storage.manager  # override with your node label
+                    - key: ${ROOK_OSD_NODE_LABEL_KEY}
                       operator: In
                       values:
                         - "true"
