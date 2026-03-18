@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Reject staged content that contains local/host paths.
-# Whitelist: container paths in volume mounts (e.g. volume_name:/home/user/...).
+# Whitelist: container paths in volume mounts; docs with backtick-wrapped paths (e.g. README).
 
 BLOCKED='/home/[^/]*/|/root/[^.]|/root$|/Users/[^/]*/|C:\\Users\\[^\\]*\\'
-# Lines that may contain /home/ or /root/ but are safe (compose volume mount targets)
-WHITELIST='^\s*-\s*[^:]+:\s*/home/|^\s*-\s*[^:]+:\s*/root'
+# Safe: compose volume mount targets (name:/home/...); markdown list items with `.../home/...` or `.../root...`
+WHITELIST='^\s*-\s*[^:]+:\s*/home/|^\s*-\s*[^:]+:\s*/root|^\s*-\s*`[^`]*/home/|^\s*-\s*`[^`]*/root'
 
 set -e
 failed=0
