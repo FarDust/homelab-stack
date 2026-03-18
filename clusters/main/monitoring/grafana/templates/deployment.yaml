@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "grafana.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "grafana.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grafana.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "grafana.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: grafana
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.adminPassword }}
+              key: password
+        - name: GF_SERVER_DOMAIN
+          value: {{ .Values.serverDomain | quote }}
+        - name: GF_SERVER_ROOT_URL
+          value: {{ .Values.serverRootUrl | quote }}
+        - name: GF_DATABASE_TYPE
+          value: {{ .Values.database.type }}
+        - name: GF_DATABASE_HOST
+          value: {{ .Values.database.host | quote }}
+        - name: GF_DATABASE_NAME
+          value: {{ .Values.database.name | quote }}
+        - name: GF_DATABASE_USER
+          value: {{ .Values.database.user | quote }}
+        - name: GF_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.databasePassword }}
+              key: password
+        - name: GF_DATABASE_SSL_MODE
+          value: {{ .Values.database.sslMode }}
+        {{- if .Values.smtp.enabled }}
+        - name: GF_SMTP_ENABLED
+          value: "true"
+        - name: GF_SMTP_HOST
+          value: {{ .Values.smtp.host }}
+        - name: GF_SMTP_USER
+          value: {{ .Values.smtp.user | quote }}
+        - name: GF_SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.smtpPassword }}
+              key: password
+        - name: GF_SMTP_FROM_ADDRESS
+          value: {{ .Values.smtp.fromAddress | quote }}
+        {{- end }}
+        {{- if .Values.auth.google.enabled }}
+        - name: GF_AUTH_GOOGLE_ENABLED
+          value: "true"
+        - name: GF_AUTH_GOOGLE_CLIENT_ID
+          value: {{ .Values.auth.google.clientId | quote }}
+        - name: GF_AUTH_GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.googleOAuth }}
+              key: client_secret
+        - name: GF_AUTH_GOOGLE_ALLOWED_DOMAINS
+          value: {{ .Values.auth.google.allowedDomains }}
+        - name: GF_AUTH_GOOGLE_ALLOW_SIGN_UP
+          value: {{ .Values.auth.google.allowSignUp | quote }}
+        {{- end }}
+        {{- if .Values.rendering.enabled }}
+        - name: GF_RENDERING_SERVER_URL
+          value: {{ .Values.rendering.serverUrl }}
+        - name: GF_RENDERING_CALLBACK_URL
+          value: {{ .Values.rendering.callbackUrl | quote }}
+        {{- end }}
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: {{ .Values.settings.usersAllowSignUp | quote }}
+        - name: GF_LOG_FILTERS
+          value: {{ .Values.settings.logFilters }}
+        - name: GF_UNIFIED_ALERTING_ENABLED
+          value: {{ .Values.settings.unifiedAlertingEnabled | quote }}
+        - name: GF_ALERTING_ENABLED
+          value: {{ .Values.settings.alertingEnabled | quote }}
+        - name: GF_INSTALL_PLUGINS
+          value: {{ join "," .Values.settings.installPlugins }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.healthChecks.liveness.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.healthChecks.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthChecks.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthChecks.liveness.timeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.healthChecks.readiness.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.healthChecks.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthChecks.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthChecks.readiness.timeoutSeconds }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        volumeMounts:
+        {{- if .Values.persistence.enabled }}
+        - name: grafana-data
+          mountPath: /var/lib/grafana
+        {{- end }}
+        - name: datasources
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: dashboards-config
+          mountPath: /etc/grafana/provisioning/dashboards
+        - name: dashboards
+          mountPath: /etc/grafana/provisioning/dashboards/json
+      volumes:
+      {{- if .Values.persistence.enabled }}
+      - name: grafana-data
+        persistentVolumeClaim:
+          claimName: {{ include "grafana.fullname" . }}-data
+      {{- end }}
+      - name: datasources
+        configMap:
+          name: {{ include "grafana.fullname" . }}-datasources
+      - name: dashboards-config
+        configMap:
+          name: {{ include "grafana.fullname" . }}-dashboards-config
+      - name: dashboards
+        configMap:
+          name: {{ include "grafana.fullname" . }}-dashboards
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
