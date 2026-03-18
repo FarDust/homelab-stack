@@ -22,7 +22,7 @@ services:
         - node.role == manager
         - node.labels.swarm.leader == true
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -32,14 +32,14 @@ services:
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
-        order: stop-first
+        order: start-first
       rollback_config:
         parallelism: 1
         delay: 5s
         failure_action: pause
         monitor: ${ROLLBACK_MONITOR_STANDARD}
         max_failure_ratio: 0.3
-        order: stop-first
+        order: start-first
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.pgadmin4-http.entrypoints=web"
@@ -80,7 +80,7 @@ services:
         - node.role == manager
         - node.labels.swarm.leader == true
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -90,14 +90,14 @@ services:
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
-        order: stop-first
+        order: start-first
       rollback_config:
         parallelism: 1
         delay: 5s
         failure_action: pause
         monitor: ${ROLLBACK_MONITOR_STANDARD}
         max_failure_ratio: 0.3
-        order: stop-first
+        order: start-first
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.mongo-express.rule=Host(`mongo-express.${LOCAL_DOMAIN}`)"
@@ -129,7 +129,7 @@ services:
         - node.role == manager
         - node.labels.swarm.leader == true
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -139,14 +139,14 @@ services:
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
-        order: stop-first
+        order: start-first
       rollback_config:
         parallelism: 1
         delay: 5s
         failure_action: pause
         monitor: ${ROLLBACK_MONITOR_STANDARD}
         max_failure_ratio: 0.3
-        order: stop-first
+        order: start-first
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.opensearch-dashboards.rule=Host(`opensearch-dashboards.${LOCAL_DOMAIN}`)"
