@@ -2,6 +2,19 @@
 
 Quick reference for AI agents working on this infrastructure.
 
+## Conventional Commits
+
+Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/): use a type (`feat`, `fix`, `docs`, `chore`, `refactor`, etc.), optional scope in parentheses, and a short description. Use two `-m` when adding body:
+
+```bash
+git commit -m "<type>[optional scope]: <very-short-description>" -m "<extra-body>"
+```
+
+Examples: `feat(monitoring): add Loki dashboard`, `fix(traefik): correct HostSNI for postgres`.
+
+## Core Mantras
+- **Keep services generic and ready-to-use**: Prefer official upstream images and runtime configuration (`configs`, env, secrets, volumes) over custom image builds. Only introduce custom images when explicitly approved for a specific stack need.
+
 ## Architecture Patterns
 
 ### Traefik Entrypoint Selection
@@ -62,6 +75,10 @@ network: traefik
 - Traefik handles TLS termination
 - Network segmentation for service isolation
 
+### Container Images
+- **Use only trusted images**: Official project images, or well-established maintainers already used in this repo (e.g. linuxserver, official Docker Hub orgs). Do not introduce random or unfamiliar images from the internet.
+- When adding a new service, prefer the image already used elsewhere in the repo for that software, or the project’s official image. Do not switch to third-party images for convenience (e.g. to work around one image’s quirks) without explicit user approval.
+
 ## Quick Decision Trees
 
 ### New Service Configuration
@@ -83,6 +100,8 @@ network: traefik
 - Using Host() rules with host-internal entrypoint
 - Using DOMAIN_NAME for internal services
 - Violating `<folder>-<filename>` naming convention (causes service conflicts)
+- Adding local volumes to services that use rclone without explicit permission (breaks multi-replica semantics)
+- Introducing random or untrusted container images; stick to official or repo-established images
 
 ## Stack Relationships
 - **main-traefik**: Core infrastructure (Traefik, networking, authentication)
@@ -123,6 +142,7 @@ stacks/[stack]/
 - **Always run `source .env` before any deployment**
 - If Docker Swarm config errors occur, increment `CONFIG_VERSION` in `.env` (e.g., from 89 to 90)
 - Config versioning resolves conflicts with existing swarm configurations
+- Rollback may be temporarily deactivated on an unstable service if needed to force a corrective config or schema fix onto the live workload. This must be treated as a temporary recovery step only; restore the standard rollback policy after the service is stable again.
 - **Never skip verifications** (tests, checks, or validation steps); if a verification cannot be run, state why and provide the exact alternative confirmation performed.
 
 ## Collaboration in No-TTY Environments

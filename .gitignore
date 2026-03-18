@@ -11,6 +11,7 @@ supabase_target.yaml
 *.backup
 reports/
 !reports/.keep
+docs/concerns/
 /*.py
 /*.sh
 /*.md
@@ -19,3 +20,15 @@ reports/
 /*.log
 *.png
 /*.json
+*.sample
+__pycache__
+# Any k3s / KFP env files
+**/k3s/*.env
+**/kfp/*.env
+
+# Any rendered / generated config-style manifests
+**/*-config.yaml
+**/*configmap*.yaml
+**/*.rendered.yaml
+
+cluster-utils/
