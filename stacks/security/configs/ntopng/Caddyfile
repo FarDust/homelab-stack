@@ -1,0 +1,3 @@
+:3006 {
+  reverse_proxy {$NTOPNG_UPSTREAM}
+}
