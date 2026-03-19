@@ -14,61 +14,135 @@ on:
       - '.env.example'
 
 jobs:
-  validate:
-    name: docker compose config
+  # ── Step 1: discover every compose file and build the matrix ───────────────
+  generate-matrix:
+    name: 📋 Discover compose files
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
           submodules: false
 
-      - name: 🐳 Validate all stack compose files
+      - name: 🔍 List compose files
+        id: list
         run: |
-          set -euo pipefail
+          matrix=$(
+            find stacks -maxdepth 2 -name '*.yml' ! -path '*/configs/*' | sort \
+            | jq -R -s -c '
+                split("\n")
+                | map(select(length > 0))
+                | map({
+                    file: .,
+                    folder: (split("/")[1]),
+                    stack:  (split("/")[2] | split(".")[0])
+                  })'
+          )
+          echo "matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
+          echo "Discovered $(echo "$matrix" | jq length) compose files"
 
-          # Source .env.example to load all variable defaults.
-          # The two dynamic lines use parameter expansion with fallbacks so they are
-          # safe in CI (git config and /etc/timezone may return empty).
-          set -a
-          source .env.example
-          set +a
+  # ── Step 2: one parallel job per compose file ──────────────────────────────
+  validate:
+    name: "${{ matrix.folder }}/${{ matrix.stack }}"
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false   # run every job so you see the full picture at once
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
-          failed=0
-          while IFS= read -r -d '' f; do
-            echo -n "  checking $f ... "
-            if docker compose -f "$f" config --quiet 2>/dev/null; then
-              echo "✅"
-            else
-              docker compose -f "$f" config --quiet 2>&1 | grep -v '^WARN\|level=warning' | head -3
-              echo "❌"
-              failed=1
-            fi
-          done < <(find stacks -maxdepth 2 -name '*.yml' ! -path '*/configs/*' -print0 | sort -z)
-          [ "$failed" -eq 0 ]
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
 
-      - name: 🔍 Assert ragflow service configuration
+      # ── Generic: every compose file must render cleanly ───────────────────
+      - name: 🐳 docker compose config
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
+          docker compose -f "${{ matrix.file }}" config --quiet
 
-          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+      # ── retrieval/documents: ragflow-specific assertions ─────────────────
+      - name: "[retrieval/documents] 🔍 ragflow command flags"
+        if: ${{ matrix.folder == 'retrieval' && matrix.stack == 'documents' }}
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
 
-          # Ensure the unsupported flag was removed
+          # The --init-superuser flag is not supported in ragflow v0.23.1+
           if echo "$rendered" | grep -q -- '--init-superuser'; then
-            echo "❌ --init-superuser still present in rendered ragflow command!"
-            exit 1
+            echo "❌ --init-superuser still present in ragflow command!"; exit 1
           fi
-          echo "✅ --init-superuser correctly absent from ragflow command"
+          echo "✅ --init-superuser absent"
 
-          # Ensure all required MCP env vars are present as key: value assignments
+          # All five MCP env vars must be present as rendered key: value pairs
           for var in MCP_HOST MCP_PORT MCP_BASE_URL MCP_MODE MCP_API_KEY; do
             if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
               echo "✅ $var present"
             else
-              echo "❌ $var missing from rendered ragflow config!"
-              exit 1
+              echo "❌ $var missing!"; exit 1
             fi
           done
+
+          # Core backend connection vars must be rendered
+          for var in DB_TYPE DOC_ENGINE; do
+            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
+              echo "✅ $var present"
+            else
+              echo "❌ $var missing!"; exit 1
+            fi
+          done
+
+      # ── main/storage: core storage services must be present ──────────────
+      - name: "[main/storage] 🔍 core services declared"
+        if: ${{ matrix.folder == 'main' && matrix.stack == 'storage' }}
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
+          for svc in postgres redis minio opensearch; do
+            if echo "$rendered" | grep -qE "^  ${svc}:"; then
+              echo "✅ service '$svc' present"
+            else
+              echo "❌ service '$svc' missing!"; exit 1
+            fi
+          done
+
+      # ── main/traefik: websecure entrypoint must be defined ────────────────
+      - name: "[main/traefik] 🔍 websecure entrypoint configured"
+        if: ${{ matrix.folder == 'main' && matrix.stack == 'traefik' }}
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
+          if echo "$rendered" | grep -q 'entryPoints.websecure.address'; then
+            echo "✅ websecure entrypoint configured"
+          else
+            echo "❌ websecure entrypoint not found!"; exit 1
+          fi
+
+      # ── llms/mcp: SSE streaming middleware must be configured ─────────────
+      - name: "[llms/mcp] 🔍 SSE middleware configured"
+        if: ${{ matrix.folder == 'llms' && matrix.stack == 'mcp' }}
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
+          if echo "$rendered" | grep -q 'sse-headers'; then
+            echo "✅ sse-headers middleware present"
+          else
+            echo "❌ sse-headers middleware missing!"; exit 1
+          fi
+          if echo "$rendered" | grep -q 'flushInterval'; then
+            echo "✅ responseForwarding.flushInterval present"
+          else
+            echo "❌ responseForwarding.flushInterval missing!"; exit 1
+          fi
