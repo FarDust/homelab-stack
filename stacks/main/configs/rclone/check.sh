@@ -228,17 +228,17 @@ create_volume_from_spec() {
   DRIVER="$2"
   OPTS_JSON="$3"
 
-  CMD="docker volume create \"$VOL\" -d \"$DRIVER\""
+  # Build argv list without eval to prevent shell-injection on option keys/values.
+  # set -- inside a function only modifies the function's own positional parameters.
+  set -- docker volume create "$VOL" -d "$DRIVER"
   while IFS= read -r KV; do
     [ -n "$KV" ] || continue
-    CMD="$CMD -o \"$KV\""
+    set -- "$@" -o "$KV"
   done <<EOF
 $(echo "$OPTS_JSON" | jq -r 'to_entries[]? | "\(.key)=\(.value|tostring)"')
 EOF
-  CMD="$CMD >/dev/null 2>&1"
 
-  # Options are sourced from service spec; eval is only used to pass dynamic -o list.
-  eval "$CMD"
+  "$@" >/dev/null 2>&1
 }
 
 reconcile_stale_mounts() {
