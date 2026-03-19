@@ -48,9 +48,9 @@ send_otel() {
   payload="{\"resourceLogs\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"${OTEL_SERVICE_NAME}\"}}]},\"scopeLogs\":[{\"scope\":{\"name\":\"ephemeral-rebalance\"},\"logRecords\":[{\"timeUnixNano\":\"${timestamp}\",\"severityText\":\"INFO\",\"body\":{\"stringValue\":\"${message}\"}}]}]}]}"
 
   if [ "$OTEL_INSECURE" = "true" ]; then
-    wget -qO- --no-check-certificate --header='Content-Type: application/json' --post-data="$payload" "$OTEL_LOGS_ENDPOINT" >/dev/null 2>&1 || true
+    wget -qO- --tries=1 --timeout=10 --read-timeout=10 --no-check-certificate --header='Content-Type: application/json' --post-data="$payload" "$OTEL_LOGS_ENDPOINT" >/dev/null 2>&1 || true
   else
-    wget -qO- --header='Content-Type: application/json' --post-data="$payload" "$OTEL_LOGS_ENDPOINT" >/dev/null 2>&1 || true
+    wget -qO- --tries=1 --timeout=10 --read-timeout=10 --header='Content-Type: application/json' --post-data="$payload" "$OTEL_LOGS_ENDPOINT" >/dev/null 2>&1 || true
   fi
 }
 
