@@ -181,10 +181,4 @@ groups:
 - name: volcano-node-mapping
   rules:
   - record: volcano_node_uname_info
-    expr: |
-      label_replace(
-        node_uname_info{job="node-exporter",nodename="Gabriel-PC"},
-        "nodename", "gabriel-pc", "nodename", ".*"
-      )
-      or
-      node_uname_info{job="node-exporter",nodename!="Gabriel-PC"}
+    expr: node_uname_info{job="node-exporter"}

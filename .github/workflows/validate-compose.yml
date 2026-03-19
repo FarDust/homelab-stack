@@ -99,6 +99,13 @@ jobs:
       contents: read
     uses: ./.github/workflows/check-llms-mcp.yml
 
+  check-main-monitoring:
+    name: 🔍 main/monitoring
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-main-monitoring.yml
+
   check-main-maintenance:
     name: 🔍 main/maintenance
     needs: validate
