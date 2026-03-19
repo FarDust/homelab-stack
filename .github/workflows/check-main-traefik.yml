@@ -23,7 +23,7 @@ jobs:
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/main/traefik.yml config 2>/dev/null)
 
-          if echo "$rendered" | grep -q 'entryPoints.websecure.address'; then
+          if grep -q 'entryPoints.websecure.address' <<< "$rendered"; then
             echo "✅ websecure entrypoint configured"
           else
             echo "❌ websecure entrypoint not found!"; exit 1

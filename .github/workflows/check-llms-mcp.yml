@@ -23,7 +23,7 @@ jobs:
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/llms/mcp.yml config 2>/dev/null)
 
-          if echo "$rendered" | grep -q 'sse-headers'; then
+          if grep -q 'sse-headers' <<< "$rendered"; then
             echo "✅ sse-headers middleware present"
           else
             echo "❌ sse-headers middleware missing!"; exit 1
@@ -35,7 +35,7 @@ jobs:
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/llms/mcp.yml config 2>/dev/null)
 
-          if echo "$rendered" | grep -q 'flushInterval'; then
+          if grep -q 'flushInterval' <<< "$rendered"; then
             echo "✅ responseForwarding.flushInterval present"
           else
             echo "❌ responseForwarding.flushInterval missing!"; exit 1

@@ -24,7 +24,7 @@ jobs:
           rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
 
           # --init-superuser is not a valid flag in ragflow v0.23.1+
-          if echo "$rendered" | grep -q -- '--init-superuser'; then
+          if grep -q -- '--init-superuser' <<< "$rendered"; then
             echo "❌ --init-superuser still present in ragflow command!"; exit 1
           fi
           echo "✅ --init-superuser absent"
@@ -36,7 +36,7 @@ jobs:
           rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
 
           for var in MCP_HOST MCP_PORT MCP_BASE_URL MCP_MODE MCP_API_KEY; do
-            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
+            if grep -qE "^[[:space:]]+${var}:" <<< "$rendered"; then
               echo "✅ $var present"
             else
               echo "❌ $var missing!"; exit 1
@@ -50,7 +50,7 @@ jobs:
           rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
 
           for var in DB_TYPE DOC_ENGINE; do
-            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
+            if grep -qE "^[[:space:]]+${var}:" <<< "$rendered"; then
               echo "✅ $var present"
             else
               echo "❌ $var missing!"; exit 1

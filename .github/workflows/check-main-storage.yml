@@ -24,7 +24,7 @@ jobs:
           rendered=$(docker compose -f stacks/main/storage.yml config 2>/dev/null)
 
           for svc in postgres redis minio opensearch; do
-            if echo "$rendered" | grep -qE "^  ${svc}:"; then
+            if grep -qE "^  ${svc}:" <<< "$rendered"; then
               echo "✅ service '$svc' present"
             else
               echo "❌ service '$svc' missing!"; exit 1
