@@ -92,9 +92,6 @@ volumes:
     driver: local
 
 secrets:
-  keycloak_admin_password:
-    name: keycloak_admin_password-${CONFIG_VERSION:-0}
-    file: ../../secrets/keycloak/admin_password
   keycloak_db_password:
     name: keycloak_db_password-${CONFIG_VERSION:-0}
     file: ../../secrets/keycloak/postgres_password
