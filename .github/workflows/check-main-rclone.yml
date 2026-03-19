@@ -1,22 +1,13 @@
-name: 🧪 check.sh unit tests (rclone)
+name: 🔍 Check main/rclone
 
-# Runs whenever the script or its tests change.
+# Reusable workflow – called from validate-compose.yml.
+# Runs check.sh unit tests for the rclone volume helper.
 on:
-  pull_request:
-    paths:
-      - 'stacks/main/configs/rclone/check.sh'
-      - 'stacks/main/configs/rclone/check.test.sh'
-      - '.github/workflows/check-rclone-script.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'stacks/main/configs/rclone/check.sh'
-      - 'stacks/main/configs/rclone/check.test.sh'
+  workflow_call:
 
 jobs:
   unit-tests:
-    name: check.sh – create_volume_from_spec unit tests
+    name: main/rclone – check.sh unit tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
