@@ -265,9 +265,6 @@ volumes:
       type: nfs4
       o: addr=${NFS_MEDIA_HOST?err},rw,nfsvers=4.2,proto=tcp,hard,timeo=600,retrans=2
       device: ":/srv/media"
-  tv_data:
-  movies_data:
-  downloads_data:
 
 networks:
   traefik-public:
