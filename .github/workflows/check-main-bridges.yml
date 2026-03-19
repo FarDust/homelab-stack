@@ -1,0 +1,55 @@
+name: 🔍 Check main/bridges
+
+# Reusable workflow – called from validate-compose.yml.
+# Asserts that the supavisor-k3s service is declared and that the
+# pooler.exs seed script is not an empty placeholder.
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: main/bridges – supavisor-k3s and pooler seed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 supavisor-k3s service present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/main/bridges.yml config 2>/dev/null)
+
+          if grep -qE "^  supavisor-k3s:" <<< "$rendered"; then
+            echo "✅ service 'supavisor-k3s' present"
+          else
+            echo "❌ service 'supavisor-k3s' missing!"; exit 1
+          fi
+
+      - name: 🔍 pooler.exs seed scripts are not empty placeholders
+        run: |
+          set -euo pipefail
+
+          for f in \
+            stacks/main/configs/supavisor/k3s_pooler.exs \
+            stacks/main/configs/supavisor/apps_pooler.exs; do
+
+            # Must call Application.ensure_all_started to boot the app before
+            # interacting with the Ecto repo
+            if ! grep -q "Application.ensure_all_started" "$f"; then
+              echo "❌ $f does not call Application.ensure_all_started/1"
+              exit 1
+            fi
+
+            # Must contain actual tenant creation logic
+            if ! grep -q "Supavisor.Tenants.create_tenant" "$f"; then
+              echo "❌ $f does not call Supavisor.Tenants.create_tenant/1 – add actual seeding code"
+              exit 1
+            fi
+
+            echo "✅ $f looks like a real seed script"
+          done
