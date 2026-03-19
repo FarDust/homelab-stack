@@ -81,7 +81,7 @@ No UI. If you use Prowlarr and some indexers fail with Cloudflare, set FlareSolv
    - Category: **movies** (if you created it).
    - Test and save.
 3. **Settings → Indexers:** Indexers sync from Prowlarr (see step 3); ensure Radarr is added as an app in Prowlarr. Use movie categories (e.g. 2000, 2010) as needed.
-4. Add root folder: **/movies** (maps to your `movies_data` volume).
+4. Add root folder: **/movies** (maps to your `movies_nfs` volume).
 
 ---
 
