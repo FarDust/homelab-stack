@@ -9,6 +9,8 @@ networks:
     external: true
   traefik:
     external: true
+  prometheus:
+    external: true
   certs-dumper:
     driver: overlay
     internal: true
@@ -33,12 +35,12 @@ services:
     - --providers.swarm.allowEmptyServices=true
     - --entryPoints.web.address=:80
     - --entryPoints.websecure.address=:443
-    - --entryPoints.dns.address=:53
     - --entryPoints.dns-udp.address=:53/udp
     - --entryPoints.dnscrypt-udp.address=:443/udp
     - --entryPoints.discovery-udp.address=:5353/udp
     - --entryPoints.gameserver.address=:27015
     - --entryPoints.gameserver-udp.address=:34197/udp
+    - --entryPoints.turn-udp.address=:3478/udp
     - --entrypoints.host-internal.address=:${INTERNAL_PORT:-5578}/tcp
     - --entryPoints.web.http.redirections.entryPoint.to=websecure
     - --entryPoints.web.http.redirections.entryPoint.scheme=https
@@ -66,13 +68,12 @@ services:
     - --experimental.plugins.sablier.version=v1.8.5
     - --providers.file.directory=/etc/traefik/configs/
     - --accesslog=true
+    - --experimental.otlpLogs=true
+    - --log.otlp.http.endpoint=https://otel-collector.${LOCAL_DOMAIN?err}/v1/logs
+    - --accesslog.otlp.http.endpoint=https://otel-collector.${LOCAL_DOMAIN?err}/v1/logs
     healthcheck:
       disable: true
     ports:
-    - target: 53
-      published: 53
-      protocol: tcp
-      mode: ingress
     - target: 443
       published: 443
       protocol: udp
@@ -91,6 +92,10 @@ services:
       mode: ingress
     - target: 34197
       published: 34197
+      protocol: udp
+      mode: ingress
+    - target: 3478
+      published: 3478
       protocol: udp
       mode: ingress
     - target: 27015
@@ -122,7 +127,6 @@ services:
     volumes:
       # To persist certificates
       - traefik-certificates:/letsencrypt
-      - traefik-configs:/etc/traefik/configs
 
       - root-certificates:/etc/ssl/traefik:ro
       # So that Traefik can listen to the Docker events
@@ -131,11 +135,22 @@ services:
       mode: global
       placement:
         constraints:
-          - node.role == manager
-          - node.labels.swarm.leader == true
+        - node.role == manager
+        - node.labels.swarm.leader == true
       update_config:
-        parallelism: 5
+        parallelism: 1
         delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.2
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+        failure_action: rollback
+        max_failure_ratio: 0.2
       restart_policy:
         condition: any
       labels:
@@ -319,8 +334,11 @@ services:
       retries: 3
       start_period: 40s
     networks:
-    - traefik-public
-    - traefik
+      traefik-public:
+      traefik:
+      prometheus:
+        aliases:
+        - trusted-prometheus
     volumes:
     - prometheus_data:/prometheus
     configs:
@@ -328,13 +346,10 @@ services:
       target: /etc/prometheus/prometheus.yml
     - source: prometheus_rules
       target: /etc/prometheus/alert.rules
-    - source: prometheus_supabase_target
-      target: /etc/prometheus/targets/supabase_target.yaml
-    secrets:
-    - source: watchtower_auth_token
-      target: watchtower_auth_token
-    - source: supabase_service_role_key
-      target: supabase_service_role_key
+    - source: prometheus_blackbox_targets
+      target: /etc/prometheus/targets/blackbox_targets.yaml
+    - source: prometheus_mtu_blackbox_targets
+      target: /etc/prometheus/targets/mtu_blackbox_targets.yaml
     command:
     - --config.file=/etc/prometheus/prometheus.yml
     - --storage.tsdb.path=/prometheus
@@ -347,6 +362,8 @@ services:
       - traefik.http.routers.prometheus.service=prometheus@swarm
       - traefik.http.routers.prometheus.rule=Host(`prometheus.${LOCAL_DOMAIN:-home}`)
       - traefik.http.routers.prometheus.entrypoints=websecure
+      - traefik.http.routers.prometheus.tls=true
+      - traefik.http.routers.prometheus.tls.certresolver=le-dns
       - traefik.http.services.prometheus.loadbalancer.server.port=9090
       - traefik.http.services.prometheus.loadbalancer.healthcheck.path=/-/ready
       - traefik.http.services.prometheus.loadbalancer.healthcheck.interval=10s
@@ -358,9 +375,23 @@ services:
         - node.role == manager
         - node.labels.swarm.leader == true
       restart_policy:
-        condition: on-failure
+        condition: any
+      update_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        failure_action: pause
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+        failure_action: pause
+        max_failure_ratio: 0.3
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.4.0
     depends_on:
     - prometheus
     healthcheck:
@@ -386,10 +417,24 @@ services:
       target: /etc/grafana/provisioning/dashboards/json/nextdns.json
     - source: grafana_dashboard_docker_swarm
       target: /etc/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
+    - source: grafana_dashboard_loki_connection
+      target: /etc/grafana/provisioning/dashboards/custom/loki_connection.json
     - source: grafana_dashboard_system_anomalies
       target: /etc/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
     - source: grafana_dashboard_watchtower
       target: /etc/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
+    - source: grafana_dashboard_docker_health_telegraf
+      target: /etc/grafana/provisioning/dashboards/custom/docker_health_telegraf.json
+    - source: grafana_dashboard_cluster_connection_performance
+      target: /etc/grafana/provisioning/dashboards/custom/cluster_connection_performance.json
+    - source: grafana_dashboard_postgres_k3s_datastore
+      target: /etc/grafana/provisioning/dashboards/custom/postgres_k3s_datastore.json
+    - source: grafana_dashboard_volcano_scheduler_internal
+      target: /etc/grafana/provisioning/dashboards/custom/volcano_scheduler_internal.json
+    - source: grafana_dashboard_volcano_scheduler_queue
+      target: /etc/grafana/provisioning/dashboards/custom/volcano_scheduler_queue.json
+    - source: grafana_dashboard_k3s_status
+      target: /etc/grafana/provisioning/dashboards/custom/k3s_status_dashboard.json
     secrets:
     - source: google_oauth_secret
     - source: grafana_admin_password
@@ -413,19 +458,41 @@ services:
     - GF_RENDERING_SERVER_URL=http://renderer:8081/render
     - GF_RENDERING_CALLBACK_URL=https://grafana.${DOMAIN_NAME}/
     - GF_DATABASE_TYPE=postgres
-    - GF_DATABASE_HOST=${GF_DATABASE_HOST:-postgres:5432}
-    - GF_DATABASE_USER=${GF_POSTGRES_USER:-postgres}
+    # Temporary root-cause isolation hack: bypass Supavisor and hit Postgres via the
+    # Traefik TCP passthrough route directly. Revert to apps-pgpool after diagnosis.
+    - GF_DATABASE_HOST=postgres.${LOCAL_DOMAIN?err}:${INTERNAL_PORT:-5578}
+    - GF_DATABASE_USER=vizlord
     - GF_DATABASE_PASSWORD__FILE=/run/secrets/postgres_db_password
     - GF_DATABASE_NAME=${GF_POSTGRES_DB:-postgres}
     - GF_DATABASE_SSL_MODE=require
+    - GF_DATABASE_MAX_OPEN_CONN=4
+    - GF_DATABASE_MAX_IDLE_CONN=2
+    - GF_DATABASE_CONN_MAX_LIFETIME=3600
+    - GF_LOG_LEVEL=debug
+    - GF_LOG_FILTERS=sqlstore:debug,migrator:debug,rendering:debug
+    - GRAFANA_LOKI_URL=${GRAFANA_LOKI_URL}
     env_file:
     - ./configs/grafana/config.monitoring
     networks:
-    - traefik
-    - traefik-public
+      traefik:
+      traefik-public:
+      prometheus:
     deploy:
+      update_config:
+        parallelism: 1
+        order: start-first
+        delay: 30s
+        monitor: 60s
+        failure_action: rollback
+        max_failure_ratio: 0.2
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        delay: 30s
+        monitor: 60s
+        failure_action: pause
       mode: replicated
-      replicas: 3
+      replicas: 1
       labels:
       - traefik.enable=true
       - traefik.http.routers.grafana-api.rule=Host(`grafana.${DOMAIN_NAME}`) && PathPrefix(`/api`)
@@ -441,6 +508,7 @@ services:
       - traefik.http.routers.grafana-web.tls=true
       - traefik.http.routers.grafana-web.tls.certresolver=le-dns
       - traefik.http.routers.grafana-web.priority=50
+      - traefik.swarm.network=traefik-public
       - traefik.http.services.grafana-api.loadbalancer.server.port=3000
       - traefik.http.services.grafana-api.loadbalancer.healthcheck.path=/api/health
       - traefik.http.services.grafana-web.loadbalancer.server.port=3000
@@ -494,7 +562,21 @@ services:
       - traefik.http.routers.portainer.tls.certresolver=le-dns
       - traefik.http.services.portainer.loadbalancer.server.port=9000
       restart_policy:
-        condition: none
+        condition: any
+      update_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        failure_action: rollback
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+        failure_action: pause
+        max_failure_ratio: 0.3
   certs-dumper:
     image: ldez/traefik-certs-dumper:v2.9.3
     command:
@@ -532,7 +614,6 @@ volumes:
       remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/portainer/data
       allow_other: 'true'
       vfs_cache_mode: full
-  traefik-configs: {}
   authelia-configs: {}
   authelia-data: {}
   authelia-redis-config: {}
@@ -551,6 +632,10 @@ volumes:
       remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/grafana/data
       allow_other: 'true'
       vfs_cache_mode: full
+      uid: '472'
+      gid: '472'
+      file_perms: '0755'
+      dir_perms: '0755'
 configs:
   traefik_conf:
     name: traefik_conf-${CONFIG_VERSION:-0}
@@ -582,21 +667,45 @@ configs:
   grafana_dashboard_docker_swarm:
     name: grafana_dashboard_docker_swarm-${CONFIG_VERSION:-0}
     file: ./configs/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
+  grafana_dashboard_loki_connection:
+    name: grafana_dashboard_loki_connection-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/loki_connection.json
   grafana_dashboard_system_anomalies:
     name: grafana_dashboard_system_anomalies-${CONFIG_VERSION:-0}
     file: ./configs/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
   grafana_dashboard_watchtower:
     name: grafana_dashboard_watchtower-${CONFIG_VERSION:-0}
     file: ./configs/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
+  grafana_dashboard_docker_health_telegraf:
+    name: grafana_dashboard_docker_health_telegraf-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/docker_health_telegraf.json
+  grafana_dashboard_cluster_connection_performance:
+    name: grafana_dashboard_cluster_connection_performance-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/cluster_connection_performance.json
+  grafana_dashboard_postgres_k3s_datastore:
+    name: grafana_dashboard_postgres_k3s_datastore-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/postgres_k3s_datastore.json
+  grafana_dashboard_volcano_scheduler_internal:
+    name: grafana_dashboard_volcano_scheduler_internal-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/volcano_scheduler_internal.json
+  grafana_dashboard_volcano_scheduler_queue:
+    name: grafana_dashboard_volcano_scheduler_queue-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/volcano_scheduler_queue.json
+  grafana_dashboard_k3s_status:
+    name: grafana_dashboard_k3s_status-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/dashboards/custom/k3s_status_dashboard.json
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/prometheus.yml
   prometheus_rules:
     name: prometheus_rules-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/alert.rules
-  prometheus_supabase_target:
-    name: prometheus_supabase_target-${CONFIG_VERSION:-0}
-    file: ./configs/prometheus/supabase_target.yaml
+  prometheus_mtu_blackbox_targets:
+    name: prometheus_mtu_blackbox_targets-${CONFIG_VERSION:-0}
+    file: ./configs/prometheus/mtu_blackbox_targets.yaml
+  prometheus_blackbox_targets:
+    name: prometheus_blackbox_targets-${CONFIG_VERSION:-0}
+    file: ./configs/prometheus/blackbox_targets.yaml
 secrets:
   portainer_admin_password:
     name: portainer_admin_password-${CONFIG_VERSION:-0}
@@ -631,8 +740,6 @@ secrets:
     file: ../../secrets/grafana/postgres_password
   google_oauth_secret:
     file: ../../secrets/google/google_oauth_secret
-  supabase_service_role_key:
-    file: ../../secrets/supabase/service_role_key
   sendgrid_smtp_password:
     file: ../../secrets/sendgrid/smtp_password
   cloudflare_dns_api_token:
@@ -641,6 +748,3 @@ secrets:
   cloudflare_zone_api_token:
     name: cloudflare_zone_api_token-${CONFIG_VERSION:-0}
     file: ../../secrets/cloudflare/zone_api_token
-  watchtower_auth_token:
-    name: watchtower_auth_token-${CONFIG_VERSION:-0}
-    file: ../../secrets/watchtower/auth_token

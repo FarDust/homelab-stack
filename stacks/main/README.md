@@ -6,9 +6,17 @@ This directory contains the core infrastructure services for the Docker Swarm cl
 
 - **traefik.yml**: Reverse proxy, load balancer, SSL termination, and authentication (Traefik + Authelia)
 - **storage.yml**: Database and storage services (PostgreSQL, Redis, OpenSearch, MinIO, MongoDB, InfluxDB)
-- **monitoring.yml**: Observability and maintenance (Node Exporter, cAdvisor, Grafana Renderer, Watchtower, DNS/Speed exporters)
-- **bridges.yml**: External service bridges and vendor agents (Netdata parent bridge)
+- **monitoring.yml**: Observability collectors/exporters and metric adapters (Node Exporter, cAdvisor, Docker health collectors, DNS/Speed/blackbox exporters)
+- **maintenance.yml**: Cluster maintenance and host reconciler services (ephemeral rebalance, rclone fixer, host sysctl baselines)
+- **uptime.yml**: Human-facing status/uptime services (Gatus, Uptime Kuma)
+- **bridges.yml**: Cross-system/vendor bridge services (Netdata parent bridge)
 - **security.yml**: Security monitoring and threat detection (CrowdSec)
+
+## Monitoring vs Uptime Semantics
+
+1. `monitoring.yml` is for telemetry collection/export pipelines consumed by Prometheus/Grafana.
+2. `uptime.yml` is for operator-facing uptime/status interfaces.
+3. Uptime-related metrics can be collected in monitoring while still being presented in uptime tools.
 
 ## Traefik Architecture
 
@@ -32,6 +40,15 @@ This directory contains the core infrastructure services for the Docker Swarm cl
 - **Purpose**: Direct cluster communication
 - **Usage**: Inter-service communication within the cluster
 - **Security**: Internal cluster traffic only
+
+#### `prometheus` Network (external + attachable)
+- **Purpose**: Deterministic Grafana datasource path to Prometheus
+- **Usage**: `grafana -> trusted-prometheus:9090` only
+- **Security**: Internal cluster traffic only
+- **Why external+attachable**:
+  - Reusable shared overlay across stack updates and future stack consumers
+  - Avoids stack-scoped network churn (`main-traefik_prometheus`) and keeps stable network identity
+  - Reduces service-discovery ambiguity from multi-network alias resolution
 
 #### Dual Network Services
 Some services use **both networks** when they need:
@@ -82,6 +99,7 @@ labels:
 | REST API | HTTP/HTTPS | `websecure` | `traefik-public` | OpenSearch API |
 | Database | Custom Protocol | `host-internal` | `traefik` | PostgreSQL, Redis |
 | Admin Tool | HTTP/HTTPS | `websecure` | `traefik-public` + `traefik` | Mongo Express |
+| Metrics Datasource | HTTP/HTTPS | None (internal path) | `prometheus` | Grafana -> trusted-prometheus |
 | Internal Only | N/A | None | `traefik` | InfluxDB |
 
 ## Environment Variables
