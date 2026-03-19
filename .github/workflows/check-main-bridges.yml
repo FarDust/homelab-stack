@@ -1,8 +1,41 @@
 name: 🔍 Check main/bridges
 
-# Reusable workflow – called from validate-compose.yml.
-# Asserts that the supavisor-k3s service is declared and that the
-# pooler.exs seed script is not an empty placeholder.
+# Reusable workflow – called from validate-compose.yml after the generic
+# `docker compose config` render check passes for stacks/main/bridges.yml.
+#
+# What this workflow does
+# ──────────────────────────────────────────────────────────────────────────
+# bridges.yml runs Supavisor as a connection-pooling bridge between the
+# homelab Postgres instance and external K3S cluster workloads.  Before
+# starting the Supavisor server, the stack runs:
+#
+#   /app/bin/supavisor eval "$(cat /etc/pooler/pooler.exs)"
+#
+# That eval step is what seeds the `_supavisor.tenants` table with the
+# required pool configuration.  If pooler.exs is empty (or a bare `:ok`
+# atom), the eval is a no-op, the table stays empty, and Supavisor will
+# reject every incoming connection with "Tenant or user not found".
+#
+# This workflow catches that regression with two checks:
+#
+#   1. supavisor-k3s service present
+#      Renders bridges.yml with `docker compose config` (env sourced from
+#      .env.example) and confirms the `supavisor-k3s:` service key exists.
+#      Fails fast if the service was accidentally renamed or removed.
+#
+#   2. pooler.exs seed scripts are not empty placeholders
+#      Scans both pooler seed scripts:
+#        • stacks/main/configs/supavisor/k3s_pooler.exs   (K3S bridge)
+#        • stacks/main/configs/supavisor/apps_pooler.exs  (apps pooler)
+#      and verifies that each file:
+#        a) calls `Application.ensure_all_started/1`  – required because
+#           `supavisor eval` does NOT boot the OTP application
+#           automatically; without it the Ecto repo is unavailable and
+#           every DB call will crash.
+#        b) calls `Supavisor.Tenants.create_tenant/1`  – the function that
+#           actually inserts a row into `_supavisor.tenants` so Supavisor
+#           knows how to proxy connections for that tenant.
+#      If either call is absent the step fails with a clear error message.
 on:
   workflow_call:
 
