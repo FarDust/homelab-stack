@@ -1,0 +1,36 @@
+name: 🧪 check.sh unit tests (rclone)
+
+# Runs whenever the script or its tests change.
+on:
+  pull_request:
+    paths:
+      - 'stacks/main/configs/rclone/check.sh'
+      - 'stacks/main/configs/rclone/check.test.sh'
+      - '.github/workflows/check-rclone-script.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'stacks/main/configs/rclone/check.sh'
+      - 'stacks/main/configs/rclone/check.test.sh'
+
+jobs:
+  unit-tests:
+    name: check.sh – create_volume_from_spec unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔧 Install jq
+        run: sudo apt-get install -y --no-install-recommends jq
+
+      - name: 🧪 Run unit tests
+        run: |
+          set -euo pipefail
+          chmod +x stacks/main/configs/rclone/check.test.sh
+          sh stacks/main/configs/rclone/check.test.sh
