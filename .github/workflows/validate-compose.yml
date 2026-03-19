@@ -105,3 +105,10 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/check-main-monitoring.yml
+
+  check-main-maintenance:
+    name: 🔍 main/maintenance
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-main-maintenance.yml

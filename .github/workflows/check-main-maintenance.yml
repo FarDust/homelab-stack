@@ -1,0 +1,27 @@
+name: 🔍 Check main/maintenance
+
+# Reusable workflow – called from validate-compose.yml.
+# Runs check.sh unit tests for the rclone volume helper used in maintenance.yml.
+on:
+  workflow_call:
+
+jobs:
+  unit-tests:
+    name: main/maintenance – check.sh unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔧 Install jq
+        run: sudo apt-get install -y --no-install-recommends jq
+
+      - name: 🧪 Run unit tests
+        run: |
+          set -euo pipefail
+          chmod +x stacks/main/configs/rclone/check.test.sh
+          sh stacks/main/configs/rclone/check.test.sh
