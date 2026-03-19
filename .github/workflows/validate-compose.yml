@@ -3,69 +3,57 @@ name: 🧪 Validate Docker Compose Files
 on:
   pull_request:
     paths:
-      - 'stacks/retrieval/**'
+      - 'stacks/**/*.yml'
+      - '.env.example'
       - '.github/workflows/validate-compose.yml'
   push:
     branches:
       - main
     paths:
-      - 'stacks/retrieval/**'
+      - 'stacks/**/*.yml'
+      - '.env.example'
 
 jobs:
-  validate-retrieval:
-    name: validate stacks/retrieval
+  validate:
+    name: docker compose config
     runs-on: ubuntu-latest
-    env:
-      # Variables required by stacks/retrieval/*.yml
-      GCS_SYNC_STORAGE_BUCKET: ci-bucket
-      LOCAL_DOMAIN: ci.local
-      RAGFLOW_HF_ENDPOINT: "https://huggingface.co"
-      RAGFLOW_HTTP_APP_KEY: ci-dummy
-      RAGFLOW_HTTP_SECRET_KEY: ci-dummy
-      RAGFLOW_LITELLM_API_KEY: ci-dummy
-      RAGFLOW_MCP_API_KEY: ci-dummy
-      RAGFLOW_MINIO_HOST: minio
-      RAGFLOW_MINIO_PASSWORD: ci-dummy
-      RAGFLOW_MINIO_PORT: "9000"
-      RAGFLOW_MINIO_USER: minioadmin
-      RAGFLOW_OPENSEARCH_PASSWORD: ci-dummy
-      RAGFLOW_OS_HOST: opensearch
-      RAGFLOW_OS_PORT: "9200"
-      RAGFLOW_OS_USER: admin
-      RAGFLOW_POSTGRES_DBNAME: ragflow
-      RAGFLOW_POSTGRES_HOST: postgres
-      RAGFLOW_POSTGRES_PASSWORD: ci-dummy
-      RAGFLOW_POSTGRES_PORT: "5432"
-      RAGFLOW_POSTGRES_SSLMODE: disable
-      RAGFLOW_POSTGRES_USER: ragflow
-      RAGFLOW_REDIS_HOST: redis
-      RAGFLOW_REDIS_PASSWORD: ci-dummy
-      RAGFLOW_REDIS_PORT: "6379"
-      CONFIG_VERSION: "0"
+    permissions:
+      contents: read
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
           submodules: false
 
-      - name: 🐳 Validate stacks/retrieval compose files
+      - name: 🐳 Validate all stack compose files
         run: |
           set -euo pipefail
+
+          # Source .env.example to load all variable defaults.
+          # The two dynamic lines use parameter expansion with fallbacks so they are
+          # safe in CI (git config and /etc/timezone may return empty).
+          set -a
+          source .env.example
+          set +a
+
           failed=0
           while IFS= read -r -d '' f; do
             echo -n "  checking $f ... "
             if docker compose -f "$f" config --quiet 2>/dev/null; then
               echo "✅"
             else
+              docker compose -f "$f" config --quiet 2>&1 | grep -v '^WARN\|level=warning' | head -3
               echo "❌"
               failed=1
             fi
-          done < <(find stacks/retrieval -maxdepth 1 -name '*.yml' -print0 | sort -z)
+          done < <(find stacks -maxdepth 2 -name '*.yml' ! -path '*/configs/*' -print0 | sort -z)
           [ "$failed" -eq 0 ]
 
       - name: 🔍 Assert ragflow service configuration
         run: |
           set -euo pipefail
+          set -a; source .env.example; set +a
+
           rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
 
           # Ensure the unsupported flag was removed
