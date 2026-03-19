@@ -1,0 +1,32 @@
+name: 🔍 Check main/storage
+
+# Reusable workflow – called from validate-compose.yml.
+# Asserts that core storage services are declared in stacks/main/storage.yml.
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: main/storage – core services declared
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 Core storage services present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/main/storage.yml config 2>/dev/null)
+
+          for svc in postgres redis minio opensearch; do
+            if grep -qE "^  ${svc}:" <<< "$rendered"; then
+              echo "✅ service '$svc' present"
+            else
+              echo "❌ service '$svc' missing!"; exit 1
+            fi
+          done
