@@ -151,7 +151,7 @@ a plain render check cannot catch.
 |---|---|---|
 | `check-main-storage.yml` | `stacks/main/storage.yml` | Core storage services (`postgres`, `redis`, `minio`, `opensearch`) are declared |
 | `check-main-traefik.yml` | `stacks/main/traefik.yml` | `websecure` entrypoint is configured |
-| `check-main-bridges.yml` | `stacks/main/bridges.yml` | `supavisor-k3s` service is present **and** pooler seed scripts contain actual tenant-creation code |
+| `check-main-bridges.yml` | `stacks/main/bridges.yml` | Static: `supavisor-k3s` service present + seed scripts not empty placeholders. **Integration**: seed scripts actually run against a real Postgres and all expected tenants/users exist in `_supavisor.tenants` |
 | `check-llms-mcp.yml` | `stacks/llms/mcp.yml` | SSE streaming middleware (`sse-headers`, `flushInterval`) is configured |
 | `check-retrieval-documents.yml` | `stacks/retrieval/documents.yml` | Retrieval-specific invariants |
 
@@ -174,17 +174,42 @@ otherwise Supavisor rejects every connection with:
 FATAL:  Tenant or user not found
 ```
 
-The check enforces two rules on each `*_pooler.exs` seed file:
+The workflow has **two jobs** that run in parallel:
 
-1. **`Application.ensure_all_started(:supavisor)` must be present.**
-   `supavisor eval` runs in a bare BEAM node; the OTP application is
-   not started automatically.  Without this call the Ecto repo is
-   unavailable and every database interaction crashes.
+#### `check` — fast static analysis (no containers)
 
-2. **`Supavisor.Tenants.create_tenant/1` must be called.**
-   This is the only function that inserts a row into
-   `_supavisor.tenants`.  A file containing only `:ok` (or any
-   expression that produces no side-effects) leaves the table empty.
+1. **`supavisor-k3s` service present.** Fails if the service is removed or renamed in `bridges.yml`.
+2. **Seed scripts are not empty placeholders.** Both `*_pooler.exs` files must call:
+   - `Application.ensure_all_started(:supavisor)` — boots the OTP app so the Ecto repo is available
+   - `Supavisor.Tenants.create_tenant/1` — the only function that writes a row
+
+#### `test-supavisor-seed` — real integration test (spins up containers)
+
+Uses `stacks/main/tests/supavisor-seed.yml` to run the **exact same**
+`migrate + eval` sequence that `bridges.yml` executes at runtime:
+
+```
+Step 1  seed-runner
+          postgres:16-alpine (metadata DB)
+          supabase/supavisor:2.7.4
+            /app/bin/migrate           ← creates _supavisor schema
+            eval k3s_pooler.exs        ← seeds k3s tenant
+            eval apps_pooler.exs       ← seeds grafana + langfuse tenants
+
+Step 2  verifier
+          supabase/supavisor:2.7.4
+            eval verify_tenants.exs    ← queries DB, asserts all 3 tenants
+                                          and their user rows exist
+```
+
+The verifier (`stacks/main/tests/verify_tenants.exs`) uses
+`Supavisor.Repo.query!/2` to confirm:
+- `_supavisor.tenants` contains `k3s`, `grafana`, `langfuse`
+- `_supavisor.users` has at least one row per tenant
+
+This test catches regressions that static analysis cannot: runtime
+Elixir errors in the seed scripts, schema changes that break the
+`create_tenant/1` API, and Vault encryption key misconfiguration.
 
 ### Adding a new specialised check
 

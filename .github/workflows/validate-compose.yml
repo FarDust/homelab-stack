@@ -5,6 +5,7 @@ on:
     paths:
       - 'stacks/**/*.yml'
       - 'stacks/**/*.exs'
+      - 'stacks/**/*.sh'
       - '.env.example'
       - '.github/workflows/validate-compose.yml'
       - '.github/workflows/check-*.yml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'stacks/**/*.yml'
       - 'stacks/**/*.exs'
+      - 'stacks/**/*.sh'
       - '.env.example'
 
 jobs:

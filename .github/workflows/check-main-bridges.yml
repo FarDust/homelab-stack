@@ -16,32 +16,25 @@ name: 🔍 Check main/bridges
 # atom), the eval is a no-op, the table stays empty, and Supavisor will
 # reject every incoming connection with "Tenant or user not found".
 #
-# This workflow catches that regression with two checks:
+# Jobs in this workflow
+# ──────────────────────────────────────────────────────────────────────────
+#   check  – fast static analysis (no containers):
+#              1. supavisor-k3s service present in rendered compose output
+#              2. pooler seed scripts are not empty placeholders
 #
-#   1. supavisor-k3s service present
-#      Renders bridges.yml with `docker compose config` (env sourced from
-#      .env.example) and confirms the `supavisor-k3s:` service key exists.
-#      Fails fast if the service was accidentally renamed or removed.
-#
-#   2. pooler.exs seed scripts are not empty placeholders
-#      Scans both pooler seed scripts:
-#        • stacks/main/configs/supavisor/k3s_pooler.exs   (K3S bridge)
-#        • stacks/main/configs/supavisor/apps_pooler.exs  (apps pooler)
-#      and verifies that each file:
-#        a) calls `Application.ensure_all_started/1`  – required because
-#           `supavisor eval` does NOT boot the OTP application
-#           automatically; without it the Ecto repo is unavailable and
-#           every DB call will crash.
-#        b) calls `Supavisor.Tenants.create_tenant/1`  – the function that
-#           actually inserts a row into `_supavisor.tenants` so Supavisor
-#           knows how to proxy connections for that tenant.
-#      If either call is absent the step fails with a clear error message.
+#   test-supavisor-seed  – real integration test (spins up Postgres +
+#              Supavisor, runs migrate + eval, verifies rows in DB):
+#              3. seed-runner: migrate schema + eval both *.exs scripts
+#              4. verifier:    psql query confirms k3s/grafana/langfuse
+#                              rows exist in _supavisor.tenants and
+#                              _supavisor.users
 on:
   workflow_call:
 
 jobs:
+  # ── Fast static checks (no containers) ─────────────────────────────────────
   check:
-    name: main/bridges – supavisor-k3s and pooler seed
+    name: main/bridges – static checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -86,3 +79,36 @@ jobs:
 
             echo "✅ $f looks like a real seed script"
           done
+
+  # ── Real integration test ───────────────────────────────────────────────────
+  # Spins up a real Postgres instance, runs the same migrate + eval sequence
+  # that bridges.yml uses at runtime, then queries the database to confirm all
+  # expected tenants and user records were actually written.
+  test-supavisor-seed:
+    name: main/bridges – integration test (seed scripts + DB verification)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🧪 Run migrate + eval seed scripts against real Postgres
+        run: |
+          set -euo pipefail
+          docker compose -f stacks/main/tests/supavisor-seed.yml \
+            run --rm seed-runner
+
+      - name: 🔎 Verify tenants persisted in _supavisor.tenants
+        run: |
+          set -euo pipefail
+          docker compose -f stacks/main/tests/supavisor-seed.yml \
+            run --rm verifier
+
+      - name: 🧹 Tear down test containers and volumes
+        if: always()
+        run: |
+          docker compose -f stacks/main/tests/supavisor-seed.yml down -v \
+            2>/dev/null || true
