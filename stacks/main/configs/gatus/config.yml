@@ -1,0 +1,22 @@
+metrics: true
+storage:
+  type: postgres
+  path: "${GATUS_DATABASE_URL}"
+endpoints:
+  - name: Grafana HTTP
+    url: "https://grafana.${LOCAL_DOMAIN}/api/health"
+    interval: "60s"
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Portainer HTTP
+    url: "https://portainer.${LOCAL_DOMAIN}/api/status"
+    interval: "60s"
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Postgres TCP
+    url: "tcp://postgres.${LOCAL_DOMAIN}:${INTERNAL_PORT}"
+    interval: "60s"
+    conditions:
+      - "[STATUS] == 0"
