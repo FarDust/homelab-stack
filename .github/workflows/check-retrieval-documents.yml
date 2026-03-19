@@ -1,0 +1,58 @@
+name: 🔍 Check retrieval/documents
+
+# Reusable workflow – called from validate-compose.yml.
+# Validates ragflow-specific configuration in stacks/retrieval/documents.yml.
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: retrieval/documents – ragflow assertions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 ragflow command flags
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+
+          # --init-superuser is not a valid flag in ragflow v0.23.1+
+          if echo "$rendered" | grep -q -- '--init-superuser'; then
+            echo "❌ --init-superuser still present in ragflow command!"; exit 1
+          fi
+          echo "✅ --init-superuser absent"
+
+      - name: 🔍 MCP environment variables rendered
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+
+          for var in MCP_HOST MCP_PORT MCP_BASE_URL MCP_MODE MCP_API_KEY; do
+            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
+              echo "✅ $var present"
+            else
+              echo "❌ $var missing!"; exit 1
+            fi
+          done
+
+      - name: 🔍 Backend connection vars rendered
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+
+          for var in DB_TYPE DOC_ENGINE; do
+            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
+              echo "✅ $var present"
+            else
+              echo "❌ $var missing!"; exit 1
+            fi
+          done

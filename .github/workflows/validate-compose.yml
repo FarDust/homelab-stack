@@ -6,6 +6,7 @@ on:
       - 'stacks/**/*.yml'
       - '.env.example'
       - '.github/workflows/validate-compose.yml'
+      - '.github/workflows/check-*.yml'
   push:
     branches:
       - main
@@ -45,7 +46,7 @@ jobs:
           echo "matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
           echo "Discovered $(echo "$matrix" | jq length) compose files"
 
-  # ── Step 2: one parallel job per compose file ──────────────────────────────
+  # ── Step 2: one parallel job per compose file (generic render check) ───────
   validate:
     name: "${{ matrix.folder }}/${{ matrix.stack }}"
     needs: generate-matrix
@@ -55,94 +56,45 @@ jobs:
     strategy:
       fail-fast: false   # run every job so you see the full picture at once
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
-
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
           submodules: false
 
-      # ── Generic: every compose file must render cleanly ───────────────────
       - name: 🐳 docker compose config
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
           docker compose -f "${{ matrix.file }}" config --quiet
 
-      # ── retrieval/documents: ragflow-specific assertions ─────────────────
-      - name: "[retrieval/documents] 🔍 ragflow command flags"
-        if: ${{ matrix.folder == 'retrieval' && matrix.stack == 'documents' }}
-        run: |
-          set -euo pipefail
-          set -a; source .env.example; set +a
-          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
+  # ── Step 3: folder-specialised checks run as sub-workflows in parallel ─────
+  # These run only after all generic validate jobs pass, so failures are
+  # unambiguously domain-specific rather than basic render errors.
+  check-retrieval-documents:
+    name: 🔍 retrieval/documents
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-retrieval-documents.yml
 
-          # The --init-superuser flag is not supported in ragflow v0.23.1+
-          if echo "$rendered" | grep -q -- '--init-superuser'; then
-            echo "❌ --init-superuser still present in ragflow command!"; exit 1
-          fi
-          echo "✅ --init-superuser absent"
+  check-main-storage:
+    name: 🔍 main/storage
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-main-storage.yml
 
-          # All five MCP env vars must be present as rendered key: value pairs
-          for var in MCP_HOST MCP_PORT MCP_BASE_URL MCP_MODE MCP_API_KEY; do
-            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
-              echo "✅ $var present"
-            else
-              echo "❌ $var missing!"; exit 1
-            fi
-          done
+  check-main-traefik:
+    name: 🔍 main/traefik
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-main-traefik.yml
 
-          # Core backend connection vars must be rendered
-          for var in DB_TYPE DOC_ENGINE; do
-            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
-              echo "✅ $var present"
-            else
-              echo "❌ $var missing!"; exit 1
-            fi
-          done
-
-      # ── main/storage: core storage services must be present ──────────────
-      - name: "[main/storage] 🔍 core services declared"
-        if: ${{ matrix.folder == 'main' && matrix.stack == 'storage' }}
-        run: |
-          set -euo pipefail
-          set -a; source .env.example; set +a
-          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
-          for svc in postgres redis minio opensearch; do
-            if echo "$rendered" | grep -qE "^  ${svc}:"; then
-              echo "✅ service '$svc' present"
-            else
-              echo "❌ service '$svc' missing!"; exit 1
-            fi
-          done
-
-      # ── main/traefik: websecure entrypoint must be defined ────────────────
-      - name: "[main/traefik] 🔍 websecure entrypoint configured"
-        if: ${{ matrix.folder == 'main' && matrix.stack == 'traefik' }}
-        run: |
-          set -euo pipefail
-          set -a; source .env.example; set +a
-          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
-          if echo "$rendered" | grep -q 'entryPoints.websecure.address'; then
-            echo "✅ websecure entrypoint configured"
-          else
-            echo "❌ websecure entrypoint not found!"; exit 1
-          fi
-
-      # ── llms/mcp: SSE streaming middleware must be configured ─────────────
-      - name: "[llms/mcp] 🔍 SSE middleware configured"
-        if: ${{ matrix.folder == 'llms' && matrix.stack == 'mcp' }}
-        run: |
-          set -euo pipefail
-          set -a; source .env.example; set +a
-          rendered=$(docker compose -f "${{ matrix.file }}" config 2>/dev/null)
-          if echo "$rendered" | grep -q 'sse-headers'; then
-            echo "✅ sse-headers middleware present"
-          else
-            echo "❌ sse-headers middleware missing!"; exit 1
-          fi
-          if echo "$rendered" | grep -q 'flushInterval'; then
-            echo "✅ responseForwarding.flushInterval present"
-          else
-            echo "❌ responseForwarding.flushInterval missing!"; exit 1
-          fi
+  check-llms-mcp:
+    name: 🔍 llms/mcp
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-llms-mcp.yml
