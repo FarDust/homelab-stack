@@ -1,0 +1,48 @@
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1200
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1250
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1300
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1350
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1400
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1450
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1500
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1600
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1700
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1750
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1772
+- targets:
+  - tasks.mtu-probe
+  labels:
+    module: icmp_mtu_1800

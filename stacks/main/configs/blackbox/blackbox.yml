@@ -1,0 +1,16 @@
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+  icmp:
+    prober: icmp
+    timeout: 5s
+  dns:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "example.com"
+      query_type: "A"
