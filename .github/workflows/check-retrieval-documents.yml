@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config)
 
           # --init-superuser is not a valid flag in ragflow v0.23.1+
           if grep -q -- '--init-superuser' <<< "$rendered"; then
@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config)
 
           for var in MCP_HOST MCP_PORT MCP_BASE_URL MCP_MODE MCP_API_KEY; do
             if grep -qE "^[[:space:]]+${var}:" <<< "$rendered"; then
@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config)
 
           for var in DB_TYPE DOC_ENGINE; do
             if grep -qE "^[[:space:]]+${var}:" <<< "$rendered"; then

@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/main/monitoring.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/main/monitoring.yml config)
 
           for svc in node-exporter cadvisor blackbox-exporter; do
             if grep -qE "^  ${svc}:" <<< "$rendered"; then
@@ -38,7 +38,7 @@ jobs:
           docker run --rm \
             -v "$PWD/stacks/main/configs/prometheus:/etc/prometheus:ro" \
             --entrypoint promtool \
-            prom/prometheus:latest \
+            prom/prometheus:v3.10.0 \
             check config /etc/prometheus/prometheus.yml
 
       - name: 🔍 promtool – validate alert.rules
@@ -47,5 +47,5 @@ jobs:
           docker run --rm \
             -v "$PWD/stacks/main/configs/prometheus:/etc/prometheus:ro" \
             --entrypoint promtool \
-            prom/prometheus:latest \
+            prom/prometheus:v3.10.0 \
             check rules /etc/prometheus/alert.rules

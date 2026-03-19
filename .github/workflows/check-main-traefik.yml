@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/main/traefik.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/main/traefik.yml config)
 
           if grep -q 'entryPoints.websecure.address' <<< "$rendered"; then
             echo "✅ websecure entrypoint configured"

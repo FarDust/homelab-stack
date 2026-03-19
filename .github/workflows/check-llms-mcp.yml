@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/llms/mcp.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/llms/mcp.yml config)
 
           if grep -q 'sse-headers' <<< "$rendered"; then
             echo "✅ sse-headers middleware present"
@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/llms/mcp.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/llms/mcp.yml config)
 
           if grep -q 'flushInterval' <<< "$rendered"; then
             echo "✅ responseForwarding.flushInterval present"
