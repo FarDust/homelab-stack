@@ -151,6 +151,6 @@ Use these when one service needs to call another (e.g. Prowlarr → Sonarr, Jell
 - **No results in *arr:** Check indexers are added and (with Prowlarr) that sync ran; in Sonarr/Radarr run a manual search to test.
 - **Jellyseerr can’t reach Sonarr/Radarr/Jellyfin:** Use internal URLs (`http://sonarr:8989` etc.) and valid API keys from each app.
 - **"Folder '/tv/' (or '/movies/') is not writable by user 'abc'":** The media volume is owned by root; Sonarr/Radarr run as `abc` (PUID/PGID). On the **node where the service runs** (e.g. `docker service ps hobby-streaming_sonarr` to find it), run:
-  - Sonarr: `docker run --rm -v hobby-streaming_tv_data:/tv alpine chown -R 1000:1000 /tv`
-  - Radarr: `docker run --rm -v hobby-streaming_movies_data:/movies alpine chown -R 1000:1000 /movies`
+  - Sonarr: `docker run --rm -v hobby-streaming_tv_nfs:/tv alpine chown -R 1000:1000 /tv`
+  - Radarr: `docker run --rm -v hobby-streaming_movies_nfs:/movies alpine chown -R 1000:1000 /movies`
   Use your actual PUID:PGID from `.env` if not 1000:1000.
