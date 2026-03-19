@@ -153,12 +153,14 @@ scrape_configs:
     scheme: https
     tls_config:
       insecure_skip_verify: false
-    static_configs:
-      - targets:
-          - "volcano-scheduler.${LOCAL_DOMAIN?err}:8443"
-        labels:
-          namespace: "volcano-system"
-          component: "scheduler"
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/volcano_target.yaml
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [component]
+        regex: scheduler
+        action: keep
 
   - job_name: "volcano-controllers"
     scrape_interval: 15s
@@ -166,12 +168,14 @@ scrape_configs:
     scheme: https
     tls_config:
       insecure_skip_verify: false
-    static_configs:
-      - targets:
-          - "volcano-controllers.${LOCAL_DOMAIN?err}:8443"
-        labels:
-          namespace: "volcano-system"
-          component: "controllers"
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/volcano_target.yaml
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [component]
+        regex: controllers
+        action: keep
 
   - job_name: "mtu-network-exporter"
     scrape_interval: 30s

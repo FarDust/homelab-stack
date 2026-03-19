@@ -350,6 +350,8 @@ services:
       target: /etc/prometheus/targets/blackbox_targets.yaml
     - source: prometheus_mtu_blackbox_targets
       target: /etc/prometheus/targets/mtu_blackbox_targets.yaml
+    - source: prometheus_volcano_target
+      target: /etc/prometheus/targets/volcano_target.yaml
     command:
     - --config.file=/etc/prometheus/prometheus.yml
     - --storage.tsdb.path=/prometheus
@@ -706,6 +708,9 @@ configs:
   prometheus_blackbox_targets:
     name: prometheus_blackbox_targets-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/blackbox_targets.yaml
+  prometheus_volcano_target:
+    name: prometheus_volcano_target-${CONFIG_VERSION:-0}
+    file: ./configs/prometheus/volcano_target.yaml
 secrets:
   portainer_admin_password:
     name: portainer_admin_password-${CONFIG_VERSION:-0}
