@@ -34,7 +34,7 @@ configs:
 services:
   ragflow:
     image: infiniflow/ragflow:v0.23.1
-    command: ["--enable-adminserver", "--enable-mcpserver", "--init-superuser"]
+    command: ["--enable-adminserver", "--enable-mcpserver"]
     environment:
       - IN_CONTAINER=true
       - DOC_ENGINE=opensearch
@@ -62,6 +62,11 @@ services:
       - RAGFLOW_HTTP_SECRET_KEY=${RAGFLOW_HTTP_SECRET_KEY?err}
       - RAGFLOW_LITELLM_API_KEY=${RAGFLOW_LITELLM_API_KEY?err}
       - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=9382
+      - MCP_BASE_URL=https://mcp-ragflow.${LOCAL_DOMAIN}
+      - MCP_MODE=self-host
+      - MCP_API_KEY=${RAGFLOW_MCP_API_KEY?err}
     volumes:
       - ragflow_logs:/ragflow/logs
     networks:

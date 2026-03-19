@@ -1,0 +1,30 @@
+name: 🔍 Check main/traefik
+
+# Reusable workflow – called from validate-compose.yml.
+# Asserts that required Traefik entrypoints are configured in stacks/main/traefik.yml.
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: main/traefik – entrypoints configured
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 websecure entrypoint configured
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/main/traefik.yml config 2>/dev/null)
+
+          if grep -q 'entryPoints.websecure.address' <<< "$rendered"; then
+            echo "✅ websecure entrypoint configured"
+          else
+            echo "❌ websecure entrypoint not found!"; exit 1
+          fi
