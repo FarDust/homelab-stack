@@ -1,0 +1,114 @@
+name: 🔍 Check main/bridges
+
+# Reusable workflow – called from validate-compose.yml after the generic
+# `docker compose config` render check passes for stacks/main/bridges.yml.
+#
+# What this workflow does
+# ──────────────────────────────────────────────────────────────────────────
+# bridges.yml runs Supavisor as a connection-pooling bridge between the
+# homelab Postgres instance and external K3S cluster workloads.  Before
+# starting the Supavisor server, the stack runs:
+#
+#   /app/bin/supavisor eval "$(cat /etc/pooler/pooler.exs)"
+#
+# That eval step is what seeds the `_supavisor.tenants` table with the
+# required pool configuration.  If pooler.exs is empty (or a bare `:ok`
+# atom), the eval is a no-op, the table stays empty, and Supavisor will
+# reject every incoming connection with "Tenant or user not found".
+#
+# Jobs in this workflow
+# ──────────────────────────────────────────────────────────────────────────
+#   check  – fast static analysis (no containers):
+#              1. supavisor-k3s service present in rendered compose output
+#              2. pooler seed scripts are not empty placeholders
+#
+#   test-supavisor-seed  – real integration test (spins up Postgres +
+#              Supavisor, runs migrate + eval, verifies rows in DB):
+#              3. seed-runner: migrate schema + eval both *.exs scripts
+#              4. verifier:    psql query confirms k3s/grafana/langfuse
+#                              rows exist in _supavisor.tenants and
+#                              _supavisor.users
+on:
+  workflow_call:
+
+jobs:
+  # ── Fast static checks (no containers) ─────────────────────────────────────
+  check:
+    name: main/bridges – static checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 supavisor-k3s service present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/main/bridges.yml config 2>/dev/null)
+
+          if grep -qE "^  supavisor-k3s:" <<< "$rendered"; then
+            echo "✅ service 'supavisor-k3s' present"
+          else
+            echo "❌ service 'supavisor-k3s' missing!"; exit 1
+          fi
+
+      - name: 🔍 pooler.exs seed scripts are not empty placeholders
+        run: |
+          set -euo pipefail
+
+          for f in \
+            stacks/main/configs/supavisor/k3s_pooler.exs \
+            stacks/main/configs/supavisor/apps_pooler.exs; do
+
+            # Must call Application.ensure_all_started to boot the app before
+            # interacting with the Ecto repo
+            if ! grep -q "Application.ensure_all_started" "$f"; then
+              echo "❌ $f does not call Application.ensure_all_started/1"
+              exit 1
+            fi
+
+            # Must contain actual tenant creation logic
+            if ! grep -q "Supavisor.Tenants.create_tenant" "$f"; then
+              echo "❌ $f does not call Supavisor.Tenants.create_tenant/1 – add actual seeding code"
+              exit 1
+            fi
+
+            echo "✅ $f looks like a real seed script"
+          done
+
+  # ── Real integration test ───────────────────────────────────────────────────
+  # Spins up a real Postgres instance, runs the same migrate + eval sequence
+  # that bridges.yml uses at runtime, then queries the database to confirm all
+  # expected tenants and user records were actually written.
+  test-supavisor-seed:
+    name: main/bridges – integration test (seed scripts + DB verification)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🧪 Run migrate + eval seed scripts against real Postgres
+        run: |
+          set -euo pipefail
+          docker compose -f stacks/main/tests/supavisor-seed.yml \
+            run --rm seed-runner
+
+      - name: 🔎 Verify tenants persisted in _supavisor.tenants
+        run: |
+          set -euo pipefail
+          docker compose -f stacks/main/tests/supavisor-seed.yml \
+            run --rm verifier
+
+      - name: 🧹 Tear down test containers and volumes
+        if: always()
+        run: |
+          docker compose -f stacks/main/tests/supavisor-seed.yml down -v \
+            2>/dev/null || true

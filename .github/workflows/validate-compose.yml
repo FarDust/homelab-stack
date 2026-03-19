@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'stacks/**/*.yml'
+      - 'stacks/**/*.exs'
+      - 'stacks/**/*.sh'
       - '.env.example'
       - '.github/workflows/validate-compose.yml'
       - '.github/workflows/check-*.yml'
@@ -12,6 +14,8 @@ on:
       - main
     paths:
       - 'stacks/**/*.yml'
+      - 'stacks/**/*.exs'
+      - 'stacks/**/*.sh'
       - '.env.example'
 
 jobs:
@@ -98,6 +102,13 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/check-llms-mcp.yml
+
+  check-main-bridges:
+    name: 🔍 main/bridges
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-main-bridges.yml
 
   check-main-monitoring:
     name: 🔍 main/monitoring

@@ -9,7 +9,7 @@ This directory contains the core infrastructure services for the Docker Swarm cl
 - **monitoring.yml**: Observability collectors/exporters and metric adapters (Node Exporter, cAdvisor, Docker health collectors, DNS/Speed/blackbox exporters)
 - **maintenance.yml**: Cluster maintenance and host reconciler services (ephemeral rebalance, rclone fixer, host sysctl baselines)
 - **uptime.yml**: Human-facing status/uptime services (Gatus, Uptime Kuma)
-- **bridges.yml**: Cross-system/vendor bridge services (Netdata parent bridge)
+- **bridges.yml**: Cross-system/vendor bridge services — Supavisor K3S connection pooler (exposes homelab Postgres to K3S workloads over TLS) and Netdata parent bridge
 - **security.yml**: Security monitoring and threat detection (CrowdSec)
 
 ## Monitoring vs Uptime Semantics
@@ -126,3 +126,102 @@ labels:
 1. Verify both services are on `traefik` network
 2. Check if service needs to access another service's protocol port
 3. Consider if service needs dual network configuration
+
+## CI / Validation
+
+Every pull-request that touches a compose file, a config script, or
+`.env.example` triggers the **[Validate Docker Compose Files](../../.github/workflows/validate-compose.yml)**
+workflow, which runs in three sequential stages:
+
+```
+Stage 1  ── Discover compose files  (matrix of all stacks/**/*.yml)
+                        │
+Stage 2  ── Generic render check   (docker compose config per file)
+                        │
+Stage 3  ── Folder-specialised checks  (run in parallel)
+```
+
+### Stage 3 – Specialised checks
+
+Each `check-*.yml` workflow in `.github/workflows/` is a reusable
+workflow called from stage 3. It tests domain-specific invariants that
+a plain render check cannot catch.
+
+| Workflow | Stack file | What it verifies |
+|---|---|---|
+| `check-main-storage.yml` | `stacks/main/storage.yml` | Core storage services (`postgres`, `redis`, `minio`, `opensearch`) are declared |
+| `check-main-traefik.yml` | `stacks/main/traefik.yml` | `websecure` entrypoint is configured |
+| `check-main-bridges.yml` | `stacks/main/bridges.yml` | Static: `supavisor-k3s` service present + seed scripts not empty placeholders. **Integration**: seed scripts actually run against a real Postgres and all expected tenants/users exist in `_supavisor.tenants` |
+| `check-llms-mcp.yml` | `stacks/llms/mcp.yml` | SSE streaming middleware (`sse-headers`, `flushInterval`) is configured |
+| `check-retrieval-documents.yml` | `stacks/retrieval/documents.yml` | Retrieval-specific invariants |
+
+### `check-main-bridges.yml` in detail
+
+`bridges.yml` runs **Supavisor** as a connection-pooling proxy that
+exposes the homelab Postgres instance to K3S workloads over an
+authenticated TLS port.  Before the Supavisor server starts, the
+container runs:
+
+```sh
+/app/bin/supavisor eval "$(cat /etc/pooler/pooler.exs)"
+```
+
+This `eval` call seeds the `_supavisor.tenants` table with the pool
+configuration.  The table must not be empty when the server starts,
+otherwise Supavisor rejects every connection with:
+
+```
+FATAL:  Tenant or user not found
+```
+
+The workflow has **two jobs** that run in parallel:
+
+#### `check` — fast static analysis (no containers)
+
+1. **`supavisor-k3s` service present.** Fails if the service is removed or renamed in `bridges.yml`.
+2. **Seed scripts are not empty placeholders.** Both `*_pooler.exs` files must call:
+   - `Application.ensure_all_started(:supavisor)` — boots the OTP app so the Ecto repo is available
+   - `Supavisor.Tenants.create_tenant/1` — the only function that writes a row
+
+#### `test-supavisor-seed` — real integration test (spins up containers)
+
+Uses `stacks/main/tests/supavisor-seed.yml` to run the **exact same**
+`migrate + eval` sequence that `bridges.yml` executes at runtime:
+
+```
+Step 1  seed-runner
+          postgres:16-alpine (metadata DB)
+          supabase/supavisor:2.7.4
+            /app/bin/migrate           ← creates _supavisor schema
+            eval k3s_pooler.exs        ← seeds k3s tenant
+            eval apps_pooler.exs       ← seeds grafana + langfuse tenants
+
+Step 2  verifier
+          supabase/supavisor:2.7.4
+            eval verify_tenants.exs    ← queries DB, asserts all 3 tenants
+                                          and their user rows exist
+```
+
+The verifier (`stacks/main/tests/verify_tenants.exs`) uses
+`Supavisor.Repo.query!/2` to confirm:
+- `_supavisor.tenants` contains `k3s`, `grafana`, `langfuse`
+- `_supavisor.users` has at least one row per tenant
+
+This test catches regressions that static analysis cannot: runtime
+Elixir errors in the seed scripts, schema changes that break the
+`create_tenant/1` API, and Vault encryption key misconfiguration.
+
+### Adding a new specialised check
+
+1. Create `.github/workflows/check-<folder>-<stack>.yml` with
+   `on: workflow_call` and a single `check:` job.
+2. Add a new job to the `# Step 3` section of `validate-compose.yml`:
+
+```yaml
+check-<folder>-<stack>:
+  name: 🔍 <folder>/<stack>
+  needs: validate
+  permissions:
+    contents: read
+  uses: ./.github/workflows/check-<folder>-<stack>.yml
+```
