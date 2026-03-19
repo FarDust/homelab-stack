@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          rendered=$(docker compose -f stacks/main/storage.yml config 2>/dev/null)
+          rendered=$(docker compose -f stacks/main/storage.yml config)
 
           for svc in postgres redis minio opensearch; do
             if grep -qE "^  ${svc}:" <<< "$rendered"; then
