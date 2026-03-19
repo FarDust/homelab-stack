@@ -1,0 +1,86 @@
+name: 🧪 Validate Docker Compose Files
+
+on:
+  pull_request:
+    paths:
+      - 'stacks/retrieval/**'
+      - '.github/workflows/validate-compose.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'stacks/retrieval/**'
+
+jobs:
+  validate-retrieval:
+    name: validate stacks/retrieval
+    runs-on: ubuntu-latest
+    env:
+      # Variables required by stacks/retrieval/*.yml
+      GCS_SYNC_STORAGE_BUCKET: ci-bucket
+      LOCAL_DOMAIN: ci.local
+      RAGFLOW_HF_ENDPOINT: "https://huggingface.co"
+      RAGFLOW_HTTP_APP_KEY: ci-dummy
+      RAGFLOW_HTTP_SECRET_KEY: ci-dummy
+      RAGFLOW_LITELLM_API_KEY: ci-dummy
+      RAGFLOW_MCP_API_KEY: ci-dummy
+      RAGFLOW_MINIO_HOST: minio
+      RAGFLOW_MINIO_PASSWORD: ci-dummy
+      RAGFLOW_MINIO_PORT: "9000"
+      RAGFLOW_MINIO_USER: minioadmin
+      RAGFLOW_OPENSEARCH_PASSWORD: ci-dummy
+      RAGFLOW_OS_HOST: opensearch
+      RAGFLOW_OS_PORT: "9200"
+      RAGFLOW_OS_USER: admin
+      RAGFLOW_POSTGRES_DBNAME: ragflow
+      RAGFLOW_POSTGRES_HOST: postgres
+      RAGFLOW_POSTGRES_PASSWORD: ci-dummy
+      RAGFLOW_POSTGRES_PORT: "5432"
+      RAGFLOW_POSTGRES_SSLMODE: disable
+      RAGFLOW_POSTGRES_USER: ragflow
+      RAGFLOW_REDIS_HOST: redis
+      RAGFLOW_REDIS_PASSWORD: ci-dummy
+      RAGFLOW_REDIS_PORT: "6379"
+      CONFIG_VERSION: "0"
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🐳 Validate stacks/retrieval compose files
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r -d '' f; do
+            echo -n "  checking $f ... "
+            if docker compose -f "$f" config --quiet 2>/dev/null; then
+              echo "✅"
+            else
+              echo "❌"
+              failed=1
+            fi
+          done < <(find stacks/retrieval -maxdepth 1 -name '*.yml' -print0 | sort -z)
+          [ "$failed" -eq 0 ]
+
+      - name: 🔍 Assert ragflow service configuration
+        run: |
+          set -euo pipefail
+          rendered=$(docker compose -f stacks/retrieval/documents.yml config 2>/dev/null)
+
+          # Ensure the unsupported flag was removed
+          if echo "$rendered" | grep -q -- '--init-superuser'; then
+            echo "❌ --init-superuser still present in rendered ragflow command!"
+            exit 1
+          fi
+          echo "✅ --init-superuser correctly absent from ragflow command"
+
+          # Ensure all required MCP env vars are present as key: value assignments
+          for var in MCP_HOST MCP_PORT MCP_BASE_URL MCP_MODE MCP_API_KEY; do
+            if echo "$rendered" | grep -qE "^[[:space:]]+${var}:"; then
+              echo "✅ $var present"
+            else
+              echo "❌ $var missing from rendered ragflow config!"
+              exit 1
+            fi
+          done
