@@ -1,0 +1,48 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  redis_storage:
+    endpoint: ${env:OTEL_COLLECTOR_REDIS_ENDPOINT}
+    password: ${env:REDIS_PASSWORD}
+    db: ${env:OTEL_COLLECTOR_REDIS_DB}
+    expiration: 168h
+    prefix: otel
+    tls:
+      insecure: false
+      server_name_override: ${env:OTEL_COLLECTOR_REDIS_SERVER_NAME}
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    send_batch_size: 1024
+    timeout: 1s
+
+exporters:
+  otlphttp/loki:
+    endpoint: ${env:OTEL_COLLECTOR_LOKI_ENDPOINT}
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 4096
+      storage: redis_storage
+    retry_on_failure:
+      enabled: true
+
+service:
+  extensions: [health_check, redis_storage]
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]
