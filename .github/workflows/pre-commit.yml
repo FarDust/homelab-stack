@@ -1,0 +1,29 @@
+name: 🔍 Pre-commit Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  pre-commit:
+    name: Run pre-commit hooks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: ✅ Run pre-commit
+        uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: ggshield
