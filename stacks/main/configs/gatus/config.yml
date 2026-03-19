@@ -4,13 +4,13 @@ storage:
   path: "${GATUS_DATABASE_URL}"
 endpoints:
   - name: Grafana HTTP
-    url: "https://grafana.${LOCAL_DOMAIN}/api/health"
+    url: "https://grafana.${DOMAIN_NAME}/api/health"
     interval: "60s"
     conditions:
       - "[STATUS] == 200"
 
   - name: Portainer HTTP
-    url: "https://portainer.${LOCAL_DOMAIN}/api/status"
+    url: "https://portainer.${DOMAIN_NAME}/api/status"
     interval: "60s"
     conditions:
       - "[STATUS] == 200"
