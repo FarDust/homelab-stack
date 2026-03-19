@@ -65,7 +65,7 @@ No UI. If you use Prowlarr and some indexers fail with Cloudflare, set FlareSolv
    - Category: **tv** (if you created it).
    - Test and save.
 3. **Settings → Indexers:** Indexers sync from Prowlarr (see step 3); ensure Sonarr is added as an app in Prowlarr with "Sync App Indexers" enabled. Set categories (e.g. 5000, 5030 for TV) as needed.
-4. Add root folder: **/tv** (maps to your `tv_data` volume).
+4. Add root folder: **/tv** (maps to your `tv_nfs` volume).
 
 ---
 
