@@ -99,9 +99,9 @@ jobs:
       contents: read
     uses: ./.github/workflows/check-llms-mcp.yml
 
-  check-main-rclone:
-    name: 🔍 main/rclone
+  check-main-maintenance:
+    name: 🔍 main/maintenance
     needs: validate
     permissions:
       contents: read
-    uses: ./.github/workflows/check-main-rclone.yml
+    uses: ./.github/workflows/check-main-maintenance.yml

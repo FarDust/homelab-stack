@@ -1,13 +1,13 @@
-name: 🔍 Check main/rclone
+name: 🔍 Check main/maintenance
 
 # Reusable workflow – called from validate-compose.yml.
-# Runs check.sh unit tests for the rclone volume helper.
+# Runs check.sh unit tests for the rclone volume helper used in maintenance.yml.
 on:
   workflow_call:
 
 jobs:
   unit-tests:
-    name: main/rclone – check.sh unit tests
+    name: main/maintenance – check.sh unit tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
