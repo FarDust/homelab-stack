@@ -1,0 +1,75 @@
+version: '3.9'
+
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+
+services:
+  gatus:
+    image: twinproduction/gatus:stable
+    networks:
+      - traefik-public
+      - traefik
+    configs:
+      - source: gatus_config
+        target: /config/config.yml
+    environment:
+      - GATUS_CONFIG_PATH=/config/config.yml
+      - GATUS_DATABASE_URL=${GATUS_DATABASE_URL?err}
+      - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
+      - DOMAIN_NAME=${DOMAIN_NAME?err}
+      - INTERNAL_PORT=${POSTGRES_INTERNAL_PORT:-5432}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.gatus.rule=Host(`gatus.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.gatus.entrypoints=websecure"
+        - "traefik.http.routers.gatus.tls=true"
+        - "traefik.http.routers.gatus.tls.certresolver=le-dns"
+        - "traefik.http.routers.gatus.middlewares=authelia@swarm"
+        - "traefik.http.services.gatus.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
+  kuma:
+    image: louislam/uptime-kuma:2
+    networks:
+      - traefik-public
+      - traefik
+    volumes:
+      - uptime-kuma-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      placement:
+        constraints:
+          - node.labels.load.tier == heavy
+          - node.labels.storage.manager == true
+          - node.labels.node.ephemeral != true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.uptime-kuma.rule=Host(`uptime-kuma.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+        - "traefik.http.routers.uptime-kuma.tls=true"
+        - "traefik.http.routers.uptime-kuma.tls.certresolver=le-dns"
+        - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+        - "traefik.swarm.network=traefik-public"
+
+volumes:
+  uptime-kuma-data:
+    driver: local
+configs:
+  gatus_config:
+    name: gatus_config-${CONFIG_VERSION:-0}
+    file: ./configs/gatus/config.yml

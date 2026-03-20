@@ -7,6 +7,80 @@ networks:
     external: true
 
 services:
+  supavisor-k3s:
+    image: supabase/supavisor:2.7.4
+    networks:
+      - traefik
+    ports:
+      - target: 5432
+        published: ${K3S_SUPAVISOR_PORT?err}
+        protocol: tcp
+        mode: ingress
+    configs:
+      - source: supavisor_k3s_pooler_exs
+        target: /etc/pooler/pooler.exs
+    secrets:
+      - source: supavisor_k3s_tls_cert
+        target: /run/secrets/supavisor_k3s_tls_cert
+      - source: supavisor_k3s_tls_key
+        target: /run/secrets/supavisor_k3s_tls_key
+    environment:
+      - PORT=4000
+      - DATABASE_URL=ecto://supavisor_k3s:${SUPAVISOR_K3S_DB_PASSWORD_ENCODED?err}@postgres:5432/supavisor_k3s
+      - SECRET_KEY_BASE=${SUPAVISOR_K3S_SECRET_KEY_BASE?err}
+      - VAULT_ENC_KEY=${SUPAVISOR_K3S_VAULT_ENC_KEY?err}
+      - API_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
+      - METRICS_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
+      - REGION=local
+      - ERL_AFLAGS=-proto_dist inet_tcp
+      - PROXY_PORT_SESSION=5432
+      - DB_POOL_SIZE=5
+      - MAX_CONNECTIONS=400
+      - NUM_ACCEPTORS=50
+      - NAMED_PREPARED_STATEMENTS_ENABLED=true
+      - ASSIMILATION_UPSTREAM_PASSWORD=${K8S_DB_PASSWORD?err}
+      - GLOBAL_DOWNSTREAM_CERT_PATH=/run/secrets/supavisor_k3s_tls_cert
+      - GLOBAL_DOWNSTREAM_KEY_PATH=/run/secrets/supavisor_k3s_tls_key
+    command:
+      - /bin/sh
+      - -c
+      - /app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -sSfL
+        - --head
+        - -o
+        - /dev/null
+        - http://127.0.0.1:4000/api/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+      labels:
+        - com.centurylinklabs.watchtower.enable=false
+
   netdata-parent:
     image: netdata/netdata:edge
     hostname: netdata-parent
@@ -133,6 +207,12 @@ volumes:
       dir_perms: "700"
 
 secrets:
+  supavisor_k3s_tls_cert:
+    name: supavisor_k3s_tls_cert-${CONFIG_VERSION:-0}
+    file: ../../secrets/supavisor_k3s/tls_cert
+  supavisor_k3s_tls_key:
+    name: supavisor_k3s_tls_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/supavisor_k3s/tls_key
   netdata_conf:
     name: netdata_conf-${CONFIG_VERSION:-0}
     file: ../../secrets/netdata/netdata_conf
@@ -147,6 +227,9 @@ secrets:
     file: ../../secrets/netdata/health_alarm_notify_conf
 
 configs:
+  supavisor_k3s_pooler_exs:
+    name: supavisor_k3s_pooler_exs-${CONFIG_VERSION:-0}
+    file: ./configs/supavisor/k3s_pooler.exs
   netdata_child_config_script:
     name: netdata_child_config_script-${CONFIG_VERSION:-0}
     file: ./configs/netdata/child-config.sh

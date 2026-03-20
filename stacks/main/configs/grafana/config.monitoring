@@ -2,4 +2,4 @@ GF_USERS_ALLOW_SIGN_UP=false
 GF_LOG_FILTERS=rendering:debug
 GF_UNIFIED_ALERTING_ENABLED=true
 GF_ALERTING_ENABLED=false
-GF_INSTALL_PLUGINS=grafana-image-renderer,grafana-llm-app
+GF_INSTALL_PLUGINS=grafana-image-renderer,grafana-llm-app,grafana-clickhouse-datasource

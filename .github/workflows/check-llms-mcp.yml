@@ -1,0 +1,42 @@
+name: 🔍 Check llms/mcp
+
+# Reusable workflow – called from validate-compose.yml.
+# Asserts that the SSE streaming middleware is correctly configured in stacks/llms/mcp.yml.
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: llms/mcp – SSE middleware configured
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 sse-headers middleware present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/llms/mcp.yml config)
+
+          if grep -q 'sse-headers' <<< "$rendered"; then
+            echo "✅ sse-headers middleware present"
+          else
+            echo "❌ sse-headers middleware missing!"; exit 1
+          fi
+
+      - name: 🔍 responseForwarding.flushInterval present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/llms/mcp.yml config)
+
+          if grep -q 'flushInterval' <<< "$rendered"; then
+            echo "✅ responseForwarding.flushInterval present"
+          else
+            echo "❌ responseForwarding.flushInterval missing!"; exit 1
+          fi

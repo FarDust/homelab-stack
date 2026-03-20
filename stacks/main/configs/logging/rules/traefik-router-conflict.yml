@@ -1,0 +1,23 @@
+groups:
+  - name: traefik-router-conflicts
+    rules:
+      - alert: TraefikRouterNameConflict
+        expr: |
+          sum(count_over_time({job="traefik"} |~ "(?i)(router|service).*(defined multiple times|already exists|conflict)" [5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Traefik router/service name conflict detected
+          description: Traefik logged a router/service name conflict in the last 5 minutes. Check Traefik logs.
+  - name: traefik-tcp-errors
+    rules:
+      - alert: TraefikTcpConnectionErrors
+        expr: |
+          sum(count_over_time({job="traefik"} |~ "(?i)error while handling tcp connection" [5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Traefik TCP connection errors detected
+          description: Traefik logged multiple TCP connection handling errors in the last 5 minutes. Check backend health or network stability.

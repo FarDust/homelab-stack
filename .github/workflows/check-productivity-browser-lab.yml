@@ -1,0 +1,112 @@
+name: 🔍 Check productivity/browser-lab
+
+# Reusable workflow – called from validate-compose.yml.
+# Asserts that the browser-lab stack (Neko + coturn) is correctly configured in
+# stacks/productivity/browser-lab.yml.
+#
+# Jobs in this workflow
+# ──────────────────────────────────────────────────────────────────────────
+#   check  – fast static analysis (no containers):
+#              1. Both services (browser-neko-brave, browser-coturn) are present
+#              2. coturn security flags (--lt-cred-mech, --fingerprint) are set
+#              3. NEKO WebRTC ICE server env vars reference the TURN host/password
+#              4. coturn UDP relay port range is published (49160-49179)
+#              5. neko uses traefik-public network; coturn uses traefik network
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: productivity/browser-lab – static checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 Both services present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
+
+          for svc in browser-neko-brave browser-coturn; do
+            if grep -qE "^  ${svc}:" <<< "$rendered"; then
+              echo "✅ service '$svc' present"
+            else
+              echo "❌ service '$svc' missing!"; exit 1
+            fi
+          done
+
+      - name: 🔍 coturn security flags present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
+
+          for flag in '--lt-cred-mech' '--fingerprint'; do
+            if grep -qF -- "$flag" <<< "$rendered"; then
+              echo "✅ coturn flag '$flag' present"
+            else
+              echo "❌ coturn flag '$flag' missing!"; exit 1
+            fi
+          done
+
+      - name: 🔍 NEKO WebRTC ICE server env vars rendered
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
+
+          for var in NEKO_WEBRTC_ICESERVERS_BACKEND NEKO_WEBRTC_ICESERVERS_FRONTEND; do
+            if grep -qE "^[[:space:]]+${var}:" <<< "$rendered"; then
+              echo "✅ $var present"
+            else
+              echo "❌ $var missing!"; exit 1
+            fi
+          done
+
+          # ICE servers must reference the TURN host (not a bare localhost/empty stub)
+          if grep -qE "NEKO_WEBRTC_ICESERVERS_BACKEND:.*turn:" <<< "$rendered"; then
+            echo "✅ NEKO_WEBRTC_ICESERVERS_BACKEND contains a turn: URL"
+          else
+            echo "❌ NEKO_WEBRTC_ICESERVERS_BACKEND does not contain a valid turn: URL!"; exit 1
+          fi
+
+      - name: 🔍 coturn UDP relay port range published
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
+
+          # Expect at least the first and last relay port to appear
+          for port in 49160 49179; do
+            if grep -q "published: \"${port}\"" <<< "$rendered"; then
+              echo "✅ relay port $port published"
+            else
+              echo "❌ relay port $port missing from published ports!"; exit 1
+            fi
+          done
+
+      - name: 🔍 Network assignments correct
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
+
+          # neko must use traefik-public (HTTP websecure endpoint)
+          if grep -q 'traefik.swarm.network: traefik-public' <<< "$rendered"; then
+            echo "✅ traefik-public network label present (neko)"
+          else
+            echo "❌ traefik.swarm.network=traefik-public missing (needed by browser-neko-brave)!"; exit 1
+          fi
+
+          # coturn must use the internal traefik network (TCP/UDP host-internal endpoint)
+          if grep -q 'traefik.swarm.network: traefik$' <<< "$rendered"; then
+            echo "✅ traefik network label present (coturn)"
+          else
+            echo "❌ traefik.swarm.network=traefik missing (needed by browser-coturn)!"; exit 1
+          fi

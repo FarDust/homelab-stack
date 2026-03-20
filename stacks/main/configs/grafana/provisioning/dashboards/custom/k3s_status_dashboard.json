@@ -1,0 +1,305 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Adapted from Grafana.com dashboard 15282 (K3S cluster monitoring) to match this cluster's live Prometheus metrics.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": 15282,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "100 * (1 - avg by (nodename) (irate(node_cpu_seconds_total{job=\"node-exporter\",mode=\"idle\"}[5m]) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"}))",
+          "legendFormat": "{{nodename}}",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Usage by Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "100 * avg by (nodename) (((1 - (node_memory_MemAvailable_bytes{job=\"node-exporter\"} / on(instance,job) node_memory_MemTotal_bytes{job=\"node-exporter\"})) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"}))",
+          "legendFormat": "{{nodename}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Memory Usage by Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "100 * avg by (nodename) (((1 - (node_filesystem_avail_bytes{job=\"node-exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} / on(instance,job,mountpoint,fstype,device) node_filesystem_size_bytes{job=\"node-exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"}))",
+          "legendFormat": "{{nodename}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Root Filesystem Usage by Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg by (nodename) (node_load1{job=\"node-exporter\"} * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"})",
+          "legendFormat": "{{nodename}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Load1 by Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (nodename) (rate(node_network_receive_bytes_total{job=\"node-exporter\",device!~\"lo|docker.*|veth.*|cali.*|flannel.*|cni.*\"}[5m]) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"})",
+          "legendFormat": "rx {{nodename}}",
+          "refId": "A"
+        },
+        {
+          "expr": "-sum by (nodename) (rate(node_network_transmit_bytes_total{job=\"node-exporter\",device!~\"lo|docker.*|veth.*|cali.*|flannel.*|cni.*\"}[5m]) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"})",
+          "legendFormat": "tx {{nodename}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Network Throughput by Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (nodename) (rate(node_pressure_cpu_waiting_seconds_total{job=\"node-exporter\"}[5m]) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"})",
+          "legendFormat": "cpu wait {{nodename}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (nodename) (rate(node_pressure_io_waiting_seconds_total{job=\"node-exporter\"}[5m]) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"})",
+          "legendFormat": "io wait {{nodename}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (nodename) (rate(node_pressure_memory_waiting_seconds_total{job=\"node-exporter\"}[5m]) * on(instance,job) group_left(nodename) volcano_node_uname_info{job=\"node-exporter\",nodename=~\"^$Node$\"})",
+          "legendFormat": "mem wait {{nodename}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Pressure Stall Signals by Node",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "k3s",
+    "kubernetes",
+    "adapted",
+    "tra209"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "prometheus",
+          "value": "$ds_prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "ds_prometheus",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$ds_prometheus"
+        },
+        "definition": "label_values(volcano_node_uname_info{job=\"node-exporter\"}, nodename)",
+        "includeAll": true,
+        "multi": false,
+        "name": "Node",
+        "query": {
+          "query": "label_values(volcano_node_uname_info{job=\"node-exporter\"}, nodename)",
+          "refId": "Prometheus-Node-Variable-Query"
+        },
+        "refresh": 1,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "K3S Cluster Monitoring",
+  "uid": "k3s-status-tra209",
+  "version": 1,
+  "weekStart": ""
+}

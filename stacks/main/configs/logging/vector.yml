@@ -1,0 +1,49 @@
+data_dir: ${VECTOR_DATA_DIR:-/var/lib/vector}
+
+sources:
+  traefik_logs:
+    type: docker_logs
+    docker_host: "unix:///var/run/docker.sock"
+    include_containers:
+      - "main-traefik_traefik"
+
+transforms:
+  enrich_traefik:
+    type: remap
+    inputs: [traefik_logs]
+    source: |
+      .job = "traefik"
+      .stack = "main"
+      if is_null(.container_name) {
+        .service = "unknown"
+      } else {
+        .service = .container_name
+      }
+
+sinks:
+  loki:
+    type: loki
+    inputs: [enrich_traefik]
+    endpoint: "http://loki:3100"
+    encoding:
+      codec: json
+    labels:
+      job: "traefik"
+      container: "{{ container_name }}"
+      node: "{{ host }}"
+
+  gcs_archive:
+    type: gcp_cloud_storage
+    inputs: [enrich_traefik]
+    bucket: "${GCS_SYNC_STORAGE_BUCKET?err}"
+    key_prefix: "logs/traefik/date=%F/"
+    compression: gzip
+    credentials_path: "/run/secrets/gcp_sa"
+    encoding:
+      codec: json
+    batch:
+      max_bytes: 104857600
+      timeout_secs: 3600
+    buffer:
+      type: disk
+      max_size: 2147483648

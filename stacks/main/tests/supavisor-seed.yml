@@ -1,0 +1,122 @@
+# CI-only compose file – NOT used in production.
+#
+# Verifies that both Supavisor pooler seed scripts execute successfully
+# against a real Postgres database, replicating the exact migrate + eval
+# sequence that bridges.yml runs at container startup.
+#
+# Two-step usage (called by check-main-bridges.yml):
+#
+#   # Step 1 – migrate schema, eval both seed scripts, exit 0 on success.
+#   docker compose -f stacks/main/tests/supavisor-seed.yml \
+#     run --rm seed-runner
+#
+#   # Step 2 – independently verify that all expected rows exist in DB.
+#   docker compose -f stacks/main/tests/supavisor-seed.yml \
+#     run --rm verifier
+#
+#   # Cleanup – tear down postgres + volumes.
+#   docker compose -f stacks/main/tests/supavisor-seed.yml down -v
+
+services:
+
+  # ── Supavisor metadata database ───────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: supavisor
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: supavisor_k3s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supavisor -d supavisor_k3s"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # ── Shared environment for both Supavisor containers ─────────────────────
+  # (Docker Compose does not support YAML anchors across all versions, so
+  #  the environment block is duplicated in seed-runner and verifier.)
+
+  # ── Step 1: migrate schema + eval both production seed scripts ────────────
+  # Reproduces bridges.yml startup command:
+  #   /app/bin/migrate &&
+  #   /app/bin/supavisor eval "$(cat /etc/pooler/pooler.exs)" &&
+  #   /app/bin/server
+  # (server is omitted – it is not needed to validate seeding)
+  seed-runner:
+    image: supabase/supavisor:2.7.4
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://supavisor:testpass@postgres:5432/supavisor_k3s
+      # 64-char string satisfies Phoenix SECRET_KEY_BASE minimum length.
+      SECRET_KEY_BASE: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      # Exactly 32 raw bytes – AES-256-GCM key used by Cloak for credential
+      # encryption at rest.  Must be 32 bytes; NOT base64-encoded here.
+      VAULT_ENC_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      API_JWT_SECRET: ci-test-jwt-secret
+      METRICS_JWT_SECRET: ci-test-jwt-secret
+      REGION: local
+      ERL_AFLAGS: -proto_dist inet_tcp
+      # Disable the ulimit call in /app/limits.sh; it exits non-zero with
+      # "Operation not permitted" in unprivileged CI containers.
+      RLIMIT_NOFILE: ""
+      # ── k3s_pooler.exs variables ──────────────────────────────────────────
+      ASSIMILATION_UPSTREAM_PASSWORD: testk3spassword
+      K8S_DB_USER: k3s
+      K8S_DB_NAME: k3s
+      # ── apps_pooler.exs variables ─────────────────────────────────────────
+      GRAFANA_UPSTREAM_PASSWORD: testgrafanapassword
+      LANGFUSE_UPSTREAM_PASSWORD: testlangfusepassword
+      GF_POSTGRES_DB: grafana
+      # ── shared upstream (same test postgres for both poolers) ─────────────
+      UPSTREAM_DB_HOST: postgres
+      UPSTREAM_DB_PORT: "5432"
+    volumes:
+      - ../configs/supavisor/k3s_pooler.exs:/etc/pooler/k3s_pooler.exs:ro
+      - ../configs/supavisor/apps_pooler.exs:/etc/pooler/apps_pooler.exs:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "── migrate ──────────────────────────────────────────────────────"
+        /app/bin/migrate
+
+        echo "── eval k3s_pooler.exs ──────────────────────────────────────────"
+        /app/bin/supavisor eval "$$(cat /etc/pooler/k3s_pooler.exs)"
+
+        echo "── eval apps_pooler.exs ─────────────────────────────────────────"
+        /app/bin/supavisor eval "$$(cat /etc/pooler/apps_pooler.exs)"
+
+        echo "✅ seed scripts completed – run 'verifier' to confirm DB state"
+    restart: "no"
+
+  # ── Step 2: query the database to confirm all expected rows exist ──────────
+  # Uses supabase/supavisor (Erlang runtime) rather than postgres:alpine
+  # (musl-libc) to avoid Alpine's DNS resolver issues with Docker's embedded
+  # DNS server (127.0.0.11) in constrained CI environments.
+  verifier:
+    image: supabase/supavisor:2.7.4
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://supavisor:testpass@postgres:5432/supavisor_k3s
+      SECRET_KEY_BASE: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      VAULT_ENC_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      API_JWT_SECRET: ci-test-jwt-secret
+      METRICS_JWT_SECRET: ci-test-jwt-secret
+      REGION: local
+      ERL_AFLAGS: -proto_dist inet_tcp
+      RLIMIT_NOFILE: ""
+    volumes:
+      - ./verify_tenants.exs:/etc/pooler/verify_tenants.exs:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "── verifying tenants in _supavisor.tenants / _supavisor.users ───"
+        /app/bin/supavisor eval "$$(cat /etc/pooler/verify_tenants.exs)"
+    restart: "no"
