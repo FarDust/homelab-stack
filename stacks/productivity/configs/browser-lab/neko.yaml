@@ -1,0 +1,18 @@
+member:
+  multiuser:
+    user:
+      password: "{{ secret "neko-user-password" }}"
+    admin:
+      password: "{{ secret "neko-admin-password" }}"
+webrtc:
+  iceservers:
+    backend:
+      - urls:
+          - "turn:{{ env "BROWSER_LAB_TURN_HOST" }}:{{ env "BROWSER_LAB_TURN_PORT" }}?transport=udp"
+        username: "{{ env "BROWSER_LAB_TURN_USER" }}"
+        credential: "{{ secret "turn-password" }}"
+    frontend:
+      - urls:
+          - "turn:{{ env "BROWSER_LAB_TURN_HOST" }}:{{ env "BROWSER_LAB_TURN_PORT" }}?transport=udp"
+        username: "{{ env "BROWSER_LAB_TURN_USER" }}"
+        credential: "{{ secret "turn-password" }}"

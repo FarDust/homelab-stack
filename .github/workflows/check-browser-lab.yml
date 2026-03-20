@@ -1,0 +1,144 @@
+name: 🧪 Test browser-lab stack
+
+on:
+  pull_request:
+    paths:
+      - "stacks/productivity/browser-lab.yml"
+      - "stacks/productivity/configs/browser-lab/**"
+      - ".github/workflows/check-browser-lab.yml"
+
+jobs:
+  validate-compose:
+    name: Validate compose config
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Check out code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Validate browser-lab compose
+        working-directory: stacks/productivity
+        env:
+          CONFIG_VERSION: "0"
+          LOCAL_DOMAIN: local.example.com
+          USER_TIMEZONE: UTC
+          GCS_SYNC_STORAGE_BUCKET: test-bucket
+          BROWSER_LAB_TURN_HOST: turn.local.example.com
+          BROWSER_LAB_TURN_PORT: "3478"
+          BROWSER_LAB_TURN_USER: neko
+          BROWSER_LAB_TURN_EXTERNAL_IP: "127.0.0.1"
+          BROWSER_LAB_TURN_REALM: local.example.com
+        run: docker compose -f browser-lab.yml config --quiet
+
+  test-coturn:
+    name: Launch coturn with config file
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Check out code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Create placeholder secret files
+        run: |
+          mkdir -p secrets/browser-lab
+          echo -n "test-turn-secret" > secrets/browser-lab/turn-password
+          echo -n "test-user-pass"   > secrets/browser-lab/neko-user-password
+          echo -n "test-admin-pass"  > secrets/browser-lab/neko-admin-password
+
+      - name: 🔧 Render turnserver.conf from template
+        env:
+          BROWSER_LAB_TURN_PORT: "3478"
+          BROWSER_LAB_TURN_EXTERNAL_IP: "127.0.0.1"
+          BROWSER_LAB_TURN_REALM: example.com
+          BROWSER_LAB_TURN_USER: neko
+        run: |
+          TURN_PASSWORD=$(cat secrets/browser-lab/turn-password)
+          sed \
+            -e "s|{{ env \"BROWSER_LAB_TURN_PORT\" }}|${BROWSER_LAB_TURN_PORT}|g" \
+            -e "s|{{ env \"BROWSER_LAB_TURN_EXTERNAL_IP\" }}|${BROWSER_LAB_TURN_EXTERNAL_IP}|g" \
+            -e "s|{{ env \"BROWSER_LAB_TURN_REALM\" }}|${BROWSER_LAB_TURN_REALM}|g" \
+            -e "s|{{ env \"BROWSER_LAB_TURN_USER\" }}|${BROWSER_LAB_TURN_USER}|g" \
+            -e "s|{{ secret \"turn-password\" }}|${TURN_PASSWORD}|g" \
+            stacks/productivity/configs/browser-lab/turnserver.conf \
+            > /tmp/turnserver.conf
+          echo "=== Rendered turnserver.conf ==="
+          cat /tmp/turnserver.conf
+
+      - name: 🚀 Launch coturn and verify it starts
+        run: |
+          docker run --rm -d \
+            --name test-coturn \
+            -v /tmp/turnserver.conf:/etc/coturn/turnserver.conf:ro \
+            coturn/coturn:4.6.3 \
+            -c /etc/coturn/turnserver.conf
+          # Wait for startup
+          sleep 3
+          # Verify the container is still running (exit means config error)
+          if ! docker inspect test-coturn --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
+            echo "❌ coturn failed to start — check config"
+            docker logs test-coturn || true
+            exit 1
+          fi
+          echo "✅ coturn started successfully"
+          docker stop test-coturn
+
+  test-neko-config:
+    name: Validate neko-config template rendering
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Check out code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Create placeholder secret files
+        run: |
+          mkdir -p secrets/browser-lab
+          echo -n "test-turn-secret" > secrets/browser-lab/turn-password
+          echo -n "test-user-pass"   > secrets/browser-lab/neko-user-password
+          echo -n "test-admin-pass"  > secrets/browser-lab/neko-admin-password
+
+      - name: 🔧 Render neko-config.yaml from template
+        env:
+          BROWSER_LAB_TURN_HOST: turn.local.example.com
+          BROWSER_LAB_TURN_PORT: "3478"
+          BROWSER_LAB_TURN_USER: neko
+        run: |
+          TURN_PASSWORD=$(cat secrets/browser-lab/turn-password)
+          NEKO_USER_PASSWORD=$(cat secrets/browser-lab/neko-user-password)
+          NEKO_ADMIN_PASSWORD=$(cat secrets/browser-lab/neko-admin-password)
+          sed \
+            -e "s|{{ secret \"neko-user-password\" }}|${NEKO_USER_PASSWORD}|g" \
+            -e "s|{{ secret \"neko-admin-password\" }}|${NEKO_ADMIN_PASSWORD}|g" \
+            -e "s|{{ secret \"turn-password\" }}|${TURN_PASSWORD}|g" \
+            -e "s|{{ env \"BROWSER_LAB_TURN_HOST\" }}|${BROWSER_LAB_TURN_HOST}|g" \
+            -e "s|{{ env \"BROWSER_LAB_TURN_PORT\" }}|${BROWSER_LAB_TURN_PORT}|g" \
+            -e "s|{{ env \"BROWSER_LAB_TURN_USER\" }}|${BROWSER_LAB_TURN_USER}|g" \
+            stacks/productivity/configs/browser-lab/neko.yaml \
+            > /tmp/neko-config.yaml
+          echo "=== Rendered neko-config.yaml ==="
+          cat /tmp/neko-config.yaml
+          # Basic YAML validation
+          python3 -c "import yaml, sys; yaml.safe_load(open('/tmp/neko-config.yaml')); print('✅ YAML is valid')"
+
+      - name: 🚀 Launch neko and verify it starts with NEKO_CONFIG
+        run: |
+          docker run --rm -d \
+            --name test-neko \
+            -e NEKO_CONFIG=/run/configs/neko-config.yaml \
+            -e NEKO_SERVER_PROXY=true \
+            -v /tmp/neko-config.yaml:/run/configs/neko-config.yaml:ro \
+            --cap-add SYS_ADMIN \
+            ghcr.io/m1k1o/neko/brave:latest
+          # Wait for startup
+          sleep 5
+          # Verify the container is still running (exit means startup error)
+          if ! docker inspect test-neko --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
+            echo "❌ neko failed to start — check neko-config.yaml"
+            docker logs test-neko || true
+            exit 1
+          fi
+          echo "✅ neko started with NEKO_CONFIG"
+          docker stop test-neko
