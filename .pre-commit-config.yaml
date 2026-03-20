@@ -21,7 +21,8 @@ repos:
       rev: v4.0.0
       hooks:
           - id: dotenv-linter
-            args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey,ExtraBlankLine']
+            args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey,ExtraBlankLine,SpaceCharacter']
+            exclude: '\.env\.template$'
     - repo: https://github.com/gitguardian/ggshield
       rev: v1.27.0
       hooks:
