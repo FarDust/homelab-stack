@@ -1,0 +1,8 @@
+authenticate_internal_service_url: http://127.0.0.1:8080
+
+routes:
+  - from: https://loki.${LOCAL_DOMAIN?err}
+    to: http://main-logging_loki:3100
+    allow_any_authenticated_user: true
+    pass_identity_headers: true
+    bearer_token_format: idp_identity_token

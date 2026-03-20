@@ -1,0 +1,97 @@
+modules:
+  icmp_mtu_1200:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1200
+      dont_fragment: true
+  icmp_mtu_1250:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1250
+      dont_fragment: true
+  icmp_mtu_1300:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1300
+      dont_fragment: true
+  icmp_mtu_1350:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1350
+      dont_fragment: true
+  icmp_mtu_1400:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1400
+      dont_fragment: true
+  icmp_mtu_1450:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1450
+      dont_fragment: true
+  icmp_mtu_1500:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1500
+      dont_fragment: true
+  icmp_mtu_1600:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1600
+      dont_fragment: true
+  icmp_mtu_1700:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1700
+      dont_fragment: true
+  icmp_mtu_1750:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1750
+      dont_fragment: true
+  icmp_mtu_1772:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1772
+      dont_fragment: true
+  icmp_mtu_1800:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      payload_size: 1800
+      dont_fragment: true

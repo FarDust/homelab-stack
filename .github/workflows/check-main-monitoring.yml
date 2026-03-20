@@ -1,0 +1,51 @@
+name: 🔍 Check main/monitoring
+
+# Reusable workflow – called from validate-compose.yml.
+# Asserts that core monitoring services are declared in stacks/main/monitoring.yml
+# and that the Prometheus configuration files pass promtool validation.
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: main/monitoring – core services & prometheus config
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🔍 Core monitoring services present
+        run: |
+          set -euo pipefail
+          set -a; source .env.example; set +a
+          rendered=$(docker compose -f stacks/main/monitoring.yml config)
+
+          for svc in node-exporter cadvisor blackbox-exporter; do
+            if grep -qE "^  ${svc}:" <<< "$rendered"; then
+              echo "✅ service '$svc' present"
+            else
+              echo "❌ service '$svc' missing!"; exit 1
+            fi
+          done
+
+      - name: 🔍 promtool – validate prometheus.yml
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD/stacks/main/configs/prometheus:/etc/prometheus:ro" \
+            --entrypoint promtool \
+            prom/prometheus:v3.10.0 \
+            check config /etc/prometheus/prometheus.yml
+
+      - name: 🔍 promtool – validate alert.rules
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD/stacks/main/configs/prometheus:/etc/prometheus:ro" \
+            --entrypoint promtool \
+            prom/prometheus:v3.10.0 \
+            check rules /etc/prometheus/alert.rules

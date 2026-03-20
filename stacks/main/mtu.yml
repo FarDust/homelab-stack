@@ -1,0 +1,84 @@
+# main-mtu stack
+version: "3.9"
+networks:
+  traefik:
+    external: true
+
+services:
+  mtu-probe:
+    image: syepes/network_exporter:latest
+    command: ["/bin/sh", "/entrypoint/mtu-probe-entrypoint.sh"]
+    networks:
+      traefik:
+        aliases:
+          - mtu-probe
+    environment:
+      - MTU_TASKS_DNS=${MTU_TASKS_DNS:-tasks.mtu-probe}
+      - MTU_PAYLOAD_SIZE=${MTU_PAYLOAD_SIZE:-1772}
+      - MTU_INTERVAL=${MTU_INTERVAL:-30s}
+      - MTU_TIMEOUT=${MTU_TIMEOUT:-1s}
+      - MTU_COUNT=${MTU_COUNT:-1}
+      - MTU_SOURCE_NODE={{.Node.Hostname}}
+      - MTU_LOCAL_DOMAIN=${LOCAL_DOMAIN:-home}
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    configs:
+      - source: mtu-network-exporter-template
+        target: /app/cfg/network_exporter.yml.tmpl
+      - source: mtu-network-exporter-entrypoint
+        target: /entrypoint/mtu-probe-entrypoint.sh
+        mode: 0555
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.platform.os == linux
+      labels:
+        - "traefik.enable=false"
+
+  mtu-blackbox:
+    image: prom/blackbox-exporter:latest
+    command:
+      - --config.file=/etc/blackbox_exporter/blackbox.yml
+    networks:
+      traefik:
+        aliases:
+          - mtu-blackbox
+    cap_add:
+      - NET_RAW
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    configs:
+      - source: mtu-blackbox-config
+        target: /etc/blackbox_exporter/blackbox.yml
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.platform.os == linux
+      labels:
+        - "traefik.enable=false"
+
+configs:
+  mtu-network-exporter-template:
+    name: mtu-network-exporter-template-${CONFIG_VERSION:-0}
+    file: ./configs/mtu/network_exporter.yml.tmpl
+  mtu-network-exporter-entrypoint:
+    name: mtu-network-exporter-entrypoint-${CONFIG_VERSION:-0}
+    file: ./configs/mtu/mtu-probe-entrypoint.sh
+  mtu-blackbox-config:
+    name: mtu-blackbox-config-${CONFIG_VERSION:-0}
+    file: ./configs/mtu/blackbox.yml

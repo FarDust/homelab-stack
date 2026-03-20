@@ -1,0 +1,231 @@
+version: '3.8'
+
+services:
+  loki:
+    image: grafana/loki:3.6.4
+    user: "0"
+    command:
+      - -config.file=/etc/loki/loki.yml
+      - -config.expand-env=true
+    networks:
+      - traefik
+    volumes:
+      - loki-data:/var/lib/loki
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki.yml
+      - source: loki_rules_traefik
+        target: /etc/loki/rules/traefik-router-conflict.yml
+    environment:
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-168h}
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints:
+          - node.labels.swarm.leader != true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.loki.rule=Host(`loki.${LOCAL_DOMAIN?err}`) && !PathPrefix(`/otlp`)"
+        - "traefik.http.routers.loki.entrypoints=websecure"
+        - "traefik.http.routers.loki.tls=true"
+        - "traefik.http.routers.loki.tls.certresolver=le-dns"
+        - "traefik.http.routers.loki-otlp.rule=Host(`loki.${LOCAL_DOMAIN?err}`) && PathPrefix(`/otlp`)"
+        - "traefik.http.routers.loki-otlp.entrypoints=websecure"
+        - "traefik.http.routers.loki-otlp.tls=true"
+        - "traefik.http.routers.loki-otlp.tls.certresolver=le-dns"
+        - "traefik.http.routers.loki-otlp.service=loki"
+        - "traefik.http.routers.loki-otlp.priority=120"
+        - "traefik.http.routers.loki-otlp.observability.accesslogs=false"
+        - "traefik.http.routers.loki.middlewares=oauth2-proxy-forward-auth@swarm"
+        - "traefik.http.middlewares.oauth2-proxy-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth"
+        - "traefik.http.middlewares.oauth2-proxy-forward-auth.forwardAuth.authRequestHeaders=Authorization,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method"
+        - "traefik.http.middlewares.oauth2-proxy-forward-auth.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.oauth2-proxy-forward-auth.forwardAuth.authResponseHeaders=Authorization,X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Access-Token"
+        - "traefik.http.services.loki.loadbalancer.server.port=3100"
+        - "traefik.swarm.network=traefik"
+
+  grafana-loki-token-refresh:
+    image: python:3.12-alpine
+    command:
+      - python
+      - /scripts/grafana_loki_token_refresh.py
+    networks:
+      - traefik
+    extra_hosts:
+      - "idp.${LOCAL_DOMAIN?err}:${TRAEFIK_VIP?err}"
+      - "grafana.${DOMAIN_NAME?err}:${TRAEFIK_VIP?err}"
+    configs:
+      - source: grafana_loki_token_refresh
+        target: /scripts/grafana_loki_token_refresh.py
+        mode: 0555
+    environment:
+      GRAFANA_URL: https://grafana.${DOMAIN_NAME?err}
+      GRAFANA_DATASOURCE_UID: ${GRAFANA_LOKI_DATASOURCE_UID:-P8E80F9AEF21F6940}
+      GRAFANA_API_TOKEN: ${MCP_ADMIN_GRAFANA_API_KEY?err}
+      KEYCLOAK_TOKEN_URL: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
+      KEYCLOAK_CLIENT_ID: ${SIGILCORE_LOKI_API_CLIENT_ID?err}
+      KEYCLOAK_CLIENT_SECRET: ${SIGILCORE_LOKI_API_CLIENT_SECRET?err}
+      REFRESH_SAFETY_SECONDS: ${GRAFANA_LOKI_TOKEN_REFRESH_SAFETY_SECONDS:-60}
+      MIN_REFRESH_SECONDS: ${GRAFANA_LOKI_TOKEN_REFRESH_MIN_SECONDS:-60}
+      PYTHONUNBUFFERED: "1"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints:
+          - node.labels.swarm.leader != true
+
+  alertmanager:
+    image: prom/alertmanager:v0.31.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    networks:
+      - traefik
+    volumes:
+      - alertmanager-data:/alertmanager
+    configs:
+      - source: alertmanager_config
+        target: /etc/alertmanager/alertmanager.yml
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints:
+          - node.labels.swarm.leader != true
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    command:
+      - --config=/etc/otel-collector/otel-collector.yml
+    networks:
+      - traefik
+    configs:
+      - source: otel_collector_config
+        target: /etc/otel-collector/otel-collector.yml
+    environment:
+      - OTEL_COLLECTOR_REDIS_ENDPOINT=redis.${LOCAL_DOMAIN?err}:${INTERNAL_PORT:-5578}
+      - OTEL_COLLECTOR_REDIS_DB=2
+      - OTEL_COLLECTOR_REDIS_SERVER_NAME=redis.${LOCAL_DOMAIN?err}
+      - OTEL_COLLECTOR_LOKI_ENDPOINT=https://loki.${LOCAL_DOMAIN?err}/otlp
+      - REDIS_PASSWORD=${REDIS_PASSWORD?err}
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+      placement:
+        constraints:
+          - node.labels.swarm.leader != true
+          - node.labels.node.ephemeral != true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.otel-collector.rule=Host(`otel-collector.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.otel-collector.entrypoints=websecure"
+        - "traefik.http.routers.otel-collector.tls=true"
+        - "traefik.http.routers.otel-collector.tls.certresolver=le-dns"
+        - "traefik.http.routers.otel-collector.service=otel-collector"
+        - "traefik.http.services.otel-collector.loadbalancer.server.port=4318"
+        - "traefik.http.routers.otel-collector.observability.accesslogs=false"
+        - "traefik.swarm.network=traefik"
+
+  vector:
+    image: timberio/vector:0.53.0-alpine
+    command:
+      - --config
+      - /etc/vector/vector.yml
+    networks:
+      - traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vector-data:/var/lib/vector
+    configs:
+      - source: vector_config
+        target: /etc/vector/vector.yml
+    secrets:
+      - source: gcp_sa
+        target: gcp_sa
+    environment:
+      GCS_SYNC_STORAGE_BUCKET: ${GCS_SYNC_STORAGE_BUCKET?err}
+    deploy:
+      mode: replicated
+      replicas: 0
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+      placement:
+        constraints:
+          - node.labels.swarm.leader == true
+          - node.labels.node.ephemeral != true
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  loki-data:
+    driver: local
+  vector-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+
+configs:
+  loki_config:
+    name: loki_config-${CONFIG_VERSION:-0}
+    file: ./configs/logging/loki.yml
+  loki_rules_traefik:
+    name: loki_rules_traefik-${CONFIG_VERSION:-0}
+    file: ./configs/logging/rules/traefik-router-conflict.yml
+  alertmanager_config:
+    name: alertmanager_config-${CONFIG_VERSION:-0}
+    file: ./configs/logging/alertmanager.yml
+  vector_config:
+    name: vector_config-${CONFIG_VERSION:-0}
+    file: ./configs/logging/vector.yml
+  otel_collector_config:
+    name: otel_collector_config-${CONFIG_VERSION:-0}
+    file: ./configs/logging/otel-collector.yml
+  grafana_loki_token_refresh:
+    name: grafana_loki_token_refresh-${CONFIG_VERSION:-0}
+    file: ./configs/logging/grafana_loki_token_refresh.py
+
+secrets:
+  gcp_sa:
+    name: gcp_sa-${CONFIG_VERSION:-0}
+    file: ../../secrets/google/gcloud.json
