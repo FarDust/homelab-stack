@@ -40,10 +40,10 @@ services:
       # relay candidates on ${BROWSER_LAB_TURN_EXTERNAL_IP} which the backend can't reach via the internal overlay.
       # NOTE: Backend TURN/TLS via Traefik requires correct SNI. With sniStrict enabled, the backend's turns://
       # attempts can fail; keep backend on UDP-only and reserve turns:// for frontend fallback.
-      - NEKO_WEBRTC_ICESERVERS_BACKEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      - NEKO_WEBRTC_ICESERVERS_BACKEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
       # Previous frontend mixed transport (kept for rollback):
-      # - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp","turns:${BROWSER_LAB_TURN_HOST}:${INTERNAL_PORT:-5578}?transport=tcp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
-      - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      # - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp","turns:${BROWSER_LAB_TURN_HOST?err}:${INTERNAL_PORT:-5578}?transport=tcp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
     volumes:
       - type: tmpfs
         target: /dev/shm
