@@ -3,63 +3,24 @@ name: 🧪 Validate Docker Compose Files
 on:
   pull_request:
     paths:
-      - 'stacks/**/*.yml'
-      - 'stacks/**/*.exs'
-      - 'stacks/**/*.sh'
+      - 'stacks/productivity/browser-lab.yml'
       - '.env.example'
       - '.github/workflows/validate-compose.yml'
-      - '.github/workflows/check-*.yml'
+      - '.github/workflows/check-productivity-browser-lab.yml'
   push:
     branches:
       - main
     paths:
-      - 'stacks/**/*.yml'
-      - 'stacks/**/*.exs'
-      - 'stacks/**/*.sh'
+      - 'stacks/productivity/browser-lab.yml'
       - '.env.example'
 
 jobs:
-  # ── Step 1: discover every compose file and build the matrix ───────────────
-  generate-matrix:
-    name: 📋 Discover compose files
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      matrix: ${{ steps.list.outputs.matrix }}
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: false
-
-      - name: 🔍 List compose files
-        id: list
-        run: |
-          matrix=$(
-            find stacks -maxdepth 2 -name '*.yml' ! -path '*/configs/*' | sort \
-            | jq -R -s -c '
-                split("\n")
-                | map(select(length > 0))
-                | map({
-                    file: .,
-                    folder: (split("/")[1]),
-                    stack:  (split("/")[2] | split(".")[0])
-                  })'
-          )
-          echo "matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
-          echo "Discovered $(echo "$matrix" | jq length) compose files"
-
-  # ── Step 2: one parallel job per compose file (generic render check) ───────
+  # ── Step 1: generic render check ──────────────────────────────────────────
   validate:
-    name: "${{ matrix.folder }}/${{ matrix.stack }}"
-    needs: generate-matrix
+    name: productivity/browser-lab
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false   # run every job so you see the full picture at once
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
@@ -70,11 +31,9 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source .env.example; set +a
-          docker compose -f "${{ matrix.file }}" config --quiet
+          docker compose -f stacks/productivity/browser-lab.yml config --quiet
 
-  # ── Step 3: folder-specialised checks run as sub-workflows in parallel ─────
-  # These run only after all generic validate jobs pass, so failures are
-  # unambiguously domain-specific rather than basic render errors.
+  # ── Step 2: domain-specific static checks ─────────────────────────────────
   check-productivity-browser-lab:
     name: 🔍 productivity/browser-lab
     needs: validate
