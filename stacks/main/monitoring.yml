@@ -4,10 +4,12 @@ networks:
     external: true
   traefik:
     external: true
+  prometheus:
+    external: true
 services:
   node-exporter:
     image: quay.io/prometheus/node-exporter:latest
-    hostname: "{{.Node.ID}}"
+    hostname: "{{.Node.Hostname}}"
     environment:
       - NODE_ID={{.Node.ID}}
     networks:
@@ -39,7 +41,7 @@ services:
         - "traefik.swarm.network=traefik"
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
-    hostname: "{{.Node.ID}}"
+    hostname: "{{.Node.Hostname}}"
     networks:
       - traefik
     command:
@@ -83,7 +85,7 @@ services:
           cpus: "0.05"
           memory: 128M
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 5s
         max_attempts: 3
         window: 120s
@@ -103,37 +105,6 @@ services:
           memory: 128M
         reservations:
           memory: 64M
-  watchtower:
-    image: containrrr/watchtower
-    networks:
-      - traefik
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    secrets:
-      - source: watchtower_auth_token
-    command:
-      --schedule '0 2 * * *'
-      --cleanup
-      --stop-timeout 30s
-      --http-api-metrics
-    environment:
-      - TZ=America/Santiago
-      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN?err}
-    deploy:
-      mode: global
-      restart_policy:
-        condition: on-failure
-      placement:
-        constraints:
-        - node.role == manager
-        - node.platform.os == linux
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
-      labels:
-        - "traefik.enable=false"
   nextdns-exporter:
     image: ghcr.io/raylas/nextdns-exporter:0.6.0
     networks:
@@ -154,32 +125,105 @@ services:
         - "traefik.enable=false"
         - "traefik.swarm.network=traefik"
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 5s
         max_attempts: 3
         window: 60s
-  speedtest-exporter:
-    image: ghcr.io/danopstech/speedtest_exporter:latest
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
     networks:
       - traefik
-    environment:
-      - TZ=America/Santiago
+      - prometheus
+    configs:
+      - source: blackbox_config
+        target: /etc/blackbox_exporter/blackbox.yml
+    command:
+      - --config.file=/etc/blackbox_exporter/blackbox.yml
     deploy:
-      mode: global
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: 256M
-        reservations:
-          memory: 32M
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
       labels:
         - "traefik.enable=false"
         - "traefik.swarm.network=traefik"
+  docker-health-telegraf:
+    image: telegraf:1.37.3
+    user: "0:0"
+    entrypoint:
+      - telegraf
+    command:
+      - --config
+      - /etc/telegraf/telegraf.conf
+    networks:
+      - traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    configs:
+      - source: telegraf_docker_health_config
+        target: /etc/telegraf/telegraf.conf
+    deploy:
+      mode: global
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 5s
         max_attempts: 3
         window: 60s
+      placement:
+        constraints:
+          - node.platform.os == linux
+      labels:
+        - "traefik.enable=false"
+        - "traefik.swarm.network=traefik"
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.18.0
+    networks:
+      - traefik
+    configs:
+      - source: postgres_exporter_queries
+        target: /etc/postgres_exporter/queries.yaml
+    secrets:
+      - source: postgres_exporter_db_password
+        target: /run/secrets/postgres_exporter_db_password
+    environment:
+      - DATA_SOURCE_URI=main-storage_postgres:5432/k8s_collective?sslmode=disable
+      - DATA_SOURCE_USER=locutus
+      - DATA_SOURCE_PASS_FILE=/run/secrets/postgres_exporter_db_password
+    command:
+      - --collector.stat_statements
+      - --collector.stat_bgwriter
+      - --collector.database_wraparound
+      - --collector.long_running_transactions
+      - --collector.process_idle
+      - --collector.postmaster
+      - --collector.stat_activity_autovacuum
+      - --collector.stat_checkpointer
+      - --collector.stat_database
+      - --collector.stat_user_tables
+      - --collector.statio_user_tables
+      - --collector.replication_slot
+      - --collector.locks
+      - --web.listen-address=:9187
+      - --extend.query-path=/etc/postgres_exporter/queries.yaml
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+      labels:
+        - "traefik.enable=false"
+        - "traefik.swarm.network=traefik"
   # netdata:
   #   image: netdata/netdata:edge
   #   pid: host
@@ -233,6 +277,17 @@ services:
   #netdataconfig: {}
   #netdatalib: {}
   #netdatacache: {}
+configs:
+  blackbox_config:
+    name: blackbox_config-${CONFIG_VERSION:-0}
+    file: ./configs/blackbox/blackbox.yml
+  telegraf_docker_health_config:
+    name: telegraf_docker_health_config-${CONFIG_VERSION:-0}
+    file: ./configs/telegraf/docker-health.conf
+  postgres_exporter_queries:
+    name: postgres_exporter_queries-${CONFIG_VERSION:-0}
+    file: ./configs/postgres/postgres_exporter_queries.yaml
 secrets:
-  watchtower_auth_token:
-    file: ../../secrets/watchtower/auth_token
+  postgres_exporter_db_password:
+    name: postgres_exporter_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/postgres_exporter/db_password

@@ -1,0 +1,50 @@
+conf:
+  refresh: 30s
+  nameserver: 127.0.0.11:53
+
+icmp:
+  interval: __MTU_INTERVAL__
+  timeout: __MTU_TIMEOUT__
+  count: __MTU_COUNT__
+  payload_size: __MTU_PAYLOAD_SIZE__
+
+tcp:
+  interval: __MTU_INTERVAL__
+  timeout: __MTU_TIMEOUT__
+
+targets:
+  - name: mtu-probe-mesh
+    host: __MTU_TASKS_DNS__
+    type: ICMP
+    labels:
+      source_node: __MTU_SOURCE_NODE__
+  - name: postgres-tcp
+    host: tasks.postgres:5432
+    type: TCP
+    labels:
+      source_node: __MTU_SOURCE_NODE__
+      service: postgres
+      protocol: tcp
+  - name: postgres-sni-tcp
+    host: postgres.__MTU_LOCAL_DOMAIN__:5578
+    type: TCP
+    labels:
+      source_node: __MTU_SOURCE_NODE__
+      service: postgres-sni
+      protocol: tcp
+      endpoint: sni
+  - name: redis-tcp
+    host: tasks.redis:6379
+    type: TCP
+    labels:
+      source_node: __MTU_SOURCE_NODE__
+      service: redis
+      protocol: tcp
+  - name: redis-sni-tcp
+    host: redis.__MTU_LOCAL_DOMAIN__:6379
+    type: TCP
+    labels:
+      source_node: __MTU_SOURCE_NODE__
+      service: redis-sni
+      protocol: tcp
+      endpoint: sni
