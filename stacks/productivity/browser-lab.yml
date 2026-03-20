@@ -91,7 +91,7 @@ services:
       - --external-ip=${BROWSER_LAB_TURN_EXTERNAL_IP?err}
       - --fingerprint
       - --lt-cred-mech
-      - --realm=${BROWSER_LAB_TURN_REALM}
+      - --realm=${BROWSER_LAB_TURN_REALM?err}
       - --user=${BROWSER_LAB_TURN_USER:-neko}:${BROWSER_LAB_TURN_PASSWORD?err}
       - --no-cli
       - --no-tls
