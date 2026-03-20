@@ -123,3 +123,10 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/check-main-maintenance.yml
+
+  check-productivity-browser-lab:
+    name: 🔍 productivity/browser-lab
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check-productivity-browser-lab.yml

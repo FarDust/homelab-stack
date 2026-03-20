@@ -1,0 +1,135 @@
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  traefik:
+    external: true
+  browser-turn:
+    driver: overlay
+    internal: true
+
+services:
+  browser-neko-brave:
+    image: ghcr.io/m1k1o/neko/nvidia-brave:latest
+    cap_add:
+      - SYS_ADMIN
+    networks:
+      - traefik
+      - traefik-public
+      - browser-turn
+    environment:
+      - TZ=${USER_TIMEZONE:-UTC}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics
+      - NEKO_SERVER_PROXY=true
+      - NEKO_DESKTOP_SCREEN=${BROWSER_LAB_NEKO_SCREEN:-1920x1080@30}
+      # Neko v3: use capture.* settings (v2 vars like NEKO_HWENC/NEKO_VIDEO_BITRATE are removed).
+      - NEKO_CAPTURE_VIDEO_CODEC=h264
+      - "NEKO_CAPTURE_VIDEO_PIPELINE=ximagesrc display-name={display} show-pointer=true use-damage=false ! video/x-raw,framerate=60/1 ! videoconvert ! queue ! video/x-raw,format=NV12 ! nvh264enc name=encoder preset=2 gop-size=60 spatial-aq=true temporal-aq=true bitrate=12000 vbv-buffer-size=12000 rc-mode=6 ! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream ! appsink name=appsink"
+      - NEKO_MEMBER_MULTIUSER_USER_PASSWORD=${BROWSER_LAB_NEKO_USER_PASSWORD?err}
+      - NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=${BROWSER_LAB_NEKO_ADMIN_PASSWORD?err}
+      # Helps avoid "sticky" low quality and smooths 1080p@60 under variable conditions.
+      - NEKO_WEBRTC_ESTIMATOR_ENABLED=true
+      - NEKO_WEBRTC_ESTIMATOR_INITIAL_BITRATE=8000000
+      # ICE-lite prevents the backend from behaving like a full ICE agent; with TURN-only setups
+      # it results in the backend advertising unreachable host candidates and failing DTLS.
+      - NEKO_WEBRTC_ICELITE=0
+      - NEKO_WEBRTC_TCPMUX=0
+      # Backend must use the same client-reachable TURN address; otherwise coturn will hand it
+      # relay candidates on ${BROWSER_LAB_TURN_EXTERNAL_IP} which the backend can't reach via the internal overlay.
+      # NOTE: Backend TURN/TLS via Traefik requires correct SNI. With sniStrict enabled, the backend's turns://
+      # attempts can fail; keep backend on UDP-only and reserve turns:// for frontend fallback.
+      - NEKO_WEBRTC_ICESERVERS_BACKEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      # Previous frontend mixed transport (kept for rollback):
+      # - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp","turns:${BROWSER_LAB_TURN_HOST?err}:${INTERNAL_PORT:-5578}?transport=tcp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+    volumes:
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 1073741824 # 1 GiB
+      - browser_neko_brave_data:/home/neko/.config/BraveSoftware/Brave-Browser
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      placement:
+        constraints:
+        - node.role == worker
+        - node.labels.gpu == true
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "sablier.enable=true"
+        - "sablier.group=productivity"
+        - "traefik.enable=true"
+        - "traefik.http.routers.browser-neko-brave.rule=Host(`brave-neko.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.browser-neko-brave.entrypoints=websecure"
+        - "traefik.http.routers.browser-neko-brave.tls=true"
+        - "traefik.http.routers.browser-neko-brave.tls.certresolver=le-dns"
+        - "traefik.http.services.browser-neko-brave.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+
+  browser-coturn:
+    image: coturn/coturn:4.6.3
+    networks:
+      - traefik
+      - browser-turn
+    # TURN over UDP needs relay ports in addition to 3478/udp. Traefik can proxy 3478/udp,
+    # but the relay ports are dynamic; we keep a small fixed range and publish it via Swarm ingress
+    # so it works regardless of which node runs the service.
+    ports:
+      - "49160-49179:49160-49179/udp"
+    command:
+      - --listening-port=${BROWSER_LAB_TURN_PORT:-3478}
+      - --min-port=49160
+      - --max-port=49179
+      - --external-ip=${BROWSER_LAB_TURN_EXTERNAL_IP?err}
+      - --fingerprint
+      - --lt-cred-mech
+      - --realm=${BROWSER_LAB_TURN_REALM?err}
+      - --user=${BROWSER_LAB_TURN_USER:-neko}:${BROWSER_LAB_TURN_PASSWORD?err}
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      placement:
+        constraints:
+          # DNS *.${LOCAL_DOMAIN} lands on the manager; running coturn on the manager
+          # avoids Swarm routing-mesh forwarding for high-bitrate UDP relay traffic.
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "sablier.enable=true"
+        - "sablier.group=productivity"
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.browser-coturn-tcp.rule=HostSNI(`turn.${LOCAL_DOMAIN}`)"
+        - "traefik.tcp.routers.browser-coturn-tcp.entrypoints=host-internal"
+        - "traefik.tcp.routers.browser-coturn-tcp.tls=true"
+        - "traefik.tcp.routers.browser-coturn-tcp.tls.certresolver=le-dns"
+        - "traefik.tcp.routers.browser-coturn-tcp.service=browser-coturn-tcp"
+        - "traefik.tcp.services.browser-coturn-tcp.loadbalancer.server.port=${BROWSER_LAB_TURN_PORT:-3478}"
+        - "traefik.udp.routers.browser-coturn-udp.entrypoints=turn-udp"
+        - "traefik.udp.routers.browser-coturn-udp.service=browser-coturn-udp"
+        - "traefik.udp.services.browser-coturn-udp.loadbalancer.server.port=${BROWSER_LAB_TURN_PORT:-3478}"
+        - "traefik.swarm.network=traefik"
+        - "traefik.swarm.lbswarm=true"
+
+volumes:
+  browser_neko_brave_data:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/browser-lab/neko-brave"
+      allow_other: "true"
+      vfs_cache_mode: full
+      poll_interval: 5
