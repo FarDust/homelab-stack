@@ -50,6 +50,13 @@ services:
       - source: browser-lab-neko-config
         target: /run/configs/neko-config.yaml
         mode: 0444
+    # Secrets are required here so that the golang template in browser-lab-neko-config
+    # can resolve `{{ secret "name" }}` at task start-up time. Without them Docker will
+    # refuse to start the container with "secret target not found".
+    secrets:
+      - neko-user-password
+      - neko-admin-password
+      - turn-password
     deploy:
       mode: replicated
       replicas: 1
@@ -91,6 +98,10 @@ services:
       - source: browser-lab-turnserver-conf
         target: /etc/coturn/turnserver.conf
         mode: 0444
+    # Secret required so that the golang template in browser-lab-turnserver-conf
+    # can resolve `{{ secret "turn-password" }}` at task start-up time.
+    secrets:
+      - turn-password
     environment:
       - BROWSER_LAB_TURN_PORT=${BROWSER_LAB_TURN_PORT:-3478}
       - BROWSER_LAB_TURN_EXTERNAL_IP=${BROWSER_LAB_TURN_EXTERNAL_IP?err}
