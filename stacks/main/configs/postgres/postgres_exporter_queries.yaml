@@ -1,0 +1,44 @@
+pg_kine_table:
+  query: |
+    SELECT
+      count(*)::double precision AS rows,
+      count(DISTINCT name)::double precision AS distinct_keys,
+      max(id)::double precision AS max_revision
+    FROM kine;
+  metrics:
+    - rows:
+        usage: "GAUGE"
+        description: "Total live rows currently present in the kine table."
+    - distinct_keys:
+        usage: "GAUGE"
+        description: "Distinct object keys currently present in the kine table."
+    - max_revision:
+        usage: "GAUGE"
+        description: "Highest revision id currently present in the kine table."
+
+pg_kine_hot_prefixes:
+  query: |
+    SELECT
+      prefix,
+      revisions::double precision AS revisions
+    FROM (
+      SELECT
+        CASE
+          WHEN name LIKE '/registry/longhorn.io/%' THEN 'longhorn.io'
+          WHEN name LIKE '/registry/persistentvolumes/%' THEN 'persistentvolumes'
+          WHEN name LIKE '/registry/leases/%' THEN 'leases'
+          WHEN name LIKE '/registry/masterleases/%' THEN 'masterleases'
+          WHEN name LIKE '/registry/events/%' THEN 'events'
+          ELSE 'other'
+        END AS prefix,
+        count(*) AS revisions
+      FROM kine
+      GROUP BY 1
+    ) t;
+  metrics:
+    - prefix:
+        usage: "LABEL"
+        description: "Logical registry family within the kine table."
+    - revisions:
+        usage: "GAUGE"
+        description: "Current number of kine rows for the registry family."

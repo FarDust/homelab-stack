@@ -20,3 +20,165 @@ groups:
     annotations:
       summary: "Instance {{ $labels.instance }} under high load"
       description: "{{ $labels.instance }} of job {{ $labels.job }} is under high load."
+
+- name: mtu-mesh
+  rules:
+  - record: mtu_ping_status
+    expr: |
+      label_join(
+        max by (source_node, source_ip, target_node, target_ip, name, target, job) (
+          ping_status{job="mtu-network-exporter",source_node!=""}
+            * on (target_ip) group_left(target_node)
+              label_replace(
+                label_replace(
+                  max by (source_ip, source_node) (ping_status{job="mtu-network-exporter",source_node!=""}),
+                  "target_ip", "$1", "source_ip", "(.*)"
+                ),
+                "target_node", "$1", "source_node", "(.*)"
+              )
+        ),
+        "id", "::", "source_node", "target_node"
+      )
+  - record: mtu_ping_loss_percent
+    expr: |
+      label_join(
+        max by (source_node, source_ip, target_node, target_ip, name, target, job) (
+          ping_loss_percent{job="mtu-network-exporter",source_node!=""}
+            * on (target_ip) group_left(target_node)
+              label_replace(
+                label_replace(
+                  max by (source_ip, source_node) (ping_status{job="mtu-network-exporter",source_node!=""}),
+                  "target_ip", "$1", "source_ip", "(.*)"
+                ),
+                "target_node", "$1", "source_node", "(.*)"
+              )
+        ),
+        "id", "::", "source_node", "target_node"
+      )
+  - record: mtu_ping_rtt_seconds_mean
+    expr: |
+      label_join(
+        max by (source_node, source_ip, target_node, target_ip, name, target, job) (
+          ping_rtt_seconds{job="mtu-network-exporter",source_node!="",type="mean"}
+            * on (target_ip) group_left(target_node)
+              label_replace(
+                label_replace(
+                  max by (source_ip, source_node) (ping_status{job="mtu-network-exporter",source_node!=""}),
+                  "target_ip", "$1", "source_ip", "(.*)"
+                ),
+                "target_node", "$1", "source_node", "(.*)"
+              )
+        ),
+        "id", "::", "source_node", "target_node"
+      )
+  - record: mtu_ping_rtt_seconds_worst
+    expr: |
+      label_join(
+        max by (source_node, source_ip, target_node, target_ip, name, target, job) (
+          ping_rtt_seconds{job="mtu-network-exporter",source_node!="",type="worst"}
+            * on (target_ip) group_left(target_node)
+              label_replace(
+                label_replace(
+                  max by (source_ip, source_node) (ping_status{job="mtu-network-exporter",source_node!=""}),
+                  "target_ip", "$1", "source_ip", "(.*)"
+                ),
+                "target_node", "$1", "source_node", "(.*)"
+              )
+        ),
+        "id", "::", "source_node", "target_node"
+      )
+
+  - record: mtu_edge_status
+    expr: |
+      label_replace(
+        label_replace(mtu_ping_status{target_node!=""}, "source", "$1", "source_node", "(.*)"),
+        "target", "$1", "target_node", "(.*)"
+      )
+  - record: mtu_edge_rtt_ms
+    expr: |
+      label_replace(
+        label_replace(mtu_ping_rtt_seconds_mean{target_node!=""} * 1000, "source", "$1", "source_node", "(.*)"),
+        "target", "$1", "target_node", "(.*)"
+      )
+  - record: mtu_edge_loss_percent
+    expr: |
+      label_replace(
+        label_replace(mtu_ping_loss_percent{target_node!=""}, "source", "$1", "source_node", "(.*)"),
+        "target", "$1", "target_node", "(.*)"
+      )
+  - record: mtu_edge_thickness
+    expr: |
+      label_replace(
+        label_replace((100 - mtu_ping_loss_percent{target_node!=""}), "source", "$1", "source_node", "(.*)"),
+        "target", "$1", "target_node", "(.*)"
+      )
+
+  - record: mtu_node_links
+    expr: |
+      label_replace(
+        count by (id) (
+          label_replace(mtu_ping_status, "id", "$1", "source_node", "(.*)")
+        or
+          label_replace(mtu_ping_status, "id", "$1", "target_node", "(.*)")
+        ),
+        "title", "$1", "id", "(.*)"
+      )
+  - record: mtu_node_rtt_ms
+    expr: |
+      label_replace(
+        avg by (id) (
+          label_replace(mtu_ping_rtt_seconds_mean * 1000, "id", "$1", "source_node", "(.*)")
+        or
+          label_replace(mtu_ping_rtt_seconds_mean * 1000, "id", "$1", "target_node", "(.*)")
+        ),
+        "title", "$1", "id", "(.*)"
+      )
+  - record: mtu_node_loss_percent
+    expr: |
+      label_replace(
+        avg by (id) (
+          label_replace(mtu_ping_loss_percent, "id", "$1", "source_node", "(.*)")
+        or
+          label_replace(mtu_ping_loss_percent, "id", "$1", "target_node", "(.*)")
+        ),
+        "title", "$1", "id", "(.*)"
+      )
+
+- name: docker-health
+  rules:
+  - alert: DockerHealthTargetDown
+    expr: up{job="docker-health"} == 0
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "docker-health target down on {{ $labels.instance }}"
+      description: "Prometheus cannot scrape docker-health target {{ $labels.instance }} for more than 2 minutes."
+
+  - alert: DockerContainerUnhealthy
+    expr: max by (instance, engine_host, com_docker_swarm_service_name, container_name) (docker_container_health_failing_streak{job="docker-health",container_status="running"}) > 0
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Container unhealthy on {{ $labels.engine_host }}"
+      description: "Container {{ $labels.container_name }} (service {{ $labels.com_docker_swarm_service_name }}) has failing healthchecks for more than 3 minutes (streak={{ $value }})."
+
+- name: monitoring-path
+  rules:
+  - alert: PrometheusVipPathDivergence
+    expr: |
+      max_over_time(probe_success{job="blackbox",probe="monitoring_prometheus_vip"}[2m]) == 0
+      and on()
+      max_over_time(probe_success{job="blackbox",probe="monitoring_prometheus_task"}[2m]) == 1
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Prometheus service VIP path is failing while task path is healthy"
+      description: "Blackbox probes show VIP/alias path down and task path healthy. This indicates Swarm service-path divergence rather than Prometheus process outage. Check DNS/service VIP resolution and overlay routing."
+
+- name: volcano-node-mapping
+  rules:
+  - record: volcano_node_uname_info
+    expr: node_uname_info{job="node-exporter"}

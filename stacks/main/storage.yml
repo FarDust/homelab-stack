@@ -9,17 +9,29 @@ services:
     image: kartoza/postgis:17-3.5
     networks:
       - traefik
+    configs:
+      - source: postgres_pgvector_bootstrap_sh
+        target: /usr/local/bin/postgres-pgvector-bootstrap.sh
+        mode: 0555
     volumes:
       - postgres_data:/var/lib/postgresql/
       - postgres_certs:/lego/certs:ro
     secrets:
       - source: postgres_db_password
+    entrypoint:
+      - /bin/sh
+      - /usr/local/bin/postgres-pgvector-bootstrap.sh
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
       - SSL_CERT_FILE=/lego/certs/fullchain.pem
       - SSL_KEY_FILE=/lego/certs/privkey.pem
+      - SHARED_PRELOAD_LIBRARIES=pg_cron,pg_stat_statements
+      - |
+        EXTRA_CONF=pg_stat_statements.track=all
+        pg_stat_statements.max=10000
+        track_io_timing=on
     deploy:
       replicas: 1
       restart_policy:
@@ -48,7 +60,90 @@ services:
         - "traefik.tcp.routers.postgres.rule=HostSNI(`postgres.${LOCAL_DOMAIN?err}`)"
         - "traefik.tcp.routers.postgres.entrypoints=host-internal"
         - "traefik.tcp.routers.postgres.tls.passthrough=true"
+        - "traefik.tcp.routers.postgres.tls.certresolver=le-dns"
         - "traefik.tcp.services.postgres.loadbalancer.server.port=5432"
+        - "traefik.swarm.network=traefik"
+        - com.centurylinklabs.watchtower.enable=false
+
+  supavisor-apps:
+    image: supabase/supavisor:2.7.4
+    networks:
+      - traefik
+    configs:
+      - source: supavisor_apps_pooler_exs
+        target: /etc/pooler/pooler.exs
+    secrets:
+      - source: k8s_pgbouncer_tls_cert
+        target: /run/secrets/k8s_pgbouncer_tls_cert
+      - source: k8s_pgbouncer_tls_key
+        target: /run/secrets/k8s_pgbouncer_tls_key
+    environment:
+      - PORT=4000
+      - DATABASE_URL=ecto://supavisor_apps:${SUPAVISOR_APPS_DB_PASSWORD_ENCODED?err}@postgres:5432/supavisor_apps
+      - SECRET_KEY_BASE=${SUPAVISOR_APPS_SECRET_KEY_BASE?err}
+      - VAULT_ENC_KEY=${SUPAVISOR_APPS_VAULT_ENC_KEY?err}
+      - API_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
+      - METRICS_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
+      - REGION=local
+      - ERL_AFLAGS=-proto_dist inet_tcp
+      - PROXY_PORT_SESSION=5432
+      - PROXY_PORT_TRANSACTION=6543
+      - DB_POOL_SIZE=5
+      - MAX_CONNECTIONS=1000
+      - NUM_ACCEPTORS=100
+      - NAMED_PREPARED_STATEMENTS_ENABLED=true
+      - GRAFANA_UPSTREAM_PASSWORD=${POSTGRES_PASSWORD?err}
+      - LANGFUSE_UPSTREAM_PASSWORD=${LANGFUSE_DB_PASSWORD?err}
+      - GLOBAL_DOWNSTREAM_CERT_PATH=/run/secrets/k8s_pgbouncer_tls_cert
+      - GLOBAL_DOWNSTREAM_KEY_PATH=/run/secrets/k8s_pgbouncer_tls_key
+    command:
+      - /bin/sh
+      - -c
+      - /app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -sSfL
+        - --head
+        - -o
+        - /dev/null
+        - http://127.0.0.1:4000/api/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.labels.storage.manager == true
+        - node.labels.load.tier == heavy
+        - node.labels.node.ephemeral != true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.apps-pgpool.rule=HostSNI(`apps-pgpool.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.apps-pgpool.entrypoints=host-internal"
+        - "traefik.tcp.routers.apps-pgpool.tls.passthrough=true"
+        - "traefik.tcp.services.apps-pgpool-session.loadbalancer.server.port=5432"
+        - "traefik.tcp.routers.apps-pgpool.service=apps-pgpool-session"
+        - "traefik.tcp.routers.apps-pgpool-tx.rule=HostSNI(`apps-pgpool-tx.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.apps-pgpool-tx.entrypoints=host-internal"
+        - "traefik.tcp.routers.apps-pgpool-tx.tls.passthrough=true"
+        - "traefik.tcp.routers.apps-pgpool-tx.service=apps-pgpool-tx"
+        - "traefik.tcp.services.apps-pgpool-tx.loadbalancer.server.port=6543"
         - "traefik.swarm.network=traefik"
         - com.centurylinklabs.watchtower.enable=false
   influx:
@@ -610,6 +705,18 @@ volumes:
 secrets:
   postgres_db_password:
     file: ../../secrets/postgres/postgres_db_password
+  apps_pgbouncer_userlist:
+    name: apps_pgbouncer_userlist-${CONFIG_VERSION:-0}
+    file: ../../secrets/postgres/apps_pgbouncer_userlist
+  k8s_pgbouncer_userlist:
+    name: k8s_pgbouncer_userlist-${CONFIG_VERSION:-0}
+    file: ../../secrets/k8s/pgbouncer_userlist
+  k8s_pgbouncer_tls_cert:
+    name: k8s_pgbouncer_tls_cert-${CONFIG_VERSION:-0}
+    file: ../../secrets/k8s/pgbouncer_tls_cert.pem
+  k8s_pgbouncer_tls_key:
+    name: k8s_pgbouncer_tls_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/k8s/pgbouncer_tls_key.pem
   redis_password:
     file: ../../secrets/redis/redis_password
   opensearch_password:
@@ -624,6 +731,12 @@ secrets:
     file: ../../secrets/qdrant/api_key
 
 configs:
+  postgres_pgvector_bootstrap_sh:
+    name: postgres_pgvector_bootstrap_sh-${CONFIG_VERSION:-0}
+    file: ./configs/postgres/pgvector-bootstrap.sh
+  supavisor_apps_pooler_exs:
+    name: supavisor_apps_pooler_exs-${CONFIG_VERSION:-0}
+    file: ./configs/supavisor/apps_pooler.exs
   infinity_conf:
     name: infinity_conf-${CONFIG_VERSION:-0}
     file: ./configs/infinity/infinity_conf.toml

@@ -5,6 +5,7 @@ secrets/*
 !.keep
 secrets.yaml
 supabase_target.yaml
+volcano_target.yaml
 **/secrets/
 *.swp
 .cache_ggshield

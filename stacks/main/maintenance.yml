@@ -4,15 +4,48 @@ networks:
  traefik:
    external: true
 services:
+  ephemeral-rebalance:
+    image: docker:26-cli
+    command: ["/bin/sh", "/rebalance/ephemeral-rebalance.sh"]
+    environment:
+      - REBALANCE_COOLDOWN_SECONDS=${REBALANCE_COOLDOWN_SECONDS:-300}
+      - REBALANCE_SERVICE_COOLDOWN_SECONDS=${REBALANCE_SERVICE_COOLDOWN_SECONDS:-300}
+      - REBALANCE_SKIP_CONSTRAINTS=${REBALANCE_SKIP_CONSTRAINTS:-node.labels.node.ephemeral != true,node.labels.storage.manager == true,node.labels.swarm.leader == true,node.role == manager}
+      - EPHEMERAL_LABEL_KEY=node.ephemeral
+      - EPHEMERAL_FORBID_CONSTRAINT=node.labels.node.ephemeral != true
+      - REBALANCE_SELF_SERVICE=main-maintenance_ephemeral-rebalance
+      - OTEL_LOGS_ENDPOINT=https://otel-collector.${LOCAL_DOMAIN?err}/v1/logs
+      - OTEL_SERVICE_NAME=ephemeral-rebalance
+      - OTEL_INSECURE=${OTEL_INSECURE:-false}
+      - RCLONE_REJECT_FIX_ENABLED=true
+      - RCLONE_REJECT_CHECK_INTERVAL=${RCLONE_REJECT_CHECK_INTERVAL:-60}
+      - RCLONE_REJECT_COOLDOWN_SECONDS=${RCLONE_REJECT_COOLDOWN_SECONDS:-300}
+      - RCLONE_REJECT_ERROR_PATTERN=${RCLONE_REJECT_ERROR_PATTERN:-rclone}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ephemeral-rebalance-state:/state
+    configs:
+      - source: ephemeral-rebalance-script
+        target: /rebalance/ephemeral-rebalance.sh
+        mode: 0555
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.labels.swarm.leader == true
   rclone-fixer:
     image: docker:cli
     command: ["/bin/sh", "/fix/check.sh"]
     environment:
       - RCLONE_FIX_ENABLED=true
       - RCLONE_FIX_INTERVAL=60
+      - RCLONE_FIX_LOG_LEVEL=DEBUG
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker-plugins/rclone/cache/:/state/
+      - /var/lib/docker/plugins:/host-plugins
     configs:
       - source: rclone-fix-script
         target: /fix/check.sh
@@ -59,6 +92,26 @@ services:
         constraints:
         - node.role == manager
         - node.labels.swarm.leader == true
+  inotify-sysctl-reconciler:
+    image: alpine:3.20
+    command: ["/bin/sh", "/maintenance/inotify-sysctl.sh"]
+    environment:
+      - INOTIFY_MAX_USER_INSTANCES=${INOTIFY_MAX_USER_INSTANCES:-1024}
+      - INOTIFY_RECONCILE_INTERVAL=${INOTIFY_RECONCILE_INTERVAL:-300}
+    volumes:
+      - /proc/sys:/host-proc-sys
+      - /etc/sysctl.d:/host-etc-sysctl
+    configs:
+      - source: inotify-sysctl-script
+        target: /maintenance/inotify-sysctl.sh
+        mode: 0555
+    deploy:
+      mode: global
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.platform.os == linux
 
 volumes:
   backups:
@@ -67,6 +120,8 @@ volumes:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/postgres"
       allow_other: "true"
       vfs_cache_mode: full
+  ephemeral-rebalance-state:
+    driver: local
 
 secrets:
   postgres_db_password:
@@ -76,3 +131,9 @@ configs:
   rclone-fix-script:
     name: rclone-fix-script-${CONFIG_VERSION:-0}
     file: ./configs/rclone/check.sh
+  ephemeral-rebalance-script:
+    name: ephemeral-rebalance-script-${CONFIG_VERSION:-0}
+    file: ./configs/maintenance/ephemeral-rebalance.sh
+  inotify-sysctl-script:
+    name: inotify-sysctl-script-${CONFIG_VERSION:-0}
+    file: ./configs/maintenance/inotify-sysctl.sh
