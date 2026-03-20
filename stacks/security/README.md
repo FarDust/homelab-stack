@@ -4,7 +4,7 @@ This directory contains network and security infrastructure services for the Doc
 
 ## Services Overview
 
-- **network.yml**: Network analytics and security-related services (Clickhouse, Redis, ntopng-proxy)
+- **network.yml**: Network analytics and security-related services (Redis, ntopng-proxy). Requires an external ClickHouse dependency provided by the storage stack.
 - **dns.yml**: DNS infrastructure and privacy services (Pi-hole, DNSCrypt, DNSCrypt-Proxy)
 
 ## Architecture Philosophy
