@@ -27,12 +27,8 @@ services:
       # Neko v3: use capture.* settings (v2 vars like NEKO_HWENC/NEKO_VIDEO_BITRATE are removed).
       - NEKO_CAPTURE_VIDEO_CODEC=h264
       - "NEKO_CAPTURE_VIDEO_PIPELINE=ximagesrc display-name={display} show-pointer=true use-damage=false ! video/x-raw,framerate=60/1 ! videoconvert ! queue ! video/x-raw,format=NV12 ! nvh264enc name=encoder preset=2 gop-size=60 spatial-aq=true temporal-aq=true bitrate=12000 vbv-buffer-size=12000 rc-mode=6 ! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream ! appsink name=appsink"
-      # Credentials and ICE server config (including TURN credential) are in the mounted neko-config.
-      - NEKO_CONFIG=/run/configs/neko-config.yaml
-      # TURN host/port/user are non-sensitive; referenced by the neko-config template.
-      - BROWSER_LAB_TURN_HOST=${BROWSER_LAB_TURN_HOST?err}
-      - BROWSER_LAB_TURN_PORT=${BROWSER_LAB_TURN_PORT:-3478}
-      - BROWSER_LAB_TURN_USER=${BROWSER_LAB_TURN_USER:-neko}
+      - NEKO_MEMBER_MULTIUSER_USER_PASSWORD=${BROWSER_LAB_NEKO_USER_PASSWORD?err}
+      - NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=${BROWSER_LAB_NEKO_ADMIN_PASSWORD?err}
       # Helps avoid "sticky" low quality and smooths 1080p@60 under variable conditions.
       - NEKO_WEBRTC_ESTIMATOR_ENABLED=true
       - NEKO_WEBRTC_ESTIMATOR_INITIAL_BITRATE=8000000
@@ -40,23 +36,20 @@ services:
       # it results in the backend advertising unreachable host candidates and failing DTLS.
       - NEKO_WEBRTC_ICELITE=0
       - NEKO_WEBRTC_TCPMUX=0
+      # Backend must use the same client-reachable TURN address; otherwise coturn will hand it
+      # relay candidates on ${BROWSER_LAB_TURN_EXTERNAL_IP} which the backend can't reach via the internal overlay.
+      # NOTE: Backend TURN/TLS via Traefik requires correct SNI. With sniStrict enabled, the backend's turns://
+      # attempts can fail; keep backend on UDP-only and reserve turns:// for frontend fallback.
+      - NEKO_WEBRTC_ICESERVERS_BACKEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      # Previous frontend mixed transport (kept for rollback):
+      # - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp","turns:${BROWSER_LAB_TURN_HOST?err}:${INTERNAL_PORT:-5578}?transport=tcp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
+      - NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:${BROWSER_LAB_TURN_HOST?err}:${BROWSER_LAB_TURN_PORT:-3478}?transport=udp"],"username":"${BROWSER_LAB_TURN_USER:-neko}","credential":"${BROWSER_LAB_TURN_PASSWORD?err}"}]
     volumes:
       - type: tmpfs
         target: /dev/shm
         tmpfs:
           size: 1073741824 # 1 GiB
       - browser_neko_brave_data:/home/neko/.config/BraveSoftware/Brave-Browser
-    configs:
-      - source: browser-lab-neko-config
-        target: /run/configs/neko-config.yaml
-        mode: 0444
-    # Secrets are required here so that the golang template in browser-lab-neko-config
-    # can resolve `{{ secret "name" }}` at task start-up time. Without them Docker will
-    # refuse to start the container with "secret target not found".
-    secrets:
-      - neko-user-password
-      - neko-admin-password
-      - turn-password
     deploy:
       mode: replicated
       replicas: 1
@@ -92,21 +85,17 @@ services:
     ports:
       - "49160-49179:49160-49179/udp"
     command:
-      - -c
-      - /etc/coturn/turnserver.conf
-    configs:
-      - source: browser-lab-turnserver-conf
-        target: /etc/coturn/turnserver.conf
-        mode: 0444
-    # Secret required so that the golang template in browser-lab-turnserver-conf
-    # can resolve `{{ secret "turn-password" }}` at task start-up time.
-    secrets:
-      - turn-password
-    environment:
-      - BROWSER_LAB_TURN_PORT=${BROWSER_LAB_TURN_PORT:-3478}
-      - BROWSER_LAB_TURN_EXTERNAL_IP=${BROWSER_LAB_TURN_EXTERNAL_IP?err}
-      - BROWSER_LAB_TURN_REALM=${BROWSER_LAB_TURN_REALM?err}
-      - BROWSER_LAB_TURN_USER=${BROWSER_LAB_TURN_USER:-neko}
+      - --listening-port=${BROWSER_LAB_TURN_PORT:-3478}
+      - --min-port=49160
+      - --max-port=49179
+      - --external-ip=${BROWSER_LAB_TURN_EXTERNAL_IP?err}
+      - --fingerprint
+      - --lt-cred-mech
+      - --realm=${BROWSER_LAB_TURN_REALM?err}
+      - --user=${BROWSER_LAB_TURN_USER:-neko}:${BROWSER_LAB_TURN_PASSWORD?err}
+      - --no-cli
+      - --no-tls
+      - --no-dtls
     deploy:
       mode: replicated
       replicas: 1
@@ -144,21 +133,3 @@ volumes:
       allow_other: "true"
       vfs_cache_mode: full
       poll_interval: 5
-
-configs:
-  browser-lab-neko-config:
-    name: browser-lab-neko-config-${CONFIG_VERSION:-0}
-    file: ./configs/browser-lab/neko.yaml
-    template_driver: golang
-  browser-lab-turnserver-conf:
-    name: browser-lab-turnserver-conf-${CONFIG_VERSION:-0}
-    file: ./configs/browser-lab/turnserver.conf
-    template_driver: golang
-
-secrets:
-  turn-password:      # Used by: coturn (turnserver.conf template), neko (neko-config template)
-    file: ../../secrets/browser-lab/turn-password
-  neko-user-password: # Used by: neko (neko-config template)
-    file: ../../secrets/browser-lab/neko-user-password
-  neko-admin-password: # Used by: neko (neko-config template)
-    file: ../../secrets/browser-lab/neko-admin-password

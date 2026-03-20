@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - "stacks/productivity/browser-lab.yml"
-      - "stacks/productivity/configs/browser-lab/**"
       - ".github/workflows/check-browser-lab.yml"
 
 jobs:
@@ -20,7 +19,6 @@ jobs:
       - name: 🔍 Validate browser-lab compose
         working-directory: stacks/productivity
         env:
-          CONFIG_VERSION: "0"
           LOCAL_DOMAIN: local.example.com
           USER_TIMEZONE: UTC
           GCS_SYNC_STORAGE_BUCKET: test-bucket
@@ -29,163 +27,7 @@ jobs:
           BROWSER_LAB_TURN_USER: neko
           BROWSER_LAB_TURN_EXTERNAL_IP: "127.0.0.1"
           BROWSER_LAB_TURN_REALM: local.example.com
+          BROWSER_LAB_TURN_PASSWORD: test-password
+          BROWSER_LAB_NEKO_USER_PASSWORD: test-user-pass
+          BROWSER_LAB_NEKO_ADMIN_PASSWORD: test-admin-pass
         run: docker compose -f browser-lab.yml config --quiet
-
-  test-coturn-swarm:
-    name: Test coturn config template via Docker Swarm
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: 📥 Check out code
-        uses: actions/checkout@v4
-
-      - name: 🐝 Initialize Docker Swarm
-        run: docker swarm init
-
-      - name: 🔑 Create Docker secrets
-        run: |
-          echo -n "test-turn-secret" | docker secret create turn-password -
-
-      - name: 📝 Create coturn config with golang template driver
-        run: |
-          docker config create \
-            --template-driver golang \
-            browser-lab-turnserver-conf \
-            stacks/productivity/configs/browser-lab/turnserver.conf
-
-      - name: 🚀 Deploy coturn service and verify template renders
-        env:
-          BROWSER_LAB_TURN_PORT: "3478"
-          BROWSER_LAB_TURN_EXTERNAL_IP: "127.0.0.1"
-          BROWSER_LAB_TURN_REALM: example.com
-          BROWSER_LAB_TURN_USER: neko
-        run: |
-          docker service create \
-            --name test-coturn \
-            --env BROWSER_LAB_TURN_PORT=3478 \
-            --env BROWSER_LAB_TURN_EXTERNAL_IP=127.0.0.1 \
-            --env BROWSER_LAB_TURN_REALM=example.com \
-            --env BROWSER_LAB_TURN_USER=neko \
-            --config source=browser-lab-turnserver-conf,target=/etc/coturn/turnserver.conf,mode=0444 \
-            --secret turn-password \
-            --constraint 'node.role==manager' \
-            alpine:latest \
-            sh -c 'cat /etc/coturn/turnserver.conf && sleep 30'
-
-          # Give the task time to start
-          sleep 5
-
-          # Find the running container (service name filter is unique; fail if none found)
-          CONTAINER_ID=$(docker ps -q --filter "name=test-coturn.1")
-          if [ -z "$CONTAINER_ID" ]; then
-            echo "❌ No running container found — template rendering likely failed"
-            docker service ps test-coturn --no-trunc
-            exit 1
-          fi
-
-          # Check rendered config content
-          RENDERED=$(docker exec "$CONTAINER_ID" cat /etc/coturn/turnserver.conf)
-          echo "=== Rendered turnserver.conf ==="
-          echo "$RENDERED"
-
-          # Verify the secret was substituted (password must appear, template placeholder must not)
-          if echo "$RENDERED" | grep -q 'test-turn-secret'; then
-            echo "✅ Secret 'turn-password' was correctly substituted"
-          else
-            echo "❌ Secret value not found in rendered config"
-            exit 1
-          fi
-
-          if echo "$RENDERED" | grep -q '{{ secret'; then
-            echo "❌ Template placeholder was NOT expanded"
-            exit 1
-          fi
-
-          if echo "$RENDERED" | grep -q 'user=neko:test-turn-secret'; then
-            echo "✅ user= line is correct"
-          else
-            echo "❌ user= line not found or incorrect"
-            exit 1
-          fi
-
-  test-neko-config-swarm:
-    name: Test neko config template via Docker Swarm
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: 📥 Check out code
-        uses: actions/checkout@v4
-
-      - name: 🐝 Initialize Docker Swarm
-        run: docker swarm init
-
-      - name: 🔑 Create Docker secrets
-        run: |
-          echo -n "test-turn-secret"  | docker secret create turn-password -
-          echo -n "test-user-pass"    | docker secret create neko-user-password -
-          echo -n "test-admin-pass"   | docker secret create neko-admin-password -
-
-      - name: 📝 Create neko config with golang template driver
-        run: |
-          docker config create \
-            --template-driver golang \
-            browser-lab-neko-config \
-            stacks/productivity/configs/browser-lab/neko.yaml
-
-      - name: 🚀 Deploy test service and verify neko template renders
-        run: |
-          docker service create \
-            --name test-neko-config \
-            --env BROWSER_LAB_TURN_HOST=turn.example.com \
-            --env BROWSER_LAB_TURN_PORT=3478 \
-            --env BROWSER_LAB_TURN_USER=neko \
-            --config source=browser-lab-neko-config,target=/run/configs/neko-config.yaml,mode=0444 \
-            --secret neko-user-password \
-            --secret neko-admin-password \
-            --secret turn-password \
-            --constraint 'node.role==manager' \
-            alpine:latest \
-            sh -c 'cat /run/configs/neko-config.yaml && sleep 30'
-
-          sleep 5
-
-          CONTAINER_ID=$(docker ps -q --filter "name=test-neko-config.1")
-          if [ -z "$CONTAINER_ID" ]; then
-            echo "❌ No running container found — template rendering likely failed"
-            docker service ps test-neko-config --no-trunc
-            exit 1
-          fi
-
-          RENDERED=$(docker exec "$CONTAINER_ID" cat /run/configs/neko-config.yaml)
-          echo "=== Rendered neko-config.yaml ==="
-          echo "$RENDERED"
-
-          # Verify placeholders are substituted
-          if echo "$RENDERED" | grep -q '{{ secret'; then
-            echo "❌ Template secret placeholder was NOT expanded"
-            exit 1
-          fi
-          if echo "$RENDERED" | grep -q '{{ env'; then
-            echo "❌ Template env placeholder was NOT expanded"
-            exit 1
-          fi
-
-          # Verify passwords appear
-          if echo "$RENDERED" | grep -q 'test-user-pass' && echo "$RENDERED" | grep -q 'test-admin-pass'; then
-            echo "✅ neko-user-password and neko-admin-password were correctly substituted"
-          else
-            echo "❌ Password values not found in rendered config"
-            exit 1
-          fi
-
-          if echo "$RENDERED" | grep -q 'turn.example.com'; then
-            echo "✅ BROWSER_LAB_TURN_HOST env var was correctly substituted"
-          else
-            echo "❌ TURN host not found in rendered config"
-            exit 1
-          fi
-
-          # Validate the rendered YAML is syntactically valid
-          echo "$RENDERED" | python3 -c "import yaml, sys; yaml.safe_load(sys.stdin.read()); print('✅ Rendered neko-config.yaml is valid YAML')"
