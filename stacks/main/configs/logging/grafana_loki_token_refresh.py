@@ -67,21 +67,14 @@ def fetch_access_token(token_url: str, client_id: str, client_secret: str, timeo
 
 
 def build_datasource_payload(datasource: dict, bearer: str) -> dict:
-    json_data = datasource.get("jsonData") or {}
+    payload = dict(datasource)
+    json_data = dict(datasource.get("jsonData") or {})
     json_data["httpHeaderName1"] = "Authorization"
-    return {
-        "id": datasource.get("id"),
-        "uid": datasource.get("uid"),
-        "orgId": datasource.get("orgId"),
-        "name": datasource.get("name"),
-        "type": datasource.get("type"),
-        "access": datasource.get("access"),
-        "url": datasource.get("url"),
-        "basicAuth": datasource.get("basicAuth", False),
-        "isDefault": datasource.get("isDefault", False),
-        "jsonData": json_data,
-        "secureJsonData": {"httpHeaderValue1": bearer},
-    }
+    secure_json_data = dict(datasource.get("secureJsonData") or {})
+    secure_json_data["httpHeaderValue1"] = bearer
+    payload["jsonData"] = json_data
+    payload["secureJsonData"] = secure_json_data
+    return payload
 
 
 def main() -> None:
