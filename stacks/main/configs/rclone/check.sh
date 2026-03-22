@@ -205,14 +205,17 @@ repair() {
 ###############################################################################
 # 🧩 STALE MOUNT RECONCILIATION (volume metadata missing, stale path exists)
 ###############################################################################
-service_driver_spec() {
+# Resolves driver + opts from local container inspect (works on swarm workers).
+# Service inspect is manager-only; HostConfig.Mounts[].VolumeOptions matches
+# what we previously parsed from service specs.
+rclone_volume_spec_from_local_containers() {
   VOL="$1"
-  SVC_IDS="$(docker service ls -q 2>/dev/null || true)"
-  [ -n "$SVC_IDS" ] || return 1
+  CIDS="$(docker ps -aq --filter "volume=$VOL" 2>/dev/null || true)"
+  [ -n "$CIDS" ] || return 1
 
-  docker service inspect $SVC_IDS 2>/dev/null | jq -c --arg vol "$VOL" '
+  docker inspect $CIDS 2>/dev/null | jq -c --arg vol "$VOL" '
     [ .[]
-      | .Spec.TaskTemplate.ContainerSpec.Mounts[]?
+      | .HostConfig.Mounts[]?
       | select(.Type == "volume" and .Source == $vol)
       | select((.VolumeOptions.DriverConfig.Name // "") | test("^rclone"))
       | {
@@ -269,9 +272,9 @@ reconcile_stale_mounts() {
       continue
     fi
 
-    SPEC="$(service_driver_spec "$VOL" || true)"
+    SPEC="$(rclone_volume_spec_from_local_containers "$VOL" || true)"
     if [ -z "$SPEC" ]; then
-      log WARN "Stale dir for '$VOL' found, but no matching rclone service spec. Skipping."
+      log WARN "Stale dir for '$VOL' found, but no matching rclone mount spec from local containers. Skipping."
       continue
     fi
 
@@ -289,7 +292,7 @@ reconcile_stale_mounts() {
     fi
 
     if create_volume_from_spec "$VOL" "$DRIVER" "$OPTS"; then
-      log INFO "Recreated rclone volume '$VOL' from service spec ✅"
+      log INFO "Recreated rclone volume '$VOL' from local container mount spec ✅"
       REPAIRED=$((REPAIRED + 1))
     else
       log ERROR "Failed to recreate rclone volume '$VOL'"

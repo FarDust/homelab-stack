@@ -1,6 +1,10 @@
 #!/bin/sh
 # Unit tests for create_volume_from_spec in check.sh.
 #
+# Scope: this file does not execute check.sh and does not cover plugin probe,
+# repair, or rclone_volume_spec_from_local_containers (those need a real engine
+# or heavier fixtures). Keep the create_volume_from_spec body in sync with check.sh.
+#
 # Verifies:
 #   1. Correctness of the no-eval implementation.
 #   2. Behavioral equivalence with the original eval-based implementation for
@@ -84,6 +88,8 @@ create_volume_from_spec() {
   DRIVER="$2"
   OPTS_JSON="$3"
 
+  # Build argv list without eval to prevent shell-injection on option keys/values.
+  # set -- inside a function only modifies the function's own positional parameters.
   set -- docker volume create "$VOL" -d "$DRIVER"
   while IFS= read -r KV; do
     [ -n "$KV" ] || continue
