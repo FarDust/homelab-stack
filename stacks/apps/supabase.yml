@@ -1,0 +1,186 @@
+services:
+  studio:
+    image: supabase/studio:2026.02.02-sha-b0b7db6
+    networks:
+      - traefik
+    secrets:
+      - source: bigquery-logs
+        target: /run/secrets/gcloud.json
+        mode: 0440
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD:?err}
+      HOSTNAME: 0.0.0.0
+
+      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION:-Default Organization}
+      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-Default Project}
+      OPENAI_API_KEY: ${SUPBASE_OPENAI_API_KEY}
+      OPENAI_API_BASE: ${SUPBASE_OPENAI_API_BASE:-https://api.openai.com/v1}
+
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://api.${LOCAL_DOMAIN}}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?err}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?err}
+      AUTH_JWT_SECRET: ${SUPABASE_JWT_SECRET:?err}
+
+      LOGFLARE_PRIVATE_ACCESS_TOKEN: ${LOGFLARE_PRIVATE_ACCESS_TOKEN:?err}
+      LOGFLARE_URL: http://analytics:4000
+      NEXT_PUBLIC_ENABLE_LOGS: "true"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: bigquery
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcloud.json
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.supabase-studio.rule=Host(`supabase-studio.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.supabase-studio.entrypoints=websecure
+        - traefik.http.routers.supabase-studio.tls=true
+        - traefik.http.routers.supabase-studio.tls.certresolver=le-dns
+        - traefik.http.services.supabase-studio.loadbalancer.server.port=3000
+        - traefik.swarm.network=traefik
+        - com.centurylinklabs.watchtower.enable=false
+  kong:
+    image: kong:2.8.1
+    networks:
+      - traefik
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /tmp/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?err}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?err}
+      DASHBOARD_USERNAME: ${SUPABASE_DASHBOARD_USERNAME:?err}
+      DASHBOARD_PASSWORD: ${SUPABASE_DASHBOARD_PASSWORD:?err}
+    configs:
+      - source: kong-declarative
+        target: /tmp/kong/temp.yml
+    entrypoint: >
+      bash -c 'mkdir -p /tmp/kong && eval "echo \"$$(cat /tmp/kong/temp.yml)\"" > /tmp/kong/kong.yml && /docker-entrypoint.sh kong docker-start'
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.supabase-kong.rule=Host(`supabase.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.supabase-kong.entrypoints=websecure
+        - traefik.http.routers.supabase-kong.tls=true
+        - traefik.http.routers.supabase-kong.tls.certresolver=le-dns
+        - traefik.http.services.supabase-kong.loadbalancer.server.port=8000
+        - traefik.swarm.network=traefik
+        - com.centurylinklabs.watchtower.enable=fa
+  analytics:
+    image: supabase/logflare:1.30.7
+    networks:
+      - traefik
+    extra_hosts:
+      - "http-intake.logs.datadoghq.com:127.0.0.1"
+      - "http-intake.logs.us3.datadoghq.com:127.0.0.1"
+      - "http-intake.logs.us5.datadoghq.com:127.0.0.1"
+      - "http-intake.logs.datadoghq.eu:127.0.0.1"
+      - "http-intake.logs.ap1.datadoghq.com:127.0.0.1"
+    # Uncomment to use Big Query backend for analytics (Swarm syntax below)
+    secrets:
+      - source: bigquery-logs
+        target: /opt/app/rel/logflare/bin/gcloud.json
+        mode: 0440
+      - source: logflare-db-server-ca
+        target: /opt/app/rel/logflare/bin/db-server-ca.pem
+        mode: 0440
+      - source: logflare-db-client-ca
+        target: /opt/app/rel/logflare/bin/db-client-ca.pem
+        mode: 0440
+      - source: logflare-db-client-cert
+        target: /opt/app/rel/logflare/bin/db-client-cert.pem
+        mode: 0440
+      - source: logflare-db-client-key
+        target: /opt/app/rel/logflare/bin/db-client-key.pem
+        mode: 0400
+    environment:
+      LOGFLARE_NODE_HOST: 127.0.0.1
+      LOGFLARE_NODE_PORT: ${LOGFLARE_NODE_PORT:-4000}
+      DB_USERNAME: ${SUPABASE_ADMIN_USER:-supabase_admin}
+      DB_DATABASE: ${SUPABASE_POSTGRES_DATABASE:-_supabase}
+      DB_HOSTNAME: ${SUPABASE_POSTGRES_INTERNAL_HOST:?err}
+      DB_PORT: ${SUPABASE_POSTGRES_INTERNAL_PORT:-5432}
+      DB_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD:?err}
+      DB_SCHEMA: ${SUPABASE_ANALYTICS_POSTGRES_SCHEMA:-_analytics}
+      DB_SSL: "true"
+      LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN?err}
+      LOGFLARE_PRIVATE_ACCESS_TOKEN: ${LOGFLARE_PRIVATE_ACCESS_TOKEN?err}
+      LOGFLARE_SINGLE_TENANT: "true"
+      LOGFLARE_SUPABASE_MODE: "true"
+      LOGFLARE_MIN_CLUSTER_SIZE: 1
+      # POSTGRES_BACKEND_URL: postgresql://${SUPABASE_ADMIN_USER:-supabase_admin}:${SUPABASE_POSTGRES_PASSWORD?err}@${SUPABASE_POSTGRES_INTERNAL_HOST?err}:${SUPABASE_POSTGRES_INTERNAL_PORT?err}/${SUPABASE_ANALYTICS_POSTGRES_DATABASE:-_supabase}
+      # POSTGRES_BACKEND_SCHEMA: ${SUPABASE_ANALYTICS_POSTGRES_SCHEMA:-_analytics}
+      # LOGFLARE_FEATURE_FLAG_OVERRIDE: multibackend=true
+      # To migrate to BigQuery backend in the future, uncomment and set the following:
+      GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID}
+      GOOGLE_PROJECT_NUMBER: ${GOOGLE_PROJECT_NUMBER}
+    # healthcheck:
+    #   test: ["CMD", "curl", "http://localhost:$${LOGFLARE_NODE_PORT}/health"]
+    #   interval: 5s
+    #   timeout: 5s
+    #   retries: 10
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.labels.load.tier == heavy
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.supabase-analytics.rule=Host(`analytics.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.supabase-analytics.entrypoints=websecure"
+        - "traefik.http.routers.supabase-analytics.tls=true"
+        - "traefik.http.routers.supabase-analytics.tls.certresolver=le-dns"
+        - "traefik.http.services.supabase-analytics.loadbalancer.server.port=${LOGFLARE_NODE_PORT:-4000}"
+        - "traefik.swarm.network=traefik"
+        - com.centurylinklabs.watchtower.enable=false
+  meta:
+    image: supabase/postgres-meta:v0.95.2
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: ${SUPABASE_POSTGRES_INTERNAL_HOST}
+      PG_META_DB_PORT: ${SUPABASE_POSTGRES_INTERNAL_PORT:-5432}
+      PG_META_DB_NAME: ${SUPABASE_POSTGRES_DATABASE:-postgres}
+      PG_META_DB_USER: ${SUPABASE_ADMIN_USER:-supabase_admin}
+      PG_META_DB_PASSWORD: ${SUPABASE_POSTGRES_PASSWORD}
+      PG_META_DB_SSL_MODE: require
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=false"
+secrets:
+  bigquery-logs:
+    name: bigquery-logs-${CONFIG_VERSION:-0}
+    file: ../../secrets/logflare/bigquery.json
+  logflare-db-server-ca:
+    name: logflare-db-server-ca-${CONFIG_VERSION:-0}
+    file: ../../secrets/supabase/self_hosted/db-server-ca.pem
+  logflare-db-client-ca:
+    name: logflare-db-client-ca-${CONFIG_VERSION:-0}
+    file: ../../secrets/supabase/self_hosted/db-client-ca.pem
+  logflare-db-client-cert:
+    name: logflare-db-client-cert-${CONFIG_VERSION:-0}
+    file: ../../secrets/supabase/self_hosted/db-client-cert.pem
+  logflare-db-client-key:
+    name: logflare-db-client-key-${CONFIG_VERSION:-0}
+    file: ../../secrets/supabase/self_hosted/db-client-key.pem
+configs:
+  kong-declarative:
+    name: kong-declarative-${CONFIG_VERSION:-0}
+    file: ./configs/supabase/kong.yml
+networks:
+  traefik:
+    external: true

@@ -1,0 +1,235 @@
+version: "3.9"
+
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+
+services:
+  supavisor-k3s:
+    image: supabase/supavisor:2.7.4
+    networks:
+      - traefik
+    ports:
+      - target: 5432
+        published: ${K3S_SUPAVISOR_PORT?err}
+        protocol: tcp
+        mode: ingress
+    configs:
+      - source: supavisor_k3s_pooler_exs
+        target: /etc/pooler/pooler.exs
+    secrets:
+      - source: supavisor_k3s_tls_cert
+        target: /run/secrets/supavisor_k3s_tls_cert
+      - source: supavisor_k3s_tls_key
+        target: /run/secrets/supavisor_k3s_tls_key
+    environment:
+      - PORT=4000
+      - DATABASE_URL=ecto://supavisor_k3s:${SUPAVISOR_K3S_DB_PASSWORD_ENCODED?err}@postgres:5432/supavisor_k3s
+      - SECRET_KEY_BASE=${SUPAVISOR_K3S_SECRET_KEY_BASE?err}
+      - VAULT_ENC_KEY=${SUPAVISOR_K3S_VAULT_ENC_KEY?err}
+      - API_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
+      - METRICS_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
+      - REGION=local
+      - ERL_AFLAGS=-proto_dist inet_tcp
+      - PROXY_PORT_SESSION=5432
+      - DB_POOL_SIZE=5
+      - MAX_CONNECTIONS=400
+      - NUM_ACCEPTORS=50
+      - NAMED_PREPARED_STATEMENTS_ENABLED=true
+      - ASSIMILATION_UPSTREAM_PASSWORD=${K8S_DB_PASSWORD?err}
+      - GLOBAL_DOWNSTREAM_CERT_PATH=/run/secrets/supavisor_k3s_tls_cert
+      - GLOBAL_DOWNSTREAM_KEY_PATH=/run/secrets/supavisor_k3s_tls_key
+    command:
+      - /bin/sh
+      - -c
+      - /app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -sSfL
+        - --head
+        - -o
+        - /dev/null
+        - http://127.0.0.1:4000/api/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+      labels:
+        - com.centurylinklabs.watchtower.enable=false
+
+  netdata-parent:
+    image: netdata/netdata:edge
+    hostname: netdata-parent
+    networks:
+      - traefik
+      - traefik-public
+    ports:
+      - target: 19999
+        published: ${NETDATA_STREAM_PORT?err}
+        protocol: tcp
+        mode: host
+    environment:
+      - NETDATA_CLAIM_TOKEN=${NETDATA_TOKEN?err}
+      - NETDATA_CLAIM_URL=https://app.netdata.cloud
+      - NETDATA_CLAIM_ROOMS=${NETDATA_CLAIM_ROOMS?err}
+      - NETDATA_HEALTHCHECK_TARGET=cli
+    volumes:
+      - netdata_config:/etc/netdata
+      - netdata_data:/var/lib/netdata
+      - netdata_cache:/var/cache/netdata
+      - netdata_certs:/lego/certs:ro
+    secrets:
+      - source: netdata_conf
+        target: /etc/netdata/netdata.conf
+        mode: 0444
+      - source: netdata_stream_conf
+        target: /etc/netdata/stream.conf
+        mode: 0444
+      - source: netdata_health_alarm_notify_conf
+        target: /etc/netdata/health_alarm_notify.conf
+        mode: 0444
+      - source: netdata_stream_api_key
+        target: /run/secrets/netdata_stream_api_key
+        mode: 0444
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.netdata-web.rule=HostSNI(`netdata.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.netdata-web.entrypoints=websecure"
+        - "traefik.tcp.routers.netdata-web.tls=true"
+        - "traefik.tcp.routers.netdata-web.tls.passthrough=true"
+        - "traefik.tcp.routers.netdata-web.service=netdata-web"
+        - "traefik.tcp.services.netdata-web.loadbalancer.server.port=19999"
+        - "traefik.swarm.network=traefik"
+  netdata-child-config:
+    image: alpine:3.20
+    command: ["/bin/sh", "/opt/netdata/child-config.sh"]
+    environment:
+      - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
+      - NETDATA_PARENT_HOST=${NETDATA_PARENT_HOST?err}
+      - NETDATA_PARENT_PORT=${NETDATA_STREAM_PORT?err}
+      - NETDATA_CHILD_CONFIG_INTERVAL=${NETDATA_CHILD_CONFIG_INTERVAL:-300}
+    volumes:
+      - /etc/netdata:/host/etc/netdata
+    secrets:
+      - source: netdata_stream_api_key
+        target: /run/secrets/netdata_stream_api_key
+        mode: 0444
+    configs:
+      - source: netdata_child_config_script
+        target: /opt/netdata/child-config.sh
+        mode: 0555
+    deploy:
+      mode: global
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.labels.netdata.path == etc
+  netdata-child-config-opt:
+    image: alpine:3.20
+    command: ["/bin/sh", "/opt/netdata/child-config.sh"]
+    environment:
+      - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
+      - NETDATA_PARENT_HOST=${NETDATA_PARENT_HOST?err}
+      - NETDATA_PARENT_PORT=${NETDATA_STREAM_PORT?err}
+      - NETDATA_CHILD_CONFIG_INTERVAL=${NETDATA_CHILD_CONFIG_INTERVAL:-300}
+      - NETDATA_CHILD_TARGET=/host/opt/netdata/etc/netdata
+    volumes:
+      - /opt/netdata/etc/netdata:/host/opt/netdata/etc/netdata
+    secrets:
+      - source: netdata_stream_api_key
+        target: /run/secrets/netdata_stream_api_key
+        mode: 0444
+    configs:
+      - source: netdata_child_config_script
+        target: /opt/netdata/child-config.sh
+        mode: 0555
+    deploy:
+      mode: global
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.labels.netdata.path == opt
+
+volumes:
+  netdata_config: {}
+  netdata_data: {}
+  netdata_cache: {}
+  netdata_certs:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/netdata.${LOCAL_DOMAIN?err}"
+      allow_other: "true"
+      vfs_cache_mode: full
+      uid: "101"
+      gid: "103"
+      file_perms: "600"
+      dir_perms: "700"
+
+secrets:
+  supavisor_k3s_tls_cert:
+    name: supavisor_k3s_tls_cert-${CONFIG_VERSION:-0}
+    file: ../../secrets/supavisor_k3s/tls_cert
+  supavisor_k3s_tls_key:
+    name: supavisor_k3s_tls_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/supavisor_k3s/tls_key
+  netdata_conf:
+    name: netdata_conf-${CONFIG_VERSION:-0}
+    file: ../../secrets/netdata/netdata_conf
+  netdata_stream_conf:
+    name: netdata_stream_conf-${CONFIG_VERSION:-0}
+    file: ../../secrets/netdata/stream_conf
+  netdata_stream_api_key:
+    name: netdata_stream_api_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/netdata/stream_api_key
+  netdata_health_alarm_notify_conf:
+    name: netdata_health_alarm_notify_conf-${CONFIG_VERSION:-0}
+    file: ../../secrets/netdata/health_alarm_notify_conf
+
+configs:
+  supavisor_k3s_pooler_exs:
+    name: supavisor_k3s_pooler_exs-${CONFIG_VERSION:-0}
+    file: ./configs/supavisor/k3s_pooler.exs
+  netdata_child_config_script:
+    name: netdata_child_config_script-${CONFIG_VERSION:-0}
+    file: ./configs/netdata/child-config.sh

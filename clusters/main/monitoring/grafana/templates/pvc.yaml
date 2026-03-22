@@ -1,0 +1,41 @@
+{{- if .Values.persistence.enabled }}
+{{- if .Values.persistence.gcs.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "grafana.fullname" . }}-gcs-pv
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  persistentVolumeReclaimPolicy: Retain
+  csi:
+    driver: gcsfuse.csi.storage.gke.io
+    volumeHandle: {{ .Values.persistence.gcs.bucketName }}
+    volumeAttributes:
+      bucketName: {{ .Values.persistence.gcs.bucketName }}
+      {{- with .Values.persistence.gcs.mountOptions }}
+      mountOptions: {{ join "," . | quote }}
+      {{- end }}
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "grafana.fullname" . }}-data
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+  {{- if .Values.persistence.gcs.enabled }}
+  volumeName: {{ include "grafana.fullname" . }}-gcs-pv
+  {{- end }}
+{{- end }}

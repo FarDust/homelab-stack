@@ -1,21 +1,48 @@
 version: "3.9"
 networks:
-  traefik:
+  traefik-public:
     external: true
 services:
   jupyter-tensorflow:
     image: jupyter/tensorflow-notebook
     environment:
       - JUPYTER_ENABLE_LAB=yes
-      - JUPYTER_TOKEN=${JUPYTER_TOKEN}
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN?err}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - UV_BOOTSTRAP_ENABLED=true
+    command:
+      - start-notebook.py
+      - --ServerApp.allow_origin=https://colab.research.google.com
+      - --ServerApp.ip=0.0.0.0
+      - --ServerApp.allow_remote_access=True
+      - --ServerApp.disable_check_xsrf=True
+      - --ServerApp.port_retries=0
+      - --ServerApp.trust_xheaders=True
+      - --NotebookApp.allow_origin=https://colab.research.google.com
+      - --NotebookApp.ip=0.0.0.0
+      - --NotebookApp.allow_remote_access=True
+      - --NotebookApp.disable_check_xsrf=True
+      - --NotebookApp.port_retries=0
+    healthcheck:
+      disable: true
     networks:
-      - traefik
+      - traefik-public
+    volumes:
+      - jupyter_tensorflow_shared_work_gcs_v2:/home/jovyan/work
+      - jupyter_tensorflow_shared_venvs_gcs_v3:/home/jovyan/.venvs
+    configs:
+      - source: devtools_notebooks_uv_bootstrap
+        target: /usr/local/bin/before-notebook.d/20-uv-bootstrap.sh
+        mode: 0555
     deploy:
       mode: replicated
       replicas: 1
       placement:
         constraints:
           - node.platform.os == linux
+          - node.labels.gpu == true
+          - node.labels.gpu.class == high-end
       update_config:
         parallelism: 2
         delay: 10s
@@ -23,14 +50,91 @@ services:
         condition: on-failure
       labels:
         - "traefik.enable=true"
-        - "traefik.swarm.network=traefik"
-        - "traefik.http.routers.tensorflow.rule=Host(`jupyter.tensorflow.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.tensorflow.service=tensorflow@swarm"
-        - "traefik.http.routers.tensorflow-http.entrypoints=web"
-        - "traefik.http.routers.tensorflow-http.rule=Host(`jupyter.tensorflow.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.tensorflow.entrypoints=websecure"
-        - "traefik.http.routers.tensorflow-http.middlewares=tensorflow-https@swarm"
-        - "traefik.http.middlewares.tensorflow-https.redirectscheme.scheme=https"
-        - "traefik.http.routers.tensorflow.tls=true"
-        - "traefik.http.routers.tensorflow.tls.certresolver=le-dns"
-        - "traefik.http.services.tensorflow.loadbalancer.server.port=8888"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.http.routers.colab.entrypoints=websecure"
+        - "traefik.http.routers.colab.rule=Host(`colab.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.colab.tls=true"
+        - "traefik.http.routers.colab.tls.certresolver=le-dns"
+        - "traefik.http.routers.colab.priority=100"
+        - "traefik.http.services.colab.loadbalancer.server.port=8888"
+  jupyter-tensorflow-low-end:
+    image: jupyter/tensorflow-notebook
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN?err}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - UV_BOOTSTRAP_ENABLED=false
+    command:
+      - start-notebook.py
+      - --ServerApp.allow_origin=https://colab.research.google.com
+      - --ServerApp.ip=0.0.0.0
+      - --ServerApp.allow_remote_access=True
+      - --ServerApp.disable_check_xsrf=True
+      - --ServerApp.port_retries=0
+      - --ServerApp.trust_xheaders=True
+      - --NotebookApp.allow_origin=https://colab.research.google.com
+      - --NotebookApp.ip=0.0.0.0
+      - --NotebookApp.allow_remote_access=True
+      - --NotebookApp.disable_check_xsrf=True
+      - --NotebookApp.port_retries=0
+    healthcheck:
+      disable: true
+    networks:
+      - traefik-public
+    volumes:
+      - jupyter_tensorflow_shared_work_gcs_v2:/home/jovyan/work
+      - jupyter_tensorflow_shared_venvs_gcs_v3:/home/jovyan/.venvs
+    configs:
+      - source: devtools_notebooks_uv_bootstrap
+        target: /usr/local/bin/before-notebook.d/20-uv-bootstrap.sh
+        mode: 0555
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.labels.gpu == true
+          - node.labels.gpu.class == low-end
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.http.routers.colab-low-end.entrypoints=websecure"
+        - "traefik.http.routers.colab-low-end.rule=Host(`colab.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.colab-low-end.tls=true"
+        - "traefik.http.routers.colab-low-end.tls.certresolver=le-dns"
+        - "traefik.http.routers.colab-low-end.priority=50"
+        - "traefik.http.services.colab-low-end.loadbalancer.server.port=8888"
+volumes:
+  jupyter_tensorflow_shared_work_gcs_v2:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/colab/shared/work"
+      allow_other: "true"
+      vfs_cache_mode: full
+      vfs_links: "true"
+      uid: "1000"
+      gid: "100"
+      file_perms: "0664"
+      dir_perms: "0775"
+  jupyter_tensorflow_shared_venvs_gcs_v3:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/colab/shared/venvs-v2"
+      allow_other: "true"
+      vfs_cache_mode: full
+      vfs_links: "true"
+      uid: "1000"
+      gid: "100"
+      file_perms: "0775"
+      dir_perms: "0775"
+configs:
+  devtools_notebooks_uv_bootstrap:
+    name: devtools_notebooks_uv_bootstrap-${CONFIG_VERSION:-0}
+    file: ./configs/notebooks/uv-bootstrap.sh

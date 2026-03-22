@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${K3S_TRAEFIK_GATEWAY_SMOKE_DEPLOYMENT}
+  namespace: ${K3S_TRAEFIK_GATEWAY_SMOKE_NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${K3S_TRAEFIK_GATEWAY_SMOKE_DEPLOYMENT}
+  template:
+    metadata:
+      labels:
+        app: ${K3S_TRAEFIK_GATEWAY_SMOKE_DEPLOYMENT}
+    spec:
+      containers:
+        - name: whoami
+          image: traefik/whoami:v1.11.0
+          ports:
+            - containerPort: 80

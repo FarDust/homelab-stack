@@ -1,0 +1,36 @@
+model: gpt-5
+
+terminal:
+  backend: local
+  cwd: /workspace
+  timeout: 90
+
+agent:
+  max_turns: 24
+
+display:
+  tool_progress: off
+
+compression:
+  enabled: true
+  threshold: 0.85
+  summary_model: gpt-5-mini
+
+session_reset:
+  mode: idle
+  idle_minutes: 240
+
+platform_toolsets:
+  telegram:
+    - web
+    - browser
+    - terminal
+    - file
+    - code_execution
+    - skills
+    - todo
+    - memory
+    - session_search
+    - clarify
+    - delegation
+    - cronjob

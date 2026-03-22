@@ -10,8 +10,12 @@ networks:
     external: true
 
 volumes:
-  ragflow_data:
-    driver: local
+  ragflow_logs:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/ragflow/logs"
+      allow_other: "true"
+      vfs_cache_mode: full
 
 configs:
   ragflow_config_template:
@@ -28,9 +32,9 @@ configs:
     name: ragflow_nginx_confd_${CONFIG_VERSION:-0}
 
 services:
-  # RAGFlow - Document Processing for RAG
   ragflow:
-    image: infiniflow/ragflow:v0.19.1
+    image: infiniflow/ragflow:v0.23.1
+    command: ["--enable-adminserver", "--enable-mcpserver"]
     environment:
       - IN_CONTAINER=true
       - DOC_ENGINE=opensearch
@@ -39,11 +43,12 @@ services:
       - REDIS_HOST=${RAGFLOW_REDIS_HOST?err}
       - REDIS_PORT=${RAGFLOW_REDIS_PORT?err}
       - REDIS_PASSWORD=${RAGFLOW_REDIS_PASSWORD?err}
-      - MYSQL_HOST=${RAGFLOW_MYSQL_HOST?err}
-      - MYSQL_PORT=${RAGFLOW_MYSQL_PORT?err}
-      - MYSQL_USER=${RAGFLOW_MYSQL_USER?err}
-      - MYSQL_PASSWORD=${RAGFLOW_MYSQL_PASSWORD?err}
-      - MYSQL_DBNAME=${RAGFLOW_MYSQL_DBNAME?err}
+      - POSTGRES_HOST=${RAGFLOW_POSTGRES_HOST?err}
+      - POSTGRES_PORT=${RAGFLOW_POSTGRES_PORT?err}
+      - POSTGRES_USER=${RAGFLOW_POSTGRES_USER?err}
+      - POSTGRES_PASSWORD=${RAGFLOW_POSTGRES_PASSWORD?err}
+      - POSTGRES_DBNAME=${RAGFLOW_POSTGRES_DBNAME?err}
+      - POSTGRES_SSLMODE=${RAGFLOW_POSTGRES_SSLMODE?err}
       - MINIO_HOST=${RAGFLOW_MINIO_HOST?err}
       - MINIO_PORT=${RAGFLOW_MINIO_PORT?err}
       - MINIO_USER=${RAGFLOW_MINIO_USER?err}
@@ -52,10 +57,18 @@ services:
       - OS_PORT=${RAGFLOW_OS_PORT?err}
       - OS_USER=${RAGFLOW_OS_USER?err}
       - OPENSEARCH_PASSWORD=${RAGFLOW_OPENSEARCH_PASSWORD?err}
-      - INFINITY_HOST=${RAGFLOW_INFINITY_HOST?err}
-      - INFINITY_PORT=${RAGFLOW_INFINITY_PORT?err}
+      - DB_TYPE=postgres
+      - RAGFLOW_HTTP_APP_KEY=${RAGFLOW_HTTP_APP_KEY?err}
+      - RAGFLOW_HTTP_SECRET_KEY=${RAGFLOW_HTTP_SECRET_KEY?err}
+      - RAGFLOW_LITELLM_API_KEY=${RAGFLOW_LITELLM_API_KEY?err}
+      - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=9382
+      - MCP_BASE_URL=https://mcp-ragflow.${LOCAL_DOMAIN}
+      - MCP_MODE=self-host
+      - MCP_API_KEY=${RAGFLOW_MCP_API_KEY?err}
     volumes:
-      - ragflow_data:/ragflow
+      - ragflow_logs:/ragflow/logs
     networks:
       - traefik-public
       - traefik
@@ -73,10 +86,17 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.labels.AVX != false
           - node.labels.gpu == true
       labels:
         - traefik.enable=true
+        # Admin API router (highest priority)
+        - traefik.http.routers.ragflow-admin.entrypoints=websecure
+        - traefik.http.routers.ragflow-admin.rule=Host(`ragflow.${LOCAL_DOMAIN}`) && PathPrefix(`/api/v1/admin`)
+        - traefik.http.routers.ragflow-admin.tls=true
+        - traefik.http.routers.ragflow-admin.tls.certresolver=le-dns
+        - traefik.http.routers.ragflow-admin.priority=110
+        - traefik.http.routers.ragflow-admin.service=ragflow-admin
+        - traefik.http.services.ragflow-admin.loadbalancer.server.port=9381
         # API router for /v1 and /api (higher priority)
         - traefik.http.routers.ragflow-api.entrypoints=websecure
         - traefik.http.routers.ragflow-api.rule=Host(`ragflow.${LOCAL_DOMAIN}`) && (PathPrefix(`/v1`) || PathPrefix(`/api`))
@@ -85,6 +105,21 @@ services:
         - traefik.http.routers.ragflow-api.priority=100
         - traefik.http.routers.ragflow-api.service=ragflow-api
         - traefik.http.services.ragflow-api.loadbalancer.server.port=9380
+        # MCP router (SSE)
+        - traefik.http.middlewares.ragflow-mcp-sse.headers.customResponseHeaders.Cache-Control=no-cache
+        - traefik.http.middlewares.ragflow-mcp-sse.headers.customResponseHeaders.Connection=keep-alive
+        - traefik.http.middlewares.ragflow-mcp-sse.headers.customResponseHeaders.X-Accel-Buffering=no
+        - traefik.http.middlewares.ragflow-mcp-sse.headers.customResponseHeaders.Pragma=no-cache
+        - traefik.http.routers.ragflow-mcp.entrypoints=websecure
+        - traefik.http.routers.ragflow-mcp.rule=Host(`mcp-ragflow.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ragflow-mcp.tls=true
+        - traefik.http.routers.ragflow-mcp.tls.certresolver=le-dns
+        - traefik.http.routers.ragflow-mcp.priority=120
+        - traefik.http.routers.ragflow-mcp.middlewares=ragflow-mcp-sse
+        - traefik.http.routers.ragflow-mcp.service=ragflow-mcp
+        - traefik.http.services.ragflow-mcp.loadbalancer.server.port=9382
+        - traefik.http.services.ragflow-mcp.loadbalancer.passHostHeader=true
+        - traefik.http.services.ragflow-mcp.loadbalancer.responseForwarding.flushInterval=100ms
         # HTTPS router (main UI, lower priority)
         - traefik.http.routers.ragflow.entrypoints=websecure
         - traefik.http.routers.ragflow.rule=Host(`ragflow.${LOCAL_DOMAIN}`)

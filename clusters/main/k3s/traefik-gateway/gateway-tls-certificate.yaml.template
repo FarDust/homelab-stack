@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ${K3S_TRAEFIK_GATEWAY_TLS_SECRET_NAME}
+  namespace: ${K3S_TRAEFIK_GATEWAY_NAMESPACE}
+spec:
+  secretName: ${K3S_TRAEFIK_GATEWAY_TLS_SECRET_NAME}
+  issuerRef:
+    kind: ClusterIssuer
+    name: ${K3S_TRAEFIK_GATEWAY_CERT_ISSUER}
+  dnsNames:
+    - "${K3S_TRAEFIK_GATEWAY_TLS_DNS_NAME}"

@@ -1,0 +1,70 @@
+image:
+  repository: ghcr.io/i-am-bee/agentstack/agentstack-server
+  tag: ${BEEAI_IMAGE_TAG}
+
+encryptionKey: ${BEEAI_ENCRYPTION_KEY}
+
+initContainers:
+  # External shared Postgres path should not require chart-managed pgvector bootstrap.
+  createVectorDbExtension: false
+
+trustProxyHeaders: true
+
+externalRegistries:
+  public_github: https://github.com/i-am-bee/agentstack@${BEEAI_REGISTRY_VERSION}#path=agent-registry.yaml
+
+auth:
+  enabled: true
+  validateAudience: false
+  basic:
+    enabled: false
+  nextauthSecret: ${BEEAI_JWT_SECRET}
+  nextauthUrl: https://beeai.${LOCAL_DOMAIN}:8443
+  apiUrl: https://beeai-api.${LOCAL_DOMAIN}:8443
+
+keycloak:
+  enabled: false
+
+externalOidcProvider:
+  issuerUrl: ${BEEAI_OIDC_ISSUER}
+  name: ${BEEAI_OIDC_PROVIDER_NAME}
+  id: ${BEEAI_OIDC_PROVIDER_ID}
+  rolesPath: realm_access.roles
+  uiClientId: ${BEEAI_OIDC_UI_CLIENT_ID}
+  uiClientSecret: ${BEEAI_OIDC_UI_CLIENT_SECRET}
+  serverClientId: ${BEEAI_OIDC_SERVER_CLIENT_ID}
+  serverClientSecret: ${BEEAI_OIDC_SERVER_CLIENT_SECRET}
+
+serviceAccount:
+  create: false
+  name: ${BEEAI_SERVICE_ACCOUNT_NAME}
+
+# Keep BeeAI routed via LiteLLM aliases.
+unmanagedProviderVariables:
+  LLM_API_BASE: https://litellm.${LOCAL_DOMAIN}/v1
+  LLM_API_KEY: ${BEEAI_LITELLM_API_KEY}
+  LLM_MODEL: ${BEEAI_LLM_MODEL}
+
+variables:
+  LLM_API_BASE: https://litellm.${LOCAL_DOMAIN}/v1
+  LLM_API_KEY: ${BEEAI_LITELLM_API_KEY}
+  LLM_MODEL: ${BEEAI_LLM_MODEL}
+  FAST_LLM: ${BEEAI_FAST_LLM}
+  SMART_LLM: ${BEEAI_SMART_LLM}
+  STRATEGIC_LLM: ${BEEAI_STRATEGIC_LLM}
+  EMBEDDING: ${BEEAI_EMBEDDING_MODEL}
+
+# Shared Postgres contract (external existing DB/user).
+postgresql:
+  enabled: false
+
+externalDatabase:
+  host: ${BEEAI_POSTGRES_HOST}
+  port: ${BEEAI_POSTGRES_PORT}
+  user: ${BEEAI_POSTGRES_USER}
+  database: ${BEEAI_POSTGRES_DB}
+  password: ${BEEAI_POSTGRES_PASSWORD}
+  # If extension bootstrap is re-enabled, these are required by chart secret template.
+  adminUser: ${BEEAI_POSTGRES_USER}
+  adminPassword: ${BEEAI_POSTGRES_PASSWORD}
+  ssl: false

@@ -54,6 +54,18 @@ scrape_configs:
         type: "A"
         port: 9100
 
+    relabel_configs:
+    - source_labels: [__meta_dockerswarm_task_node_id]
+      target_label: node_id
+
+    - source_labels: [__meta_dockerswarm_node_hostname]
+      target_label: node_hostname
+
+    metric_relabel_configs:
+    - source_labels: [nodename]
+      target_label: nodename
+      action: lowercase
+
   - job_name: "traefik"
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
@@ -64,29 +76,46 @@ scrape_configs:
         type: "A"
         port: 8080
 
-  - job_name: "netdata"
+  - job_name: "blackbox"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/blackbox_targets.yaml
+        refresh_interval: 1m
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 
+  - job_name: "blackbox-exporter"
+    static_configs:
+      - targets: ["blackbox-exporter:9115"]
+
+  - job_name: "docker-health"
+    dns_sd_configs:
+      - names:
+          - "tasks.docker-health-telegraf"
+        type: "A"
+        port: 9273
+
+  - job_name: "netdata"
+    scheme: https
     metrics_path: /api/v1/allmetrics
     params:
-      format: [prometheus]
-
+      format: [prometheus_all_hosts]
+    honor_labels: true
+    tls_config:
+      insecure_skip_verify: true
     dns_sd_configs:
       - names:
-          - "tasks.netdata"
+          - "tasks.netdata-parent"
         type: "A"
         port: 19999
-
-  - job_name: watchtower
-    scrape_interval: 15m
-    metrics_path: /v1/metrics
-    authorization:
-      type: Bearer
-      credentials_file: /run/secrets/watchtower_auth_token
-    dns_sd_configs:
-      - names:
-          - "tasks.watchtower"
-        type: "A"
-        port: 8080
 
   - job_name: 'grafana'
 
@@ -99,16 +128,6 @@ scrape_configs:
         type: "A"
         port: 3000
 
-  - job_name: "supabase"
-    metrics_path: "/customer/v1/privileged/metrics"
-    scheme: https
-    basic_auth:
-      username: "service_role"
-      password_file: /run/secrets/supabase_service_role_key
-    file_sd_configs:
-      - files:
-          - /etc/prometheus/targets/supabase_target.yaml
-        refresh_interval: 1m
   - job_name: 'crowdsec'
     metrics_path: /metrics
     scrape_interval: 15s
@@ -124,11 +143,70 @@ scrape_configs:
         - "tasks.nextdns-exporter"
       type: "A"
       port: 9948
-  - job_name: speedtest
-    scrape_interval: 60m
-    scrape_timeout:  60s
+
+  - job_name: "postgres-exporter"
+    scrape_interval: 15s
     dns_sd_configs:
       - names:
-          - "tasks.speedtest-exporter"
+          - "tasks.postgres-exporter"
         type: "A"
-        port: 9090
+        port: 9187
+
+  - job_name: "volcano-scheduler"
+    scrape_interval: 15s
+    metrics_path: /metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: false
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/volcano_target.yaml
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [component]
+        regex: scheduler
+        action: keep
+
+  - job_name: "volcano-controllers"
+    scrape_interval: 15s
+    metrics_path: /metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: false
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/volcano_target.yaml
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [component]
+        regex: controllers
+        action: keep
+
+  - job_name: "mtu-network-exporter"
+    scrape_interval: 30s
+    dns_sd_configs:
+      - names:
+          - "tasks.mtu-probe"
+        type: "A"
+        port: 9427
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: source_ip
+        replacement: "$1"
+  - job_name: "mtu-blackbox"
+    scrape_interval: 30s
+    metrics_path: /probe
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/mtu_blackbox_targets.yaml
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [module]
+        target_label: __param_module
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: tasks.mtu-blackbox:9115

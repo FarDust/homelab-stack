@@ -94,7 +94,7 @@ services:
         - "traefik.http.services.pterodactyl-panel.loadbalancer.server.port=80"
       placement:
         constraints:
-          - node.role == manager
+          - node.labels.load.tier == heavy
       restart_policy:
         condition: on-failure
         delay: 5m

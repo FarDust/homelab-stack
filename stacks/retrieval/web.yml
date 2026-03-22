@@ -1,0 +1,107 @@
+version: '3.8'
+
+x-common-firecrawl-service: &common-firecrawl-service
+  image: ghcr.io/firecrawl/firecrawl@sha256:daae96dbccb46b60f50c80dcb7b0960fb00d732005af29758c92a6cd10bdf8a3
+  networks:
+    - traefik
+    - traefik-public
+
+x-common-firecrawl-env: &common-firecrawl-env
+  REDIS_URL: ${FIRECRAWL_REDIS_URL:-redis://redis:6379}
+  REDIS_RATE_LIMIT_URL: ${FIRECRAWL_REDIS_URL:-redis://redis:6379}
+  PLAYWRIGHT_MICROSERVICE_URL: ${PLAYWRIGHT_MICROSERVICE_URL:-http://playwright:3000/scrape}
+  USE_DB_AUTHENTICATION: ${USE_DB_AUTHENTICATION:-false}
+  OPENAI_API_KEY: ${FIRECRAWL_OPENAI_API_KEY}
+  OPENAI_BASE_URL: ${FIRECRAWL_OPENAI_BASE_URL}
+  MODEL_NAME: ${FIRECRAWL_MODEL_NAME}
+  MODEL_EMBEDDING_NAME: ${FIRECRAWL_MODEL_EMBEDDING_NAME}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+  SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+  BULL_AUTH_KEY: ${FIRECRAWL_BULL_AUTH_KEY}
+  TEST_API_KEY: ${TEST_API_KEY}
+  POSTHOG_API_KEY: ${POSTHOG_API_KEY}
+  POSTHOG_HOST: ${POSTHOG_HOST}
+  SUPABASE_ANON_TOKEN: ${SUPABASE_ANON_TOKEN}
+  SUPABASE_URL: ${SUPABASE_URL}
+  SUPABASE_SERVICE_TOKEN: ${SUPABASE_SERVICE_TOKEN}
+  SELF_HOSTED_WEBHOOK_URL: ${SELF_HOSTED_WEBHOOK_URL}
+  SERPER_API_KEY: ${SERPER_API_KEY}
+  SEARCHAPI_API_KEY: ${SEARCHAPI_API_KEY}
+  LOGGING_LEVEL: ${LOGGING_LEVEL}
+  PROXY_SERVER: ${PROXY_SERVER}
+  PROXY_USERNAME: ${PROXY_USERNAME}
+  PROXY_PASSWORD: ${PROXY_PASSWORD}
+  SEARXNG_ENDPOINT: ${FIRECRAWL_SEARXNG_ENDPOINT}
+  SEARXNG_ENGINES: ${SEARXNG_ENGINES}
+  SEARXNG_CATEGORIES: ${SEARXNG_CATEGORIES}
+
+services:
+  firecrawl-api:
+    <<: *common-firecrawl-service
+    environment:
+      <<: *common-firecrawl-env
+      HOST: "0.0.0.0"
+      FLY_PROCESS_GROUP: app
+      ENV: local
+    command: [ "pnpm", "run", "start:production" ]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"['/v0/health/readiness','/v0/health/liveness','/health','/'].some(p=>{try{require('http').get({host:'127.0.0.1',port:3002,path:p},r=>process.exit(r.statusCode<400?0:1));}catch(e){};return false;});\""]
+      interval: 20s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.firecrawl-api.rule=Host(`firecrawl.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.firecrawl-api.entrypoints=websecure"
+        - "traefik.http.routers.firecrawl-api.tls=true"
+        - "traefik.http.routers.firecrawl-api.tls.certresolver=le-dns"
+        - "traefik.http.routers.firecrawl-api.service=firecrawl-api"
+        - "traefik.http.services.firecrawl-api.loadbalancer.server.port=3002"
+        - "traefik.swarm.network=traefik"
+        - "traefik.http.services.firecrawl-api.loadbalancer.responseforwarding.flushinterval=100ms"
+        - "traefik.http.routers.firecrawl-api.middlewares=firecrawl-buffer,firecrawl-retry"
+        - "traefik.http.middlewares.firecrawl-buffer.buffering.maxRequestBodyBytes=67108864"
+        - "traefik.http.middlewares.firecrawl-buffer.buffering.memRequestBodyBytes=8388608"
+        - "traefik.http.middlewares.firecrawl-buffer.buffering.maxResponseBodyBytes=268435456"
+        - "traefik.http.middlewares.firecrawl-buffer.buffering.memResponseBodyBytes=8388608"
+        - "traefik.http.middlewares.firecrawl-retry.retry.attempts=3"
+        - "traefik.http.middlewares.firecrawl-retry.retry.initialInterval=500ms"
+        - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.path=/v0/health/readiness"
+        - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.timeout=3s"
+      mode: replicated
+      replicas: 3
+      restart_policy:
+        condition: any
+        delay: 30s
+      placement:
+        preferences:
+          - spread: node.id
+        max_replicas_per_node: 2
+
+  firecrawl-worker:
+    <<: *common-firecrawl-service
+    environment:
+      <<: *common-firecrawl-env
+      FLY_PROCESS_GROUP: worker
+      ENV: local
+    command: [ "pnpm", "run", "workers" ]
+    deploy:
+      mode: replicated
+      replicas: 5
+      restart_policy:
+        condition: any
+        delay: 30s
+      placement:
+        constraints:
+          - node.labels.load.tier == heavy
+        preferences:
+          - spread: node.id
+
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true

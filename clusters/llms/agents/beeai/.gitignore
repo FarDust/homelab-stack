@@ -1,0 +1,10 @@
+# Local realizations (never commit)
+beeai.env
+values.yaml
+namespace.yaml
+serviceaccount.yaml
+httproute-ui.yaml
+httproute-api.yaml
+
+# Legacy local checkouts
+beeai-platform/

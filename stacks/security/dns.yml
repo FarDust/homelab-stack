@@ -53,10 +53,6 @@ services:
         constraints: [node.role == manager]
       labels:
         - "traefik.enable=true"
-        - "traefik.tcp.routers.dns.entrypoints=dns"
-        - "traefik.tcp.routers.dns.rule=HostSNI(`*`)"
-        - "traefik.tcp.routers.dns.service=pihole-tcp@swarm"
-        - "traefik.tcp.services.pihole-tcp.loadbalancer.server.port=53"
         - "traefik.udp.routers.dns-udp.entrypoints=dns-udp"
         - "traefik.udp.routers.dns-udp.service=pihole-udp@swarm"
         - "traefik.udp.services.pihole-udp.loadbalancer.server.port=53"

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generic UFW route rules required for K3s pod/service dataplane on hosts
+# with default-forward-deny. Interface scoped only.
+
+ACTION="${1:-apply}"
+CNI_IFACE="${K3S_CNI_IFACE:-cni0}"
+OVERLAY_IFACE="${K3S_OVERLAY_IFACE:-flannel.1}"
+
+apply_rules() {
+  sudo ufw route allow in on "${CNI_IFACE}" out on "${OVERLAY_IFACE}"
+  sudo ufw route allow in on "${OVERLAY_IFACE}" out on "${CNI_IFACE}"
+  sudo ufw route allow in on "${CNI_IFACE}" out on "${CNI_IFACE}"
+}
+
+delete_rules() {
+  sudo ufw --force route delete allow in on "${CNI_IFACE}" out on "${OVERLAY_IFACE}" || true
+  sudo ufw --force route delete allow in on "${OVERLAY_IFACE}" out on "${CNI_IFACE}" || true
+  sudo ufw --force route delete allow in on "${CNI_IFACE}" out on "${CNI_IFACE}" || true
+}
+
+case "${ACTION}" in
+  apply)
+    apply_rules
+    ;;
+  delete)
+    delete_rules
+    ;;
+  *)
+    echo "usage: $0 [apply|delete]" >&2
+    echo "optional env: K3S_CNI_IFACE (default: cni0), K3S_OVERLAY_IFACE (default: flannel.1)" >&2
+    exit 1
+    ;;
+esac
+
+sudo ufw status numbered

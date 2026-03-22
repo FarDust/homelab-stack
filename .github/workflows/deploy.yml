@@ -1,8 +1,6 @@
 name: 🚀 Deploy Workflow
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 jobs:
   deploy_traefik:
     runs-on: ubuntu-latest

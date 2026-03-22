@@ -1,0 +1,3 @@
+*.yaml
+!*.template
+rook-ceph.env

@@ -1,0 +1,11 @@
+# Netdata child stream.conf template (stream to parent via Traefik TCP).
+# Replace <STREAM_API_KEY> with the shared key from secrets/netdata/stream_api_key.
+# Destination format: [PROTOCOL:]HOST[:PORT][:SSL]
+
+[stream]
+  enabled = yes
+  destination = netdata.<LOCAL_DOMAIN>:5578:SSL
+  api key = <STREAM_API_KEY>
+  # ssl skip certificate verification = no
+  # CApath = /etc/ssl/certs/
+  # CAfile = /etc/ssl/certs/cert.pem

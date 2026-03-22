@@ -1,0 +1,7 @@
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: "${LONGHORN_NODE_NAME}"
+  namespace: longhorn-system
+spec:
+  allowScheduling: ${LONGHORN_NODE_ALLOW_SCHEDULING}

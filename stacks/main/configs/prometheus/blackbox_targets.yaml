@@ -1,0 +1,11 @@
+- targets:
+  - http://trusted-prometheus:9090/-/ready
+  labels:
+    probe: monitoring_prometheus_vip
+    monitor_group: monitoring_path
+
+- targets:
+  - http://tasks.prometheus:9090/-/ready
+  labels:
+    probe: monitoring_prometheus_task
+    monitor_group: monitoring_path

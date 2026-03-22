@@ -2,6 +2,11 @@
 
 This directory contains execution environment services for the Docker Swarm cluster.
 
+## Scope (what belongs in `stacks/compute/`)
+
+- **Belongs here:** **Code execution**, sandboxes, and APIs that **run untrusted or submitted workloads** in isolation (see `execution.yml` and related patterns).
+- **Add a service here** when the primary job is **running user or automation code** with resource limits and isolation, rather than hosting a static site or acting as a shared data store.
+
 ## Services Overview
 
 - **execution.yml**: Code execution environments and sandbox services (Sandbox Executor Manager)
@@ -19,6 +24,7 @@ This directory contains execution environment services for the Docker Swarm clus
 Execution services use Docker Swarm node labels for placement:
 
 ### Common Label Patterns
+See [docs/node-labels.md](../../docs/node-labels.md) for the full label catalog and conventions.
 ```yaml
 placement:
   constraints:
@@ -28,6 +34,10 @@ placement:
     - node.labels.gpu == true                # GPU access required
     - node.labels.gpu == false               # CPU-only execution
     - node.labels.storage.manager == true    # High-performance storage
+    - node.labels.site.class == cloud        # Cloud vs datacenter placement
+    - node.labels.instance.class == virtual  # VM vs bare metal placement
+    - node.labels.site.name == oracle        # Provider or site identifier
+    - node.labels.region == sa-east-1        # Region or on-prem segment
 ```
 
 ## Service Configuration Patterns

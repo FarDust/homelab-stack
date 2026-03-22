@@ -5,6 +5,31 @@ secrets/*
 !.keep
 secrets.yaml
 supabase_target.yaml
+volcano_target.yaml
 **/secrets/
 *.swp
 .cache_ggshield
+*.backup
+reports/
+!reports/.keep
+docs/concerns/
+/*.py
+/*.sh
+/*.md
+!README.md
+/*.txt
+/*.log
+*.png
+/*.json
+*.sample
+__pycache__
+# Any k3s / KFP env files
+**/k3s/*.env
+**/kfp/*.env
+
+# Any rendered / generated config-style manifests
+**/*-config.yaml
+**/*configmap*.yaml
+**/*.rendered.yaml
+
+cluster-utils/

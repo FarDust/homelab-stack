@@ -1,0 +1,120 @@
+version: '3.7'
+
+services:
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    networks:
+      - traefik
+    environment: &langfuse-worker-env
+      NEXTAUTH_URL: https://langfuse.${LOCAL_DOMAIN?err}
+      DATABASE_URL: ${LANGFUSE_DATABASE_URL?err}
+      SALT: ${LANGFUSE_SALT?err}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY?err}
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-true}
+      CLICKHOUSE_MIGRATION_URL: ${LANGFUSE_CLICKHOUSE_MIGRATION_URL?err}
+      CLICKHOUSE_URL: ${LANGFUSE_CLICKHOUSE_URL?err}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD?err}
+      CLICKHOUSE_CLUSTER_ENABLED: ${CLICKHOUSE_CLUSTER_ENABLED:-false}
+      LANGFUSE_USE_AZURE_BLOB: ${LANGFUSE_USE_AZURE_BLOB:-false}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_EVENT_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ACCESS_KEY?err}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_SECRET_KEY?err}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: https://minio-api.${LOCAL_DOMAIN?err}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: ${LANGFUSE_S3_EVENT_UPLOAD_PREFIX:-events/}
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:-langfuse}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_MEDIA_UPLOAD_REGION:-auto}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ACCESS_KEY?err}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_SECRET_KEY?err}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: https://minio-api.${LOCAL_DOMAIN?err}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: ${LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE:-true}
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: ${LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:-media/}
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: ${LANGFUSE_S3_BATCH_EXPORT_ENABLED:-false}
+      LANGFUSE_S3_BATCH_EXPORT_BUCKET: ${LANGFUSE_S3_BATCH_EXPORT_BUCKET:-langfuse}
+      LANGFUSE_S3_BATCH_EXPORT_PREFIX: ${LANGFUSE_S3_BATCH_EXPORT_PREFIX:-exports/}
+      LANGFUSE_S3_BATCH_EXPORT_REGION: ${LANGFUSE_S3_BATCH_EXPORT_REGION:-auto}
+      LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: https://minio-api.${LOCAL_DOMAIN?err}
+      LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: https://minio-api.${LOCAL_DOMAIN?err}
+      LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ACCESS_KEY?err}
+      LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_SECRET_KEY?err}
+      LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: ${LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:-true}
+      LANGFUSE_INGESTION_QUEUE_DELAY_MS: ${LANGFUSE_INGESTION_QUEUE_DELAY_MS:-}
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: ${LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS:-}
+      REDIS_HOST: redis.${LOCAL_DOMAIN?err}
+      REDIS_PORT: ${INTERNAL_PORT:-5578}
+      REDIS_AUTH: ${REDIS_PASSWORD?err}
+      REDIS_TLS_ENABLED: "true"
+      REDIS_TLS_CA_PATH: /etc/ssl/certs/ca-certificates.crt
+      REDIS_TLS_SERVERNAME: redis.${LOCAL_DOMAIN?err}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
+      SMTP_CONNECTION_URL: ${SMTP_CONNECTION_URL:-}
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.platform.arch == x86_64
+
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    networks:
+      - traefik-public
+      - traefik
+    environment:
+      <<: *langfuse-worker-env
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET?err}
+      LANGFUSE_INIT_ORG_ID: ${ORG?err}
+      LANGFUSE_INIT_ORG_NAME: ${ORG?err}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-litellm}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-litellm}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY?err}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY?err}
+      LANGFUSE_INIT_USER_EMAIL: ${MAINTAINER_EMAIL?err}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-darkledger}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD?err}
+      AUTH_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID?err}
+      AUTH_GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET?err}
+      AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: "true"
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: any
+        delay: 1m
+        max_attempts: 0
+        window: 300s
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.platform.arch == x86_64
+        preferences:
+          - spread: node.hostname
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.langfuse.entrypoints=websecure
+        - traefik.http.routers.langfuse.rule=Host(`langfuse.${LOCAL_DOMAIN?err}`)
+        - traefik.http.routers.langfuse.tls=true
+        - traefik.http.routers.langfuse.tls.certresolver=le-dns
+        - traefik.http.services.langfuse.loadbalancer.server.port=3000
+        - traefik.http.services.langfuse.loadbalancer.healthcheck.path=/api/public/health
+        - traefik.http.services.langfuse.loadbalancer.healthcheck.interval=60s
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true

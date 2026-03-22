@@ -19,11 +19,14 @@ services:
         - traefik.http.routers.ollama.tls.certresolver=le-dns
         - traefik.http.routers.ollama.priority=100
         - traefik.http.services.ollama.loadbalancer.server.port=11434
+        - traefik.http.services.ollama.loadbalancer.healthcheck.path=/api/tags
+        - traefik.http.services.ollama.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.ollama.loadbalancer.healthcheck.timeout=2s
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - OLLAMA_NUM_THREAD=2
       - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_CONTEXT_LENGTH=64000
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - traefik
@@ -52,6 +55,9 @@ services:
         - traefik.http.routers.ollama-low-end.tls.certresolver=le-dns
         - traefik.http.routers.ollama-low-end.priority=50
         - traefik.http.services.ollama-low-end.loadbalancer.server.port=11434
+        - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.path=/api/tags
+        - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.timeout=2s
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -60,6 +66,38 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - traefik
+  ollama-fallback:
+    image: nginx:1.29-alpine
+    networks:
+      - traefik
+    configs:
+      - source: ollama_fallback_nginx
+        target: /etc/nginx/conf.d/default.conf
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.ollama-fallback.entrypoints=websecure
+        - traefik.http.routers.ollama-fallback.rule=Host(`ollama.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ollama-fallback.tls=true
+        - traefik.http.routers.ollama-fallback.tls.certresolver=le-dns
+        - traefik.http.routers.ollama-fallback.priority=1
+        - traefik.http.services.ollama-fallback.loadbalancer.server.port=8080
   anythingllm:
     image: mintplexlabs/anythingllm
     networks:
@@ -129,41 +167,6 @@ services:
         - traefik.http.routers.anythingllm.tls=true
         - traefik.http.routers.anythingllm.tls.certresolver=le-dns
         - traefik.http.services.anythingllm.loadbalancer.server.port=3001
-  localai-cpu:
-    image: localai/localai:latest-cpu
-    networks:
-      - traefik
-    environment:
-      - LOCALAI_P2P=false
-      - LOCALAI_FEDERATED=true
-      - FEDERATED_SERVER=true
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 4G
-      placement:
-        constraints:
-        - node.labels.gpu != true
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-      labels:
-        - traefik.enable=true
-        - traefik.http.routers.localai-http.entrypoints=web
-        - traefik.http.routers.localai-http.rule=Host(`localai.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.localai.entrypoints=websecure
-        - traefik.http.routers.localai.rule=Host(`localai.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.localai-http.middlewares=localai-https@swarm
-        - traefik.http.middlewares.localai-https.redirectscheme.scheme=https
-        - traefik.http.routers.localai.tls=true
-        - traefik.http.routers.localai.tls.certresolver=le-dns
-        - traefik.http.services.localai.loadbalancer.server.port=8080
-    volumes:
-      - localai_data:/usr/share/local-ai/models
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
     command:
@@ -182,6 +185,10 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD?err}
+      - OLLAMA_API_BASE=https://ollama.${LOCAL_DOMAIN?err}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
@@ -189,29 +196,32 @@ services:
       - source: vertex_ai_credentials
         target: vertex_ai_credentials
     deploy:
-      replicas: 1
+      replicas: 3
       resources:
         limits:
           cpus: '1'
           memory: 2G
+      placement:
+        preferences:
+          - spread: node.id
+        max_replicas_per_node: 2
       restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+        condition: any
+        delay: 30s
+        max_attempts: 8640
+        window: 12h
       labels:
         - traefik.enable=true
-        - traefik.http.routers.litellm-http.entrypoints=web
-        - traefik.http.routers.litellm-http.rule=Host(`litellm.${LOCAL_DOMAIN}`)
         - traefik.http.routers.litellm.entrypoints=websecure
         - traefik.http.routers.litellm.rule=Host(`litellm.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.litellm-http.middlewares=litellm-https@swarm
-        - traefik.http.middlewares.litellm-https.redirectscheme.scheme=https
         - traefik.http.routers.litellm.tls=true
         - traefik.http.routers.litellm.tls.certresolver=le-dns
         - traefik.http.services.litellm.loadbalancer.server.port=4000
+        - traefik.http.services.litellm.loadbalancer.healthcheck.path=/health/readiness
+        - traefik.http.services.litellm.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.litellm.loadbalancer.healthcheck.timeout=2s
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:v0.8.8
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -220,12 +230,17 @@ services:
       start_period: 30s
     networks:
       - traefik
+      - llms-internal
     environment:
       - HOST=0.0.0.0
       - PORT=8080
+      - WEBUI_URL=https://chat.${LOCAL_DOMAIN}
+      - WEBUI_SECRET_KEY=${OPEN_WEB_UI_SECRET_KEY?err}
+      - WEBUI_SESSION_COOKIE_SECURE=true
       - DATABASE_URL=${OPEN_WEB_UI_DATABASE_URL?err}
       - DATABASE_SCHEMA=${OPEN_WEB_UI_DATABASE_SCHEMA?err}
       - REDIS_URL=${OPEN_WEB_UI_REDIS_URL?err}
+      - REDIS_KEY_PREFIX=open-webui
       - VECTOR_DB=qdrant
       - QDRANT_URI=${QDRANT_ENDPOINT?err}
       - QDRANT_API_KEY=${QDRANT_API_KEY?err}
@@ -235,14 +250,18 @@ services:
       - ENABLE_OAUTH_SIGNUP=true
       - ENABLE_LOGIN_FORM=false
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=https://ollama.${LOCAL_DOMAIN}
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
       - USE_CUDA_DOCKER=true
       - NVIDIA_VISIBLE_DEVICES=all
+      - ENABLE_WEBSOCKET_SUPPORT=true
+      - WEBSOCKET_MANAGER=redis
+      - WEBSOCKET_REDIS_URL=${OPEN_WEB_UI_WEBSOCKETS_REDIS_URL?err}
+      - SOCKETIO_TRANSPORTS=websocket
     volumes:
       - open_webui_data:/app/backend/data
     deploy:
-      replicas: 3
+      replicas: 1
       resources:
         limits:
           cpus: '4'
@@ -250,25 +269,66 @@ services:
       placement:
         constraints:
         - node.labels.gpu == true
+        preferences:
+          - spread: node.id
+        max_replicas_per_node: 2
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 5s
-        max_attempts: 3
-        window: 120s
+        max_attempts: 8640
+        window: 12h
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
       labels:
         - traefik.enable=true
-        - traefik.http.routers.open-webui-http.entrypoints=web
-        - traefik.http.routers.open-webui-http.rule=Host(`chat.${LOCAL_DOMAIN}`)
         - traefik.http.routers.open-webui.entrypoints=websecure
         - traefik.http.routers.open-webui.rule=Host(`chat.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.open-webui-http.middlewares=open-webui-https@swarm
-        - traefik.http.middlewares.open-webui-https.redirectscheme.scheme=https
         - traefik.http.routers.open-webui.tls=true
         - traefik.http.routers.open-webui.tls.certresolver=le-dns
+        - traefik.http.routers.open-webui.service=open-webui
         - traefik.http.services.open-webui.loadbalancer.server.port=8080
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie=true
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.name=owui
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.httpOnly=true
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.secure=true
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.sameSite=lax
+        - traefik.http.services.open-webui.loadbalancer.sticky.cookie.maxAge=86400
+        - traefik.http.services.open-webui.loadbalancer.healthcheck.path=/health
+        - traefik.http.services.open-webui.loadbalancer.healthcheck.interval=10s
+        - traefik.http.services.open-webui.loadbalancer.healthcheck.timeout=2s
+        - traefik.swarm.network=traefik
+  open-terminal:
+    image: ghcr.io/open-webui/open-terminal:latest
+    environment:
+      - OPEN_TERMINAL_API_KEY_FILE=/run/secrets/open_terminal_api_key
+    volumes:
+      - open_terminal_persistent:/home/user/persistent
+    secrets:
+      - source: open_terminal_api_key
+        target: /run/secrets/open_terminal_api_key
+    networks:
+      - llms-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD:?err}
+        max_attempts: ${RESTART_MAX_ATTEMPTS:?err}
+        window: ${RESTART_WINDOW_STANDARD:?err}
 networks:
   traefik:
     external: true
+  llms-internal:
+    driver: overlay
+    internal: true
+    attachable: true
 volumes:
   ollama_data:
     driver: rclone
@@ -290,10 +350,19 @@ volumes:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/open_web_ui/data"
       allow_other: "true"
       vfs_cache_mode: full
+  open_terminal_persistent:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/open_terminal/persistent"
+      allow_other: "true"
+      vfs_cache_mode: full
 configs:
   litellm_config:
     name: litellm_config-${CONFIG_VERSION:-0}
     file: ./configs/litellm/config.yaml
+  ollama_fallback_nginx:
+    name: ollama_fallback_nginx-${CONFIG_VERSION:-0}
+    file: ./configs/ollama/fallback-nginx.conf
   anythingllm_mcp_config:
     name: anythingllm_mcp_config-${CONFIG_VERSION:-0}
     file: ./configs/anythingllm/plugins/anythingllm_mcp_servers.json
@@ -301,3 +370,6 @@ secrets:
   vertex_ai_credentials:
     name: vertex_ai_credentials-${CONFIG_VERSION:-0}
     file: ../../secrets/google/vertex_ai/credentials.json
+  open_terminal_api_key:
+    name: open_terminal_api_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/open_terminal/api_key

@@ -1,0 +1,98 @@
+
+services:
+  queue:
+    image: redis:alpine
+    command: ["redis-server"]
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD:?err}
+        max_attempts: ${RESTART_MAX_ATTEMPTS:?err}
+        window: ${RESTART_WINDOW_STANDARD:?err}
+  n8n:
+    image: n8nio/n8n
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${N8N_DB_POSTGRESDB_DATABASE:?err}
+      - DB_POSTGRESDB_HOST=${N8N_DB_POSTGRESDB_HOST:?err}
+      - DB_POSTGRESDB_PORT=${N8N_DB_POSTGRESDB_PORT:?err}
+      - DB_POSTGRESDB_USER=${N8N_DB_POSTGRESDB_USER:?err}
+      - DB_POSTGRESDB_SCHEMA=${N8N_DB_POSTGRESDB_SCHEMA:?err}
+      - DB_POSTGRESDB_SSL_ENABLED=${N8N_DB_POSTGRESDB_SSL_ENABLED:-true}
+      - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/n8n_postgres_db_password
+      - DB_LOGGING_ENABLED=true
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:?err}
+      - N8N_METRICS=true
+      - N8N_EXTERNAL_STORAGE_S3_HOST=${N8N_EXTERNAL_STORAGE_S3_HOST}
+      - N8N_EXTERNAL_STORAGE_S3_BUCKET_NAME=${N8N_EXTERNAL_STORAGE_S3_BUCKET_NAME:-n8n}
+      - N8N_EXTERNAL_STORAGE_S3_ACCESS_KEY_FILE=/run/secrets/n8n_minio_access_key
+      - N8N_EXTERNAL_STORAGE_S3_ACCESS_SECRET_FILE=/run/secrets/n8n_minio_access_secret
+      - N8N_LOG_FORMAT=json
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS:-1}
+      - N8N_EDITOR_BASE_URL=https://n8n.${LOCAL_DOMAIN:?err}
+      - QUEUE_BULL_PREFIX=n8n
+      - QUEUE_BULL_REDIS_DB=${N8N_QUEUE_BULL_REDIS_DB:-6}
+      - QUEUE_BULL_REDIS_HOST=${N8N_QUEUE_BULL_REDIS_HOST:-queue}
+      - QUEUE_BULL_REDIS_PORT=${N8N_QUEUE_BULL_REDIS_PORT:-6379}
+      - QUEUE_BULL_REDIS_USERNAME=${N8N_QUEUE_BULL_REDIS_USERNAME:-default}
+      - QUEUE_BULL_REDIS_PASSWORD_FILE=/run/secrets/queue_bull_redis_password
+      - GENERIC_TIMEZONE=${USER_TIMEZONE:-UTC}
+      - TZ=${USER_TIMEZONE:-UTC}
+      #- WEBHOOK_URL=https://n8n.${LOCAL_DOMAIN:?err}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    secrets:
+      - source: n8n_postgres_db_password
+        target: n8n_postgres_db_password
+      - source: n8n_minio_access_key
+        target: n8n_minio_access_key
+      - source: n8n_minio_access_secret
+        target: n8n_minio_access_secret
+      - source: queue_bull_redis_password
+        target: queue_bull_redis_password
+    networks:
+      - traefik
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.n8n.entrypoints=websecure
+        - traefik.http.routers.n8n.rule=Host(`n8n.${LOCAL_DOMAIN:?err}`)
+        - traefik.http.routers.n8n.tls=true
+        - traefik.http.routers.n8n.tls.certresolver=le-dns
+        - traefik.http.services.n8n.loadbalancer.server.port=5678
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD:?err}
+        max_attempts: ${RESTART_MAX_ATTEMPTS:?err}
+        window: ${RESTART_WINDOW_STANDARD:?err}
+
+volumes:
+  n8n_data:
+    driver: local
+
+secrets:
+  n8n_postgres_db_password:
+    name: n8n_postgres_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/n8n/postgres_db_password
+  n8n_minio_access_key:
+    name: n8n_minio_access_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/minio/minio_access_key
+  n8n_minio_access_secret:
+    name: n8n_minio_access_secret-${CONFIG_VERSION:-0}
+    file: ../../secrets/minio/minio_secret_key
+  queue_bull_redis_password:
+    name: queue_bull_redis_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/redis/redis_password
+
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
