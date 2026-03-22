@@ -2,6 +2,11 @@
 
 This directory contains hobby and media services for the Docker Swarm cluster.
 
+## Scope (what belongs in `stacks/hobby/`)
+
+- **Belongs here:** **Personal leisure** workloads: gaming panels, home IoT, science/BOINC, and **media acquisition/playback** stacks that are not shared platform services.
+- **Add a compose file here** for household or hobby domains where the workload is **leisure or media**, not shared cluster infrastructure or generic office-style tooling.
+
 ## Services Overview
 
 - **gaming.yml**: Pterodactyl game server panel and related services.
@@ -27,8 +32,8 @@ Step-by-step setup for qBittorrent, Prowlarr (indexer), Sonarr, Radarr, Bazarr, 
 1. Log in and change the Web UI password.
 2. (Optional) Tools → Options → Connection: check "Use UPnP / NAT-PMP" if you want incoming connections without manual port forward.
 3. Create categories (optional but useful for Sonarr/Radarr):
-   - **tv** — for Sonarr
-   - **movies** — for Radarr
+   - **tv** (for Sonarr)
+   - **movies** (for Radarr)
    (Sonarr/Radarr will use these when adding the download client.)
 
 **Note for later:** Download client hostname from other services in this stack = **`qbittorrent`** (same Docker network). Port = **8080** (Web UI). Use the username/password you set.
