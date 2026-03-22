@@ -1,7 +1,6 @@
 name: 🚀 Deploy Services Workflow
 on:
-  push:
-    branches: []
+  workflow_dispatch:
 jobs:
   deploy_web:
     uses: ./.github/workflows/deploy_template.yml
