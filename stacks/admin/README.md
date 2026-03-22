@@ -2,6 +2,11 @@
 
 This stack contains administrative interfaces and dashboards for managing storage services.
 
+## Scope (what belongs in `stacks/admin/`)
+
+- **Belongs here:** **Browser-based admin UIs** for data and search systems whose engines are deployed by the core storage compose file [`storage.yml`](../main/storage.yml): PostgreSQL admin, Mongo web UI, OpenSearch Dashboards, and similar.
+- **Add a service here** when it is an **operator dashboard** for a datastore or search engine you already run from that storage stack, not the engine service itself.
+
 ## Architecture Philosophy
 
 **Separation of Concerns**: This stack maintains a clear separation between:
@@ -11,7 +16,7 @@ This stack contains administrative interfaces and dashboards for managing storag
 ## Services
 
 ### Database Administration
-- **PGAdmin4** (`pgadmin.${LOCAL_DOMAIN}`): Web interface for PostgreSQL administration
+- **pgAdmin** (`pgadmin.${LOCAL_DOMAIN}`): Web interface for PostgreSQL administration
 - **Mongo Express** (`mongo-express.${LOCAL_DOMAIN}`): Web interface for MongoDB administration (with basic auth enabled)
 
 ### Search & Analytics
@@ -34,11 +39,12 @@ All services use:
 
 ## Deployment
 
-```bash
-# Deploy the admin dashboards stack
-docker stack deploy -c dashboards.yml admin-dashboards
+From the **repository root**, prefer [AGENTS.md](../../AGENTS.md) deploy flow: `set -a; source .env; set +a` then `uv run cluster-utils deploy --help` (stack name **`admin-dashboards`**, compose file **`stacks/admin/dashboards.yml`**).
 
-# Check status
+Equivalent raw Swarm command:
+
+```bash
+docker stack deploy -c stacks/admin/dashboards.yml admin-dashboards
 docker service ls | grep admin-dashboards
 ```
 

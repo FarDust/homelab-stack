@@ -2,33 +2,37 @@
 
 This directory contains data retrieval and query API services for the Docker Swarm cluster.
 
+## Scope (what belongs in `stacks/retrieval/`)
+
+- **Belongs here:** **Query and retrieval APIs**: analytics (Cube), document/RAG (RAGFlow), **web crawling/scraping** (Firecrawl), and similar **data-plane HTTP services** that consume backing stores you run elsewhere (configure connection strings in each compose file).
+- **Add a compose file here** when the workload is primarily **serving queries, documents, or crawl jobs** for other consumers, not a general-purpose end-user portal.
+
 ## Services Overview
 
-- **analytics.yml**: Business intelligence and analytics query APIs (CubeJS)
-- **documents.yml**: Document intelligence and retrieval APIs (RAGFlow)
+- **analytics.yml**: Business intelligence and analytics query APIs (CubeJS).
+- **documents.yml**: Document intelligence and retrieval APIs (RAGFlow).
+- **web.yml**: Firecrawl (API, worker, Playwright-related URLs) behind Traefik.
+
+Each compose file defines its own Traefik labels, networks, and dependencies; treat the details below as patterns, not a guarantee for every service.
 
 ## Retrieval Service Types
 
 ### Business Intelligence APIs
-- **Purpose**: Provide semantic layer over existing databases for analytics queries
-- **Pattern**: SQL-to-API transformation with caching and aggregation
-- **Use Cases**: Business dashboards, reporting APIs, metrics aggregation
-- **Integration**: Connects to PostgreSQL, Redis, and other data sources
+- **Purpose**: Provide a semantic layer over existing databases for analytics queries.
+- **Pattern**: SQL-to-API transformation with caching and aggregation (as implemented by each upstream).
+- **Use Cases**: Business dashboards, reporting APIs, metrics aggregation.
+- **Integration**: Typically PostgreSQL, Redis, and other data sources you configure in env.
 
 ### Document Intelligence APIs
-- **Purpose**: Make documents searchable and retrievable through AI-powered APIs
-- **Pattern**: Document ingestion, processing, and intelligent retrieval
-- **Use Cases**: RAG workflows, document search, content analysis
-- **Integration**: Vector search, LLM workflows, web scraping
+- **Purpose**: Make documents searchable and retrievable through application APIs.
+- **Pattern**: Document ingestion, processing, and retrieval (per upstream).
+- **Use Cases**: RAG-style workflows, document search, content analysis.
+- **Integration**: Vector search, optional model pipelines, web scraping as configured.
 
 ## Service Characteristics
 
 ### API-First Architecture
-All retrieval services are designed as **backend APIs** that applications consume:
-- RESTful interfaces for data access
-- GraphQL endpoints for flexible querying
-- WebSocket APIs for real-time data streams
-- Authentication and rate limiting
+These stacks are **backend APIs** that applications consume. Exposed protocols depend on the upstream image and your labels (often REST; see each compose file for HTTP vs WebSocket).
 
 ### Query Layer Pattern
 Retrieval services act as an **intelligent middleware layer**:
@@ -62,34 +66,30 @@ labels:
 
 ## Service Decision Matrix
 
-| Service Type | Data Sources | API Pattern | Access Level | Example |
-|--------------|--------------|-------------|--------------|---------|
-| Analytics API | SQL Databases | REST/GraphQL | Internal | CubeJS metrics API |
-| Document API | File Storage + Vector DB | REST + Streaming | Internal + External | RAGFlow search API |
-| Search API | Search Indexes | REST + WebSocket | Internal | Elasticsearch API |
-| Feature API | Feature Stores | REST + gRPC | Internal | ML feature serving |
+| Service Type | Data Sources | API pattern (typical) | Access level | Example in this stack |
+|--------------|--------------|----------------------|--------------|------------------------|
+| Analytics API | SQL databases | REST (Cube) | Internal/VPN | `analytics.yml` |
+| Document API | Object storage, OpenSearch, Postgres | REST (RAGFlow) | As labeled | `documents.yml` |
+| Crawl API | Redis, optional external APIs | REST (Firecrawl) | As labeled | `web.yml` |
 
 ## Integration Patterns
 
-### With Storage Layer (main/storage)
+### With backing stores
 - **PostgreSQL**: Business data queries and analytics
 - **MongoDB**: Document metadata and collections
 - **Redis**: Query caching and session storage
 - **OpenSearch**: Full-text search and vector retrieval
 - **MinIO**: Document and asset storage
 
-### With Application Layer
-- **LLM Services**: RAG workflows and document intelligence
-- **Productivity Tools**: Business intelligence and reporting
-- **Admin Dashboards**: System metrics and monitoring data
-- **Custom Applications**: API integration and data access
+Point connection strings at instances you already run from the core storage compose file (or other Postgres/Redis you manage).
+
+### With clients
+- **Downstream apps and jobs**: RAG, analytics, or automation that call these APIs
+- **Custom integrations**: Any client with network access and credentials you configure
 
 ## Environment Variables
 
-- `${LOCAL_DOMAIN}`: Internal domain for retrieval service APIs
-- `${ANALYTICS_CACHE_TTL}`: Cache duration for analytics queries
-- `${DOCUMENT_PROCESSING_TIMEOUT}`: Timeout for document processing jobs
-- `${MAX_QUERY_COMPLEXITY}`: Limit for complex analytical queries
+Use **`${LOCAL_DOMAIN}`** where Traefik labels reference hostnames. Everything else is **per compose file** (for example `RAGFLOW_*` in `documents.yml`, `FIRECRAWL_*` and related keys in `web.yml`, and Cube settings in `analytics.yml`). Read the `*.yml` files and `.env.example` at the repo root for the authoritative list.
 
 ## Security Notes
 
@@ -98,6 +98,10 @@ labels:
 - **Authentication required** for external document upload endpoints
 - **Rate limiting** prevents query abuse and resource exhaustion
 - **Data masking** for sensitive information in analytics APIs
+
+## Deploy
+
+Swarm names: **`retrieval-analytics`**, **`retrieval-documents`**, **`retrieval-web`**. From the repo root: `set -a; source .env; set +a` then `uv run cluster-utils deploy --help` (see [AGENTS.md](../../AGENTS.md)).
 
 ## Troubleshooting
 
