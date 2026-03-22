@@ -2,15 +2,24 @@
 
 This directory contains the core infrastructure services for the Docker Swarm cluster.
 
+## Scope (what belongs in `stacks/main/`)
+
+- **Belongs here:** Services that form the **shared platform**: edge routing and TLS (`traefik.yml`), **identity** (`identity.yml`), **policy gateway** (`identity-gateway.yml`), **durable data and object stores** (`storage.yml`), **metrics and exporters** (`monitoring.yml`), **log and trace pipelines** (`logging.yml`), **operator-facing uptime** (`uptime.yml`), **maintenance and host hygiene** (`maintenance.yml`), **cross-cluster bridges** (`bridges.yml`), **cluster-wide security monitoring** (`security.yml`), and **path-MTU / network probes** (`mtu.yml`). This section defines **`stacks/main/`** only.
+- **Add a new `*.yml` here** when the workload is a **dependency or control plane** for many services, or it defines **edge, identity, observability, storage, or cluster-wide behaviour**. Split files when **lifecycle, secrets, or blast radius** differ (do not fold unrelated apps into `traefik.yml`).
+
 ## Services Overview
 
 - **traefik.yml**: Reverse proxy, load balancer, SSL termination, and authentication (Traefik + Authelia)
+- **identity.yml**: Identity provider (Keycloak) and related DB service for IdP data
+- **identity-gateway.yml**: Pomerium (policy / forward-auth style gateway to internal services)
 - **storage.yml**: Database and storage services (PostgreSQL, Redis, OpenSearch, MinIO, MongoDB, InfluxDB)
 - **monitoring.yml**: Observability collectors/exporters and metric adapters (Node Exporter, cAdvisor, Docker health collectors, DNS/Speed/blackbox exporters)
+- **logging.yml**: Log aggregation and related (Loki, collectors, token refresh helpers, etc.; see file)
 - **maintenance.yml**: Cluster maintenance and host reconciler services (ephemeral rebalance, rclone fixer, host sysctl baselines). Swarm-oriented behaviour of the rclone fixer is documented in [configs/rclone/README.md](configs/rclone/README.md).
 - **uptime.yml**: Human-facing status/uptime services (Gatus, Uptime Kuma)
-- **bridges.yml**: Cross-system/vendor bridge services — Supavisor K3S connection pooler (exposes homelab Postgres to K3S workloads over TLS) and Netdata parent bridge
+- **bridges.yml**: Cross-system/vendor bridge services: Supavisor K3S connection pooler (exposes homelab Postgres to K3S workloads over TLS) and Netdata parent bridge
 - **security.yml**: Security monitoring and threat detection (CrowdSec)
+- **mtu.yml**: MTU / network path probes and related exporters for cluster networking diagnostics
 
 ## Monitoring vs Uptime Semantics
 
@@ -112,7 +121,7 @@ labels:
 
 - All entrypoints are VPN-protected, not internet-exposed
 - `host-internal` provides additional restriction for infrastructure services
-- Network segmentation prevents unnecessary cross-ser vice communication
+- Network segmentation prevents unnecessary cross-service communication
 - TLS termination handled by Traefik with Let's Encrypt certificates
 
 ## Troubleshooting
@@ -176,14 +185,14 @@ FATAL:  Tenant or user not found
 
 The workflow has **two jobs** that run in parallel:
 
-#### `check` — fast static analysis (no containers)
+#### `check` (fast static analysis, no containers)
 
 1. **`supavisor-k3s` service present.** Fails if the service is removed or renamed in `bridges.yml`.
 2. **Seed scripts are not empty placeholders.** Both `*_pooler.exs` files must call:
-   - `Application.ensure_all_started(:supavisor)` — boots the OTP app so the Ecto repo is available
-   - `Supavisor.Tenants.create_tenant/1` — the only function that writes a row
+   - `Application.ensure_all_started(:supavisor)` (boots the OTP app so the Ecto repo is available)
+   - `Supavisor.Tenants.create_tenant/1` (the only function that writes a row)
 
-#### `test-supavisor-seed` — real integration test (spins up containers)
+#### `test-supavisor-seed` (real integration test, spins up containers)
 
 Uses `stacks/main/tests/supavisor-seed.yml` to run the **exact same**
 `migrate + eval` sequence that `bridges.yml` executes at runtime:
