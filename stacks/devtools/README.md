@@ -2,6 +2,11 @@
 
 This stack hosts notebook runtimes exposed through Traefik for development workflows.
 
+## Scope (what belongs in `stacks/devtools/`)
+
+- **Belongs here:** **Developer-facing** runtimes and tools (e.g. Jupyter behind Traefik for Colab-style workflows in `notebooks.yml`), aimed at engineering and experiments rather than household production traffic.
+- **Add a service here** when the audience is **engineering and experiments** (notebooks, dev APIs), with secrets and tokens scoped for that use.
+
 ## Services
 
 - `jupyter-tensorflow`: High-end GPU Colab runtime (`priority=100`)
