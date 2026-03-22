@@ -7,7 +7,7 @@ This directory contains the core infrastructure services for the Docker Swarm cl
 - **traefik.yml**: Reverse proxy, load balancer, SSL termination, and authentication (Traefik + Authelia)
 - **storage.yml**: Database and storage services (PostgreSQL, Redis, OpenSearch, MinIO, MongoDB, InfluxDB)
 - **monitoring.yml**: Observability collectors/exporters and metric adapters (Node Exporter, cAdvisor, Docker health collectors, DNS/Speed/blackbox exporters)
-- **maintenance.yml**: Cluster maintenance and host reconciler services (ephemeral rebalance, rclone fixer, host sysctl baselines)
+- **maintenance.yml**: Cluster maintenance and host reconciler services (ephemeral rebalance, rclone fixer, host sysctl baselines). Swarm-oriented behaviour of the rclone fixer is documented in [configs/rclone/README.md](configs/rclone/README.md).
 - **uptime.yml**: Human-facing status/uptime services (Gatus, Uptime Kuma)
 - **bridges.yml**: Cross-system/vendor bridge services — Supavisor K3S connection pooler (exposes homelab Postgres to K3S workloads over TLS) and Netdata parent bridge
 - **security.yml**: Security monitoring and threat detection (CrowdSec)
