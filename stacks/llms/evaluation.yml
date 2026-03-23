@@ -1,0 +1,67 @@
+services:
+  promptfoo:
+    image: ghcr.io/promptfoo/promptfoo:latest
+    # Start the web UI server; evaluations can be triggered from the UI
+    # or by exec-ing into the container and running: promptfoo eval
+    command: ["view", "--host", "0.0.0.0", "--port", "15500", "--yes"]
+    networks:
+      - traefik
+    configs:
+      - source: llms-evaluation_promptfoo_config
+        target: /app/config/promptfooconfig.yaml
+        mode: 0444
+    environment:
+      # Point promptfoo at the internal LiteLLM proxy (OpenAI-compatible)
+      - OPENAI_BASE_URL=http://litellm:4000/v1
+      - OPENAI_API_KEY=${PROMPTFOO_LITELLM_API_KEY:?err}
+      # Explicit config file path (avoids conflicts with the data volume)
+      - PROMPTFOO_CONFIG_PATH=/app/config/promptfooconfig.yaml
+      # Optional: send evaluation traces to Langfuse
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-}
+      # Keep all data local — disable cloud result sharing
+      - PROMPTFOO_DISABLE_TELEMETRY=1
+      - PROMPTFOO_DISABLE_UPDATE=1
+    volumes:
+      - promptfoo_data:/root/.promptfoo
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD:?err}
+        max_attempts: ${RESTART_MAX_ATTEMPTS:?err}
+        window: ${RESTART_WINDOW_STANDARD:?err}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD:?err}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD:?err}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.promptfoo.rule=Host(`promptfoo.${LOCAL_DOMAIN}`)"
+        - "traefik.http.routers.promptfoo.entrypoints=websecure"
+        - "traefik.http.routers.promptfoo.tls=true"
+        - "traefik.http.routers.promptfoo.tls.certresolver=le-dns"
+        - "traefik.http.services.promptfoo.loadbalancer.server.port=15500"
+        - "traefik.swarm.network=traefik"
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  promptfoo_data:
+    driver: local
+
+configs:
+  llms-evaluation_promptfoo_config:
+    name: llms-evaluation_promptfoo_config-${CONFIG_VERSION:-0}
+    file: ./configs/promptfoo/promptfooconfig.yaml

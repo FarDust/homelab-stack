@@ -12,6 +12,7 @@ Compose under this directory is **optional**. It adds AI/LLM-related services th
 | File | Role (high level) |
 |------|-------------------|
 | [`agents.yml`](agents.yml) | Agent-related services |
+| [`evaluation.yml`](evaluation.yml) | Prompt evaluation and red-team testing (promptfoo) |
 | [`governance.yml`](governance.yml) | Governance / policy-related tooling |
 | [`mcp.yml`](mcp.yml) | MCP-related services |
 | [`monitoring.yml`](monitoring.yml) | Monitoring for LLM workloads |
