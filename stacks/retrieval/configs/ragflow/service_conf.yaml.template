@@ -102,7 +102,7 @@ user_default_llm:
   api_key: "${RAGFLOW_LITELLM_API_KEY}"
   base_url: "https://litellm.${LOCAL_DOMAIN}/v1"
   default_models:
-    chat_model: "gpt-5-chat-latest"
+    chat_model: "n8n-chat"
     embedding_model: "text-embedding-3-small"
     rerank_model: "rerank-english-v3.0"
     asr_model: "whisper-1"
