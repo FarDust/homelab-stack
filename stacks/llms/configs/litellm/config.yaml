@@ -1,7 +1,19 @@
 litellm_settings:
   vertex_location: "us-central1"
   drop_params: true
-  callbacks: ["langfuse"]
+  # Wildcard `/v1/models`: ask provider for concrete ids when supported (see
+  # https://docs.litellm.ai/docs/proxy/model_discovery — Ollama is not listed there yet).
+  check_provider_endpoint: true
+  callbacks:
+    - langfuse
+    - ollama_unload_hook.proxy_handler_instance
+    - websearch_interception
+  websearch_interception_params:
+    enabled_providers:
+      - openai
+      - anthropic
+      - bedrock
+    search_tool_name: searxng-search
   success_callback: ["langfuse"]
   failure_callback: ["langfuse"]
   cache: True
@@ -21,9 +33,16 @@ router_settings:
   # Local-first aliases for automation workloads (e.g. n8n).
   # Existing model names are unchanged; these add stable route targets.
   fallbacks:
-    - {"n8n-chat": ["n8n-chat-fallback", "gemini-2.5-flash"]}
+    - {"n8n-chat": ["n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
     - {"n8n-code": ["n8n-code-fallback", "gemini-2.5-flash-lite"]}
-    - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-fallback", "gemini-2.5-flash"]}
+    - {"trust-agent-chat": ["trust-agent-chat-low-end"]}
+    - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
+
+search_tools:
+  - search_tool_name: searxng-search
+    litellm_params:
+      search_provider: searxng
+      api_base: os.environ/SEARXNG_API_BASE
 
 model_list:
   # OpenAI Models
@@ -908,12 +927,30 @@ model_list:
       owned_by: google
 
   # Ollama Models
-  - model_name: n8n-chat
+  # Qwen 3.5 family on high-end Ollama — one wildcard route (no per-tag entries).
+  # Clients: model = qwen3.5:<tag> (e.g. qwen3.5:9b, qwen3.5:35b-a3b). See:
+  # https://docs.litellm.ai/docs/wildcard_routing
+  - model_name: "qwen3.5:*"
     litellm_params:
-      model: ollama_chat/gpt-oss:20b
+      model: "ollama_chat/qwen3.5:*"
       api_base: os.environ/OLLAMA_API_BASE
     model_info:
-      owned_by: openai
+      owned_by: alibaba
+
+  - model_name: n8n-chat
+    litellm_params:
+      model: ollama_chat/qwen3.5:9b
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+
+  # Prefer regular Ollama, but fall back to low-end Ollama if needed.
+  - model_name: n8n-chat-low-end
+    litellm_params:
+      model: ollama_chat/qwen3.5:2b
+      api_base: os.environ/OLLAMA_LOWEND_API_BASE
+    model_info:
+      owned_by: alibaba
 
   - model_name: n8n-chat-fallback
     litellm_params:
@@ -932,6 +969,21 @@ model_list:
     litellm_params:
       model: ollama_chat/qwen3:latest
       api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+
+  # Trust-agent: qwen3.5:9b on high-end Ollama, fallback to low-end Ollama
+  - model_name: trust-agent-chat
+    litellm_params:
+      model: ollama_chat/qwen3.5:9b
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: alibaba
+
+  - model_name: trust-agent-chat-low-end
+    litellm_params:
+      model: ollama_chat/qwen3.5:9b
+      api_base: os.environ/OLLAMA_LOWEND_API_BASE
     model_info:
       owned_by: alibaba
 
@@ -1143,6 +1195,67 @@ model_list:
       owned_by: unknown
       parameter_size: "20.9B"
       quantization_level: "MXFP4"
+
+  - model_name: supergemma4-26b-uncensored
+    litellm_params:
+      model: ollama_chat/hf.co/Jiunsong/supergemma4-26b-uncensored-gguf-v2
+      api_base: os.environ/OLLAMA_API_BASE
+    model_info:
+      owned_by: jiunsong
+      parameter_size: "26B"
+      quantization_level: "Q4_K_M"
+
+  # vLLM Models (on-demand via Sablier — cold start ~2-3 min)
+  - model_name: gemma-4-31b-it
+    litellm_params:
+      model: openai/gemma-4-31b-it-nvfp4
+      api_base: os.environ/VLLM_GEMMA4_API_BASE
+      api_key: "no-key-required"
+      timeout: 600
+    model_info:
+      owned_by: google
+      parameter_size: "31B"
+      quantization_level: "NVFP4"
+
+# ---------------------------------------------------------------------------
+# MCP Servers — accessible via LiteLLM's /mcp/ gateway endpoint
+# ---------------------------------------------------------------------------
+mcp_servers:
+  # Infrastructure tools exposed through the LiteLLM MCP gateway.
+  # Auth uses OAuth2 client credentials from the configured identity provider.
+  # Access is restricted to the configured LiteLLM access group.
+  cluster_utils_mcp:
+    url: os.environ/MCP_CLUSTER_UTILS_URL
+    transport: "http"
+    auth_type: oauth2
+    oauth2_flow: client_credentials
+    client_id: os.environ/MCP_GATEWAY_OIDC_CLIENT_ID
+    client_secret: os.environ/MCP_GATEWAY_OIDC_CLIENT_SECRET
+    token_url: os.environ/MCP_GATEWAY_OIDC_TOKEN_URL
+    scopes: ["openid"]
+    access_groups: ["infra-admin"]
+    description: "Infrastructure tools exposed through the LiteLLM MCP gateway. Requires configured backend services."
+
+  # Grafana dashboards and data queries (no auth — VPN-only)
+  mcp_grafana:
+    url: os.environ/MCP_GRAFANA_URL
+    transport: "http"
+    access_groups: ["infra-admin"]
+    description: "Grafana dashboard queries and data exploration."
+
+  # Notion workspace (no auth — VPN-only)
+  mcp_notion:
+    url: os.environ/MCP_NOTION_URL
+    transport: "sse"
+    access_groups: ["productivity"]
+    description: "Notion workspace read/write."
+
+  # Playwright browser automation (no auth — VPN-only)
+  mcp_playwright:
+    url: os.environ/MCP_PLAYWRIGHT_URL
+    transport: "http"
+    access_groups: ["infra-admin", "productivity"]
+    description: "Browser automation and web scraping."
 
 general_settings:
 
