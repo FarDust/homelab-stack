@@ -245,9 +245,13 @@ services:
         - traefik.http.services.anythingllm.loadbalancer.server.port=3001
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
+    entrypoint:
+      - /bin/sh
+      - -c
     command:
-      - --config
-      - /app/config/config.yaml
+      - |
+        export MCP_GATEWAY_OIDC_CLIENT_SECRET="$$(cat /run/secrets/litellm_mcp_gateway_oidc_client_secret)"
+        exec docker/prod_entrypoint.sh --config /app/config/config.yaml
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness')"]
       interval: 30s
@@ -273,7 +277,7 @@ services:
       - OLLAMA_LOWEND_API_BASE=https://ollama-low-end.${LOCAL_DOMAIN?err}
       - VLLM_GEMMA4_API_BASE=https://vllm-gemma4.${LOCAL_DOMAIN?err}/v1
       - MCP_CLUSTER_UTILS_URL=https://mcp.${LOCAL_DOMAIN?err}/mcp
-      - MCP_GATEWAY_OIDC_TOKEN_URL=https://idp.${LOCAL_DOMAIN?err}/realms/cluster-services/protocol/openid-connect/token
+      - MCP_GATEWAY_OIDC_TOKEN_URL=https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
       - MCP_GRAFANA_URL=https://mcp-grafana.${LOCAL_DOMAIN?err}/mcp
       - MCP_NOTION_URL=https://mcp-notion.${LOCAL_DOMAIN?err}/mcp
       - MCP_PLAYWRIGHT_URL=https://mcp-playwright.${LOCAL_DOMAIN?err}/mcp
@@ -282,7 +286,6 @@ services:
       - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
       - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
       - MCP_GATEWAY_OIDC_CLIENT_ID=${MCP_GATEWAY_OIDC_CLIENT_ID:-litellm-mcp-gateway}
-      - MCP_GATEWAY_OIDC_CLIENT_SECRET=${MCP_GATEWAY_OIDC_CLIENT_SECRET:-}
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
@@ -291,6 +294,8 @@ services:
     secrets:
       - source: vertex_ai_credentials
         target: vertex_ai_credentials
+      - source: litellm_mcp_gateway_oidc_client_secret
+        target: litellm_mcp_gateway_oidc_client_secret
     deploy:
       replicas: 3
       resources:
@@ -475,6 +480,9 @@ secrets:
   vertex_ai_credentials:
     name: vertex_ai_credentials-${CONFIG_VERSION:-0}
     file: ../../secrets/google/vertex_ai/credentials.json
+  litellm_mcp_gateway_oidc_client_secret:
+    name: litellm_mcp_gateway_oidc_client_secret-${CONFIG_VERSION:-0}
+    file: ../../secrets/litellm/mcp_gateway_oidc_client_secret
   open_terminal_api_key:
     name: open_terminal_api_key-${CONFIG_VERSION:-0}
     file: ../../secrets/open_terminal/api_key
