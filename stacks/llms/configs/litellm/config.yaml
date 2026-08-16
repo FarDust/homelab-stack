@@ -34,6 +34,7 @@ router_settings:
   # Existing model names are unchanged; these add stable route targets.
   fallbacks:
     - {"n8n-chat": ["n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
+    - {"n8n-chat-low-end": ["n8n-chat-fallback", "gemini-2.5-flash"]}
     - {"n8n-code": ["n8n-code-fallback", "gemini-2.5-flash-lite"]}
     - {"trust-agent-chat": ["trust-agent-chat-low-end"]}
     - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
@@ -947,7 +948,7 @@ model_list:
   # Prefer regular Ollama, but fall back to low-end Ollama if needed.
   - model_name: n8n-chat-low-end
     litellm_params:
-      model: ollama_chat/qwen3.5:2b
+      model: ollama_chat/qwen3.5:2b-q4_K_M
       api_base: os.environ/OLLAMA_LOWEND_API_BASE
     model_info:
       owned_by: alibaba
