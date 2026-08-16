@@ -297,15 +297,19 @@ services:
       - source: litellm_mcp_gateway_oidc_client_secret
         target: litellm_mcp_gateway_oidc_client_secret
     deploy:
-      replicas: 3
+      # Single proxy avoids Prisma/Redis connection pressure and in-flight AI call loss.
+      replicas: 1
       resources:
         limits:
           cpus: '1'
           memory: 2G
       placement:
-        preferences:
-          - spread: node.id
-        max_replicas_per_node: 2
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
       restart_policy:
         condition: any
         delay: 30s
