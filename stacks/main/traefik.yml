@@ -437,6 +437,10 @@ services:
       target: /etc/grafana/provisioning/dashboards/custom/volcano_scheduler_queue.json
     - source: grafana_dashboard_k3s_status
       target: /etc/grafana/provisioning/dashboards/custom/k3s_status_dashboard.json
+    - source: grafana_dashboard_cluster_operations_overview
+      target: /etc/grafana/provisioning/dashboards/custom/cluster-operations-overview.json
+    - source: grafana_dashboard_ingress_reliability
+      target: /etc/grafana/provisioning/dashboards/custom/ingress-reliability.json
     secrets:
     - source: google_oauth_secret
     - source: grafana_admin_password
@@ -650,50 +654,56 @@ configs:
     name: authelia_postgres_init-${CONFIG_VERSION:-0}
     file: ./configs/authelia/postgres_init.sql
   grafana_datasources:
-    name: grafana_datasources-${CONFIG_VERSION:-0}
+    name: grafana_datasources-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/datasources/datasource.yml
   grafana_dashboards:
-    name: grafana_dashboards-${CONFIG_VERSION:-0}
+    name: grafana_dashboards-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboard.yml
   grafana_dashboard_docker:
-    name: grafana_dashboard_docker-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_docker-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/docker.json
   grafana_dashboard_traefik:
-    name: grafana_dashboard_traefik-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_traefik-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/traefik_rev4.json
   grafana_dashboard_nextdns:
-    name: grafana_dashboard_nextdns-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_nextdns-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/nextdns.json
   grafana_dashboard_docker_swarm:
-    name: grafana_dashboard_docker_swarm-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_docker_swarm-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
   grafana_dashboard_loki_connection:
-    name: grafana_dashboard_loki_connection-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_loki_connection-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/loki_connection.json
   grafana_dashboard_system_anomalies:
-    name: grafana_dashboard_system_anomalies-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_system_anomalies-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
   grafana_dashboard_watchtower:
-    name: grafana_dashboard_watchtower-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_watchtower-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
   grafana_dashboard_docker_health_telegraf:
-    name: grafana_dashboard_docker_health_telegraf-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_docker_health_telegraf-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/docker_health_telegraf.json
   grafana_dashboard_cluster_connection_performance:
-    name: grafana_dashboard_cluster_connection_performance-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_cluster_connection_performance-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/cluster_connection_performance.json
   grafana_dashboard_postgres_k3s_datastore:
-    name: grafana_dashboard_postgres_k3s_datastore-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_postgres_k3s_datastore-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/postgres_k3s_datastore.json
   grafana_dashboard_volcano_scheduler_internal:
-    name: grafana_dashboard_volcano_scheduler_internal-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_volcano_scheduler_internal-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/volcano_scheduler_internal.json
   grafana_dashboard_volcano_scheduler_queue:
-    name: grafana_dashboard_volcano_scheduler_queue-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_volcano_scheduler_queue-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/volcano_scheduler_queue.json
   grafana_dashboard_k3s_status:
-    name: grafana_dashboard_k3s_status-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_k3s_status-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/k3s_status_dashboard.json
+  grafana_dashboard_cluster_operations_overview:
+    name: grafana_dashboard_cluster_operations_overview-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/cluster-operations-overview.json
+  grafana_dashboard_ingress_reliability:
+    name: grafana_dashboard_ingress_reliability-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/ingress-reliability.json
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/prometheus.yml
