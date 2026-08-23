@@ -1,3 +1,6 @@
 [submodule "stacks/main/configs/supabase"]
 	path = stacks/main/configs/supabase
 	url = git@github.com:supabase/supabase.git
+[submodule "stacks/main/configs/grafana/dashboards/tralmor-grafana-iac"]
+	path = stacks/main/configs/grafana/dashboards/tralmor-grafana-iac
+	url = https://github.com/FarDust/tralmor-grafana-iac.git
