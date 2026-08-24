@@ -441,6 +441,8 @@ services:
       target: /etc/grafana/provisioning/dashboards/custom/cluster-operations-overview.json
     - source: grafana_dashboard_ingress_reliability
       target: /etc/grafana/provisioning/dashboards/custom/ingress-reliability.json
+    - source: grafana_dashboard_swarm_workload_pressure
+      target: /etc/grafana/provisioning/dashboards/custom/swarm-workload-pressure.json
     secrets:
     - source: google_oauth_secret
     - source: grafana_admin_password
@@ -704,6 +706,9 @@ configs:
   grafana_dashboard_ingress_reliability:
     name: grafana_dashboard_ingress_reliability-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/ingress-reliability.json
+  grafana_dashboard_swarm_workload_pressure:
+    name: grafana_dashboard_swarm_workload_pressure-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/swarm-workload-pressure.json
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/prometheus.yml

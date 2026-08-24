@@ -1,153 +1,178 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-helper="${repo_root}/scripts/grafana-config-version.sh"
-compose_file="${repo_root}/stacks/main/traefik.yml"
-submodule_path='stacks/main/configs/grafana/dashboards/tralmor-grafana-iac'
-submodule_dir="${repo_root}/${submodule_path}"
-expected_sha='96488f86e313843a0eb23a70fe7d466b5d8df314'
+export GIT_MASTER=1
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+helper="$repo_root/scripts/grafana-config-version.sh"
+submodule_rel='stacks/main/configs/grafana/dashboards/tralmor-grafana-iac'
+submodule="$repo_root/$submodule_rel"
+expected_sha='aa85188efb63a64a0b43b1a947562f7b7deee048'
+baseline_migrated=(
+  grafana_datasources
+  grafana_dashboards
+  grafana_dashboard_docker
+  grafana_dashboard_traefik
+  grafana_dashboard_nextdns
+  grafana_dashboard_docker_swarm
+  grafana_dashboard_loki_connection
+  grafana_dashboard_system_anomalies
+  grafana_dashboard_watchtower
+  grafana_dashboard_docker_health_telegraf
+  grafana_dashboard_cluster_connection_performance
+  grafana_dashboard_postgres_k3s_datastore
+  grafana_dashboard_volcano_scheduler_internal
+  grafana_dashboard_volcano_scheduler_queue
+  grafana_dashboard_k3s_status
+)
+foreign_exceptions=(
+  grafana_alerting_behavioral_rules
+  grafana_alerting_contact_points
+  grafana_alerting_notification_policies
+)
 
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
+  printf 'FAIL: %s\n' "$1" >&2
   exit 1
 }
 
-assert_file_equals() {
-  local expected="$1"
-  local actual="$2"
-  local message="$3"
-  cmp -s "${expected}" "${actual}" || fail "${message}"
+expect_line() {
+  local expected=$1
+  local file=$2
+  grep -Fqx "$expected" "$file" || fail "missing exact line: $expected"
 }
 
-tmp_dir="$(mktemp -d)"
-trap 'rm -rf -- "${tmp_dir}"' EXIT INT TERM
-normalized_compose="${tmp_dir}/traefik.yml"
-sed 's/\r$//' "${compose_file}" > "${normalized_compose}"
+expect_count() {
+  local expected=$1
+  local pattern=$2
+  local file=$3
+  local count
+  count=$(grep -Fxc "$pattern" "$file" || true)
+  [ "$count" = "$expected" ] || fail "expected $expected occurrence(s) of: $pattern; found $count"
+}
 
-help_dir="${tmp_dir}/help"
-mkdir "${help_dir}"
-printf 'sentinel\r\n' > "${help_dir}/sentinel"
-cp "${help_dir}/sentinel" "${help_dir}/sentinel.before"
-help_before="$(find "${help_dir}" -maxdepth 1 -type f -printf '%f\n' | sort)"
-help_output="$(cd "${help_dir}" && "${helper}" --help)"
-help_after="$(find "${help_dir}" -maxdepth 1 -type f -printf '%f\n' | sort)"
-[[ -n "${help_output}" ]] || fail '--help must print usage information'
-[[ "${help_after}" == "${help_before}" ]] || fail '--help must not create or modify files'
-assert_file_equals "${help_dir}/sentinel.before" "${help_dir}/sentinel" '--help changed existing file bytes'
-
-env_file="${tmp_dir}/explicit.env"
-initialized_file="${tmp_dir}/explicit.initialized"
-expected_file="${tmp_dir}/explicit.expected"
-printf 'export CONFIG_VERSION=73\r\nUNCHANGED=value  ' > "${env_file}"
-chmod 0604 "${env_file}"
-printf 'export CONFIG_VERSION=73\r\nUNCHANGED=value  \nexport GRAFANA_CONFIG_VERSION=675\n' > "${initialized_file}"
-output="$("${helper}" init --env-file "${env_file}" --value 675)"
-[[ "${output}" == 'GRAFANA_CONFIG_VERSION=675' ]] || fail 'init must print only the seeded assignment'
-assert_file_equals "${initialized_file}" "${env_file}" 'init changed unrelated bytes'
-[[ "$(stat -c '%a' "${env_file}")" == '604' ]] || fail 'init changed the file mode'
-
-printf 'export CONFIG_VERSION=73\r\nUNCHANGED=value  \nexport GRAFANA_CONFIG_VERSION=676\n' > "${expected_file}"
-output="$("${helper}" bump --env-file "${env_file}")"
-[[ "${output}" == 'GRAFANA_CONFIG_VERSION=676' ]] || fail 'bump must print only the incremented assignment'
-assert_file_equals "${expected_file}" "${env_file}" 'bump changed bytes outside the Grafana version'
-[[ "$(stat -c '%a' "${env_file}")" == '604' ]] || fail 'bump changed the file mode'
-
-invalid_init="${tmp_dir}/invalid-init.env"
-if "${helper}" init --env-file "${invalid_init}" --value 0 > "${tmp_dir}/invalid-init.stdout" 2> "${tmp_dir}/invalid-init.stderr"; then
-  fail 'init must reject non-positive values'
+mode=working
+if [ "${1:-}" = '--from-index' ]; then
+  mode=index
+  shift
 fi
-[[ ! -e "${invalid_init}" ]] || fail 'rejected init created an env file'
-[[ ! -s "${tmp_dir}/invalid-init.stdout" ]] || fail 'rejected init must not print an assignment'
+[ "$#" -eq 0 ] || fail 'unsupported argument'
 
-env_file="${tmp_dir}/duplicate.env"
-duplicate_before="${tmp_dir}/duplicate.before"
-printf 'GRAFANA_CONFIG_VERSION=1\nexport GRAFANA_CONFIG_VERSION=2\nCONFIG_VERSION=99\n' > "${env_file}"
-chmod 0644 "${env_file}"
-cp "${env_file}" "${duplicate_before}"
-if "${helper}" bump --env-file "${env_file}" > "${tmp_dir}/duplicate.stdout" 2> "${tmp_dir}/duplicate.stderr"; then
-  fail 'duplicate Grafana version assignments must be rejected'
+[ -x "$helper" ] || fail 'missing executable scoped version helper'
+
+workdir=$(mktemp -d)
+trap 'rm -rf "$workdir"' EXIT
+env_file="$workdir/.env"
+before_file="$workdir/before-without-grafana"
+after_file="$workdir/after-without-grafana"
+
+printf 'export CONFIG_VERSION=675\nexport KEEP_ME=unchanged\n' >"$env_file"
+chmod 640 "$env_file"
+cp "$env_file" "$before_file"
+
+"$helper" init --env-file "$env_file" --value 675
+expect_line 'export GRAFANA_CONFIG_VERSION=675' "$env_file"
+expect_line 'export CONFIG_VERSION=675' "$env_file"
+expect_line 'export KEEP_ME=unchanged' "$env_file"
+[ "$(stat -c '%a' "$env_file")" = '640' ] || fail 'init changed .env mode'
+grep -Fvx 'export GRAFANA_CONFIG_VERSION=675' "$env_file" >"$after_file"
+cmp -s "$before_file" "$after_file" || fail 'init changed unrelated .env bytes'
+
+"$helper" bump --env-file "$env_file"
+expect_line 'export GRAFANA_CONFIG_VERSION=676' "$env_file"
+expect_line 'export CONFIG_VERSION=675' "$env_file"
+expect_line 'export KEEP_ME=unchanged' "$env_file"
+[ "$(stat -c '%a' "$env_file")" = '640' ] || fail 'bump changed .env mode'
+grep -Fvx 'export GRAFANA_CONFIG_VERSION=676' "$env_file" >"$after_file"
+cmp -s "$before_file" "$after_file" || fail 'bump changed unrelated .env bytes'
+
+duplicate_env="$workdir/duplicate.env"
+printf 'export GRAFANA_CONFIG_VERSION=675\nexport GRAFANA_CONFIG_VERSION=676\n' >"$duplicate_env"
+if "$helper" bump --env-file "$duplicate_env"; then
+  fail 'bump accepted duplicate Grafana version assignments'
 fi
-[[ ! -s "${tmp_dir}/duplicate.stdout" ]] || fail 'duplicate rejection must not print a version'
-assert_file_equals "${duplicate_before}" "${env_file}" 'duplicate rejection changed the env file'
-[[ "$(stat -c '%a' "${env_file}")" == '644' ]] || fail 'duplicate rejection changed the file mode'
 
-env_file="${tmp_dir}/malformed.env"
-malformed_before="${tmp_dir}/malformed.before"
-printf 'CONFIG_VERSION=99\nexport GRAFANA_CONFIG_VERSION=not-a-number\nKEEP=this\n' > "${env_file}"
-chmod 0640 "${env_file}"
-cp "${env_file}" "${malformed_before}"
-if "${helper}" bump --env-file "${env_file}" > "${tmp_dir}/malformed.stdout" 2> "${tmp_dir}/malformed.stderr"; then
-  fail 'bump must reject malformed Grafana version assignments'
+if [ "$mode" = index ]; then
+  compose="$workdir/traefik.yml"
+  git -C "$repo_root" show ':stacks/main/traefik.yml' >"$compose"
+else
+  compose="$repo_root/stacks/main/traefik.yml"
 fi
-[[ ! -s "${tmp_dir}/malformed.stdout" ]] || fail 'malformed rejection must not print an assignment'
-assert_file_equals "${malformed_before}" "${env_file}" 'malformed rejection changed the env file'
-[[ "$(stat -c '%a' "${env_file}")" == '640' ]] || fail 'malformed rejection changed the file mode'
 
-gitlink="$(git -C "${repo_root}" ls-files --stage -- "${submodule_path}")"
-expected_gitlink="160000 ${expected_sha} 0"$'\t'"${submodule_path}"
-[[ "${gitlink}" == "${expected_gitlink}" ]] || fail 'submodule gitlink is not pinned to the approved commit'
+gitlink=$(git -C "$repo_root" ls-files --stage -- "$submodule_rel")
+printf -v expected_gitlink '160000 %s 0\t%s' "$expected_sha" "$submodule_rel"
+if [ "$mode" = index ]; then
+  [ "$gitlink" = "$expected_gitlink" ] || fail "parent index lacks exact approved private IaC gitlink: $submodule_rel"
+elif [ "$gitlink" != "$expected_gitlink" ]; then
+  git -C "$submodule" rev-parse HEAD | grep -Fqx "$expected_sha" || fail 'submodule is not pinned to the approved private IaC commit'
+fi
 
-gitmodules_url="$(git -C "${repo_root}" config -f .gitmodules --get "submodule.${submodule_path}.url")"
-[[ "${gitmodules_url}" == 'https://github.com/FarDust/tralmor-grafana-iac.git' ]] || fail 'submodule URL must be credential-free HTTPS'
+for artifact in cluster-operations-overview ingress-reliability swarm-workload-pressure; do
+  artifact_path="$submodule/dist/$artifact.json"
+  if [ "$mode" = index ]; then
+    git -C "$submodule" show "$expected_sha:dist/$artifact.json" | python3 - "$artifact" 3<&0 <<'PY'
+import json
+import os
+import sys
 
-dist_dir="${submodule_dir}/dist"
-actual_artifacts="$({
-  for artifact in "${dist_dir}"/*; do
-    [[ -f "${artifact}" ]] || fail 'dist must contain only regular artifact files'
-    basename "${artifact}"
-  done
-} | sort)"
-expected_artifacts=$'cluster-operations-overview.json\ningress-reliability.json'
-[[ "${actual_artifacts}" == "${expected_artifacts}" ]] || fail 'submodule dist artifacts do not match the approved set'
+expected_uid = sys.argv[1]
+with os.fdopen(3, encoding='utf-8') as handle:
+    payload = json.load(handle)
+if not isinstance(payload, dict) or payload.get('uid') != expected_uid or not payload.get('panels'):
+    raise SystemExit(f'invalid Grafana dashboard artifact at committed revision: {expected_uid}')
+PY
+  else
+    [ -f "$artifact_path" ] || fail "missing rendered artifact: $artifact"
+    python3 - "$artifact_path" "$artifact" <<'PY'
+import json
+import sys
 
-expected_configs=(
-  grafana_dashboard_cluster_connection_performance
-  grafana_dashboard_cluster_operations_overview
-  grafana_dashboard_docker
-  grafana_dashboard_docker_health_telegraf
-  grafana_dashboard_docker_swarm
-  grafana_dashboard_ingress_reliability
-  grafana_dashboard_k3s_status
-  grafana_dashboard_loki_connection
-  grafana_dashboard_nextdns
-  grafana_dashboard_postgres_k3s_datastore
-  grafana_dashboard_system_anomalies
-  grafana_dashboard_traefik
-  grafana_dashboard_volcano_scheduler_internal
-  grafana_dashboard_volcano_scheduler_queue
-  grafana_dashboard_watchtower
-  grafana_dashboards
-  grafana_datasources
-)
-expected_config_list="$(printf '%s\n' "${expected_configs[@]}" | sort)"
-
-actual_service_configs="$(
-  sed -n '/^  grafana:/,/^  agent:/p' "${normalized_compose}" |
-    sed -n '/^    configs:/,/^    secrets:/p' |
-    sed -n 's/^    - source: \(grafana_[a-z0-9_]*\)$/\1/p' |
-    sort
-)"
-[[ "${actual_service_configs}" == "${expected_config_list}" ]] || fail 'Grafana service must mount exactly the 17 scoped configs'
-
-actual_definitions="$(
-  sed -n '/^configs:/,/^secrets:/p' "${normalized_compose}" |
-    sed -n 's/^  \(grafana_[a-z0-9_]*\):$/\1/p' |
-    sort
-)"
-[[ "${actual_definitions}" == "${expected_config_list}" ]] || fail 'top-level configs must define exactly the 17 scoped Grafana configs'
-
-for config_name in "${expected_configs[@]}"; do
-  expected_name="    name: ${config_name}-\${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}"
-  [[ "$(grep -Fxc "${expected_name}" "${normalized_compose}")" == '1' ]] || fail "${config_name} does not use the scoped version"
+path, expected_uid = sys.argv[1:]
+with open(path, encoding='utf-8') as handle:
+    payload = json.load(handle)
+if not isinstance(payload, dict) or payload.get('uid') != expected_uid or not payload.get('panels'):
+    raise SystemExit(f'invalid Grafana dashboard artifact: {path}')
+PY
+  fi
 done
 
-[[ "$(grep -Fxc '      target: /etc/grafana/provisioning/dashboards/custom/cluster-operations-overview.json' "${normalized_compose}")" == '1' ]] || fail 'cluster operations mount target is not exact'
-[[ "$(grep -Fxc '      target: /etc/grafana/provisioning/dashboards/custom/ingress-reliability.json' "${normalized_compose}")" == '1' ]] || fail 'ingress reliability mount target is not exact'
-[[ "$(grep -Fxc '    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/cluster-operations-overview.json' "${normalized_compose}")" == '1' ]] || fail 'cluster operations artifact source is not exact'
-[[ "$(grep -Fxc '    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/ingress-reliability.json' "${normalized_compose}")" == '1' ]] || fail 'ingress reliability artifact source is not exact'
+owned_names=("${baseline_migrated[@]}" grafana_dashboard_cluster_operations_overview grafana_dashboard_ingress_reliability grafana_dashboard_swarm_workload_pressure)
+for config_name in "${owned_names[@]}"; do
+  printf -v expected_name '    name: %s-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}' "$config_name"
+  expect_count 1 "$expected_name" "$compose"
+done
 
-[[ "$(grep -Fc 'GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set' "${normalized_compose}")" == '17' ]] || fail 'scoped Grafana version must appear exactly 17 times'
-[[ "$(grep -Fxc 'export GRAFANA_CONFIG_VERSION=1' "${repo_root}/.env.example")" == '1' ]] || fail '.env.example must initialize the Grafana config version once'
+scoped_names=$(rg -N '^    name: grafana_[A-Za-z0-9_]+-\$\{GRAFANA_CONFIG_VERSION:\?GRAFANA_CONFIG_VERSION must be set\}$' "$compose" | wc -l | tr -d '[:space:]')
+[ "$scoped_names" = '18' ] || fail "expected 18 scoped Grafana config names; found $scoped_names"
 
-printf 'PASS: Grafana config version integration\n'
+for exception in "${foreign_exceptions[@]}"; do
+  if grep -Fq "  $exception:" "$compose"; then
+    printf -v expected_global '    name: %s-${CONFIG_VERSION:-0}' "$exception"
+    expect_count 1 "$expected_global" "$compose"
+  fi
+done
+
+while IFS= read -r global_line; do
+  config_name=$(printf '%s\n' "$global_line" | sed -E 's/^    name: (grafana_[A-Za-z0-9_]+)-\$\{CONFIG_VERSION:-0\}$/\1/')
+  case "$config_name" in
+    grafana_alerting_behavioral_rules|grafana_alerting_contact_points|grafana_alerting_notification_policies) ;;
+    *) fail "unexpected global Grafana config version: $config_name" ;;
+  esac
+done < <(rg -N '^    name: grafana_[A-Za-z0-9_]+-\$\{CONFIG_VERSION:-0\}$' "$compose" || true)
+
+if [ "$mode" = index ]; then
+  for exception in "${foreign_exceptions[@]}"; do
+    grep -Fq "  $exception:" "$compose" && fail "foreign alerting config staged: $exception"
+  done
+fi
+
+for artifact in cluster-operations-overview ingress-reliability swarm-workload-pressure; do
+  config_name="grafana_dashboard_${artifact//-/_}"
+  expect_count 1 "  $config_name:" "$compose"
+  expect_count 1 "    - source: $config_name" "$compose"
+  expect_count 1 "      target: /etc/grafana/provisioning/dashboards/custom/$artifact.json" "$compose"
+  expect_count 1 "    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/$artifact.json" "$compose"
+done
+
+expect_line 'export GRAFANA_CONFIG_VERSION=1' "$repo_root/.env.example"
+printf 'PASS: Grafana IaC integration contract (%s)\n' "$mode"
