@@ -1,0 +1,106 @@
+version: "3.9"
+networks:
+  traefik:
+    external: true
+services:
+  marquez:
+    image: marquezproject/marquez@sha256:0721c976cff17d8b14f7949d85d6dac9c7ea37cb9fe857caa19833730fcb1a50
+    networks:
+      - traefik
+    configs:
+      - source: lineage_marquez_config_yml
+        target: /usr/src/app/marquez.local.yml
+      - source: lineage_marquez_entrypoint_sh
+        target: /usr/local/bin/marquez-entrypoint-secret-wrapper.sh
+        mode: 0555
+    secrets:
+      - source: marquez_postgres_password
+    entrypoint:
+      - /bin/bash
+      - /usr/local/bin/marquez-entrypoint-secret-wrapper.sh
+    environment:
+      - MARQUEZ_CONFIG=marquez.local.yml
+      - POSTGRES_HOST=postgres.${LOCAL_DOMAIN?err}
+      - POSTGRES_PORT=${INTERNAL_PORT:-5578}
+      - POSTGRES_DB=marquez
+      - POSTGRES_USER=marquez
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:5001/healthcheck >/dev/null 2>&1 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.swarm.leader == true
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: 0
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.lineage-marquez-api.rule=Host(`marquez-api.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.lineage-marquez-api.entrypoints=websecure"
+        - "traefik.http.routers.lineage-marquez-api.tls=true"
+        - "traefik.http.routers.lineage-marquez-api.tls.certresolver=le-dns"
+        - "traefik.http.services.lineage-marquez-api.loadbalancer.server.port=5000"
+        - "traefik.swarm.network=traefik"
+        - "com.centurylinklabs.watchtower.enable=false"
+
+  marquez-web:
+    image: marquezproject/marquez-web@sha256:7312112ca0e611b0a37b00d3da6a677485ae4a97622b23d3ae24d849a927868b
+    networks:
+      - traefik
+    environment:
+      - MARQUEZ_HOST=marquez
+      - MARQUEZ_PORT=5000
+      - WEB_PORT=3000
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.swarm.leader == true
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: 0
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.lineage-marquez-web.rule=Host(`marquez.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.lineage-marquez-web.entrypoints=websecure"
+        - "traefik.http.routers.lineage-marquez-web.tls=true"
+        - "traefik.http.routers.lineage-marquez-web.tls.certresolver=le-dns"
+        - "traefik.http.services.lineage-marquez-web.loadbalancer.server.port=3000"
+        - "traefik.swarm.network=traefik"
+        - "com.centurylinklabs.watchtower.enable=false"
+
+configs:
+  lineage_marquez_config_yml:
+    file: ./configs/lineage/marquez-config.yml
+  lineage_marquez_entrypoint_sh:
+    file: ./configs/lineage/marquez-entrypoint-secret-wrapper.sh
+
+secrets:
+  marquez_postgres_password:
+    file: ../../secrets/marquez/postgres_password
