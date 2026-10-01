@@ -1,0 +1,71 @@
+version: "3.9"
+networks:
+  traefik:
+    external: true
+services:
+  neo4j:
+    image: neo4j:5-community@sha256:5eb12ad77fa46ab73e23df9ea1f43f5c0f2a79523435577648e046be042b9b93
+    networks:
+      - traefik
+    volumes:
+      - neo4j_ontology_data:/data
+      - neo4j_ontology_logs:/logs
+    secrets:
+      - source: neo4j_ontology_auth_password
+    environment:
+      - NEO4J_AUTH_FILE=/run/secrets/neo4j_ontology_auth_password
+      - NEO4J_server_default__advertised__address=neo4j.${LOCAL_DOMAIN?err}
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=1G
+      - NEO4J_server_memory_pagecache_size=512m
+      - NEO4J_PLUGINS=["apoc"]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: 0
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.ontology-neo4j.rule=Host(`neo4j.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.ontology-neo4j.entrypoints=websecure"
+        - "traefik.http.routers.ontology-neo4j.tls=true"
+        - "traefik.http.routers.ontology-neo4j.tls.certresolver=le-dns"
+        - "traefik.http.services.ontology-neo4j.loadbalancer.server.port=7474"
+        - "traefik.tcp.routers.ontology-neo4j-bolt.rule=HostSNI(`neo4j-bolt.${LOCAL_DOMAIN?err}`)"
+        - "traefik.tcp.routers.ontology-neo4j-bolt.entrypoints=host-internal"
+        - "traefik.tcp.routers.ontology-neo4j-bolt.tls.passthrough=false"
+        - "traefik.tcp.services.ontology-neo4j-bolt.loadbalancer.server.port=7687"
+        - "traefik.swarm.network=traefik"
+        - "com.centurylinklabs.watchtower.enable=false"
+
+volumes:
+  neo4j_ontology_data:
+  neo4j_ontology_logs:
+
+secrets:
+  neo4j_ontology_auth_password:
+    file: ../../secrets/neo4j/neo4j_auth_password
