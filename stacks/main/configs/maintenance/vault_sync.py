@@ -67,11 +67,17 @@ Respond with ONLY a JSON object, no other text, in exactly this shape:
      "properties": {{"<key>": "<short string value>", ...}} }}
   ],
   "relationships": [
-    {{"from_name": "<entity name>", "type": "<RELATIONSHIP_TYPE_UPPER_SNAKE_CASE>", "to_name": "<entity name>"}}
+    {{"from_name": "<entity name>", "source_class": "<one of: {", ".join(KNOWN_CLASSES)}>",
+     "type": "<RELATIONSHIP_TYPE_UPPER_SNAKE_CASE>",
+     "to_name": "<entity name>", "target_class": "<one of: {", ".join(KNOWN_CLASSES)}>"}}
   ]
 }}
 Both lists may be empty. Keep "properties" to a handful of short, factual
-key/value pairs (e.g. purpose, image, endpoint) -- not full prose."""
+key/value pairs (e.g. purpose, image, endpoint) -- not full prose.
+Always give "source_class" and "target_class" for every relationship, even
+when the same entity also appears in "entities" -- a name alone is not
+enough to identify which node a relationship endpoint means, since the same
+name can exist under more than one class in the graph."""
 
 
 def log(msg: str) -> None:
@@ -156,13 +162,26 @@ def build_cypher(extraction: dict, source_path: str) -> str:
         )
         valid_names.add(name)
     for r in extraction.get("relationships", []) or []:
-        from_name, rel_type, to_name = r.get("from_name"), r.get("type"), r.get("to_name")
+        from_name = r.get("from_name")
+        to_name = r.get("to_name")
+        rel_type = r.get("type")
+        source_class = r.get("source_class")
+        target_class = r.get("target_class")
         if not from_name or not rel_type or not to_name:
             log(f"skipping invalid relationship: {r}")
             continue
+        if source_class not in KNOWN_CLASSES or target_class not in KNOWN_CLASSES:
+            log(f"skipping relationship with unknown endpoint class: {r}")
+            continue
+        # Re-MATCH each endpoint by its own unique (class, name) in the same
+        # statement rather than relying on a variable bound in an earlier
+        # statement -- cypher-shell -f has no cross-statement variable
+        # binding, and this driver applies one statement per session.run()
+        # call, so an unbound carry-over variable would silently create an
+        # orphan node here too if it were ever attempted.
         stmts.append(
-            f"MATCH (a {{name: '{esc(from_name)}'}}) "
-            f"MATCH (b {{name: '{esc(to_name)}'}}) "
+            f"MATCH (a:{source_class} {{name: '{esc(from_name)}'}}) "
+            f"MATCH (b:{target_class} {{name: '{esc(to_name)}'}}) "
             f"MERGE (a)-[:{re.sub(r'[^A-Za-z0-9_]', '_', rel_type.upper())}]->(b);"
         )
     return "\n".join(stmts)
