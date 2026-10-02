@@ -3,6 +3,14 @@ version: "3.9"
 networks:
  traefik:
    external: true
+ prometheus:
+   external: true
+ keycloak-internal:
+   external: true
+   name: main-identity_keycloak-internal
+ authelia-db:
+   external: true
+   name: main-traefik_authelia-db
 services:
   ephemeral-rebalance:
     image: docker:26-cli
@@ -10,6 +18,7 @@ services:
     environment:
       - REBALANCE_COOLDOWN_SECONDS=${REBALANCE_COOLDOWN_SECONDS:-300}
       - REBALANCE_SERVICE_COOLDOWN_SECONDS=${REBALANCE_SERVICE_COOLDOWN_SECONDS:-300}
+      - REBALANCE_INTER_SERVICE_DELAY_SECONDS=${REBALANCE_INTER_SERVICE_DELAY_SECONDS:-30}
       - REBALANCE_SKIP_CONSTRAINTS=${REBALANCE_SKIP_CONSTRAINTS:-node.labels.node.ephemeral != true,node.labels.storage.manager == true,node.labels.swarm.leader == true,node.role == manager}
       - EPHEMERAL_LABEL_KEY=node.ephemeral
       - EPHEMERAL_FORBID_CONSTRAINT=node.labels.node.ephemeral != true
@@ -46,6 +55,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker-plugins/rclone/cache/:/state/
       - /var/lib/docker/plugins:/host-plugins
+      - /var/lib/node_exporter/textfile_collector:/metrics
     configs:
       - source: rclone-fix-script
         target: /fix/check.sh
@@ -56,13 +66,45 @@ services:
       placement:
         constraints:
           - node.platform.os == linux
+  rclone-metrics-proxy:
+    image: caddy:2
+    networks:
+      - prometheus
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        GWIP=$$(ip route | awk '/default/{print $$3}')
+        cat > /etc/caddy/Caddyfile <<CADDYEOF
+        :5572 {
+          handle /metrics {
+            reverse_proxy $${GWIP}:5572
+          }
+          respond 403
+        }
+        CADDYEOF
+        exec caddy run --config /etc/caddy/Caddyfile
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.platform.os == linux
   postgres-backup:
     image: kartoza/pg-backup:17-3.5
+    entrypoint: ["/bin/bash", "/maintenance/postgres-backup.sh"]
+    command: ["schedule"]
+    configs:
+      - source: postgres-backup-script
+        target: /maintenance/postgres-backup.sh
+        mode: 0555
     networks:
       - traefik
     secrets:
       - source: postgres_db_password
     volumes:
+      - /var/lib/node_exporter/textfile_collector:/metrics
       - backups:/backups
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
@@ -73,6 +115,10 @@ services:
       - PGSSLMODE=${PGSSLMODE:-require}
       - CRON_SCHEDULE="0 23 * * *"
       - TZ=${TIMEZONE:-UTC}
+      - BACKUP_SERVICE_NAME=postgres-backup
+      - BACKUP_METRICS_FILE=/metrics/postgres_backup_postgres-backup.prom
+      - BACKUP_STATUS_INTERVAL_SECONDS=300
+      - BACKUP_STATUS_TIMEOUT_SECONDS=60s
     deploy:
       replicas: 1
       restart_policy:
@@ -92,6 +138,158 @@ services:
         constraints:
         - node.role == manager
         - node.labels.swarm.leader == true
+
+  supabase-db-backup:
+    image: kartoza/pg-backup:17-3.5
+    entrypoint: ["/bin/bash", "/maintenance/postgres-backup.sh"]
+    command: ["schedule"]
+    configs:
+      - source: postgres-backup-script
+        target: /maintenance/postgres-backup.sh
+        mode: 0555
+    networks:
+      - traefik
+    secrets:
+      - source: supabase_postgres_password
+        target: supabase_postgres_password
+    volumes:
+      - /var/lib/node_exporter/textfile_collector:/metrics
+      - supabase-db-backups:/backups
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASS_FILE=/run/secrets/supabase_postgres_password
+      - POSTGRES_DB=${SUPABASE_POSTGRES_DB:-postgres}
+      - DBLIST=_supabase postgres
+      - POSTGRES_HOST=supabase-db
+      - POSTGRES_PORT=${SUPABASE_POSTGRES_PORT:-5432}
+      - PGSSLMODE=require
+      - CRON_SCHEDULE="10 23 * * *"
+      - TZ=${TIMEZONE:-UTC}
+      - BACKUP_SERVICE_NAME=supabase-db-backup
+      - BACKUP_METRICS_FILE=/metrics/postgres_backup_supabase-db-backup.prom
+      - BACKUP_STATUS_INTERVAL_SECONDS=300
+      - BACKUP_STATUS_TIMEOUT_SECONDS=60s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == manager
+        - node.labels.swarm.leader == true
+
+  keycloak-db-backup:
+    image: kartoza/pg-backup:17-3.5
+    entrypoint: ["/bin/bash", "/maintenance/postgres-backup.sh"]
+    command: ["schedule"]
+    configs:
+      - source: postgres-backup-script
+        target: /maintenance/postgres-backup.sh
+        mode: 0555
+    networks:
+      - keycloak-internal
+    secrets:
+      - source: keycloak_db_password
+        target: keycloak_db_password
+    volumes:
+      - /var/lib/node_exporter/textfile_collector:/metrics
+      - keycloak-db-backups:/backups
+    environment:
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASS_FILE=/run/secrets/keycloak_db_password
+      - POSTGRES_DB=keycloak
+      - DBLIST=keycloak postgres
+      - POSTGRES_HOST=keycloak-db
+      - POSTGRES_PORT=5432
+      - PGSSLMODE=disable
+      - CRON_SCHEDULE="20 23 * * *"
+      - TZ=${TIMEZONE:-UTC}
+      - BACKUP_SERVICE_NAME=keycloak-db-backup
+      - BACKUP_METRICS_FILE=/metrics/postgres_backup_keycloak-db-backup.prom
+      - BACKUP_STATUS_INTERVAL_SECONDS=300
+      - BACKUP_STATUS_TIMEOUT_SECONDS=60s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == worker
+        - node.labels.storage.manager == true
+        - node.labels.load.tier == heavy
+
+  authelia-db-backup:
+    image: kartoza/pg-backup:17-3.5
+    entrypoint: ["/bin/bash", "/maintenance/postgres-backup.sh"]
+    command: ["schedule"]
+    configs:
+      - source: postgres-backup-script
+        target: /maintenance/postgres-backup.sh
+        mode: 0555
+    networks:
+      - authelia-db
+    secrets:
+      - source: authelia_db_password
+        target: authelia_db_password
+    volumes:
+      - /var/lib/node_exporter/textfile_collector:/metrics
+      - authelia-db-backups:/backups
+    environment:
+      - POSTGRES_USER=authelia
+      - POSTGRES_PASS_FILE=/run/secrets/authelia_db_password
+      - POSTGRES_DB=authelia
+      - DBLIST=authelia postgres
+      - POSTGRES_HOST=authelia-db
+      - POSTGRES_PORT=5432
+      - PGSSLMODE=disable
+      - CRON_SCHEDULE="30 23 * * *"
+      - TZ=${TIMEZONE:-UTC}
+      - BACKUP_SERVICE_NAME=authelia-db-backup
+      - BACKUP_METRICS_FILE=/metrics/postgres_backup_authelia-db-backup.prom
+      - BACKUP_STATUS_INTERVAL_SECONDS=300
+      - BACKUP_STATUS_TIMEOUT_SECONDS=60s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+        - node.role == worker
+        - node.labels.storage.manager == true
+        - node.labels.load.tier == heavy
   inotify-sysctl-reconciler:
     image: alpine:3.20
     command: ["/bin/sh", "/maintenance/inotify-sysctl.sh"]
@@ -112,22 +310,153 @@ services:
       placement:
         constraints:
           - node.platform.os == linux
+  service-autoheal:
+    image: docker:cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - service-autoheal-state:/state
+    configs:
+      - source: service_autoheal_script
+        target: /autoheal/service-autoheal.sh
+        mode: 0555
+    command: ["/bin/sh", "/autoheal/service-autoheal.sh"]
+    environment:
+      - AUTOHEAL_INTERVAL=300
+      - AUTOHEAL_COOLDOWN=30
+      - AUTOHEAL_MAX_RETRIES=3
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+      labels:
+        - com.centurylinklabs.watchtower.enable=false
+  disk-cleanup:
+    image: docker:cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        while true; do
+          echo "[$$(date -Iseconds)] Docker cleanup starting"
+          docker system prune -f --filter "until=72h" 2>&1
+          docker builder prune -af 2>&1
+          echo "[$$(date -Iseconds)] Done"
+          df -h / | tail -1
+          sleep 86400
+        done
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.platform.os == linux
+
+  vault-sync:
+    image: python:3.12-slim
+    networks:
+      - traefik
+    volumes:
+      - type: bind
+        source: ${COMPOSE_VAULT_PATH?err}
+        target: /vault
+    configs:
+      - source: vault-sync-script
+        target: /vault_sync.py
+        mode: 0555
+    secrets:
+      - source: neo4j_ontology_auth_password
+      - source: vault_sync_litellm_api_key
+    environment:
+      - VAULT_ROOT=/vault
+      - SYNC_INTERVAL_SECONDS=1800
+      - NEO4J_URI=bolt://devtools-ontology_neo4j:7687
+      - NEO4J_PASSWORD_FILE=/run/secrets/neo4j_ontology_auth_password
+      - LITELLM_BASE_URL=http://llms-governance_litellm:4000
+      - LITELLM_API_KEY_FILE=/run/secrets/vault_sync_litellm_api_key
+      - LITELLM_MODEL=gpt-5-mini
+      - MARQUEZ_URL=http://devtools-lineage_marquez:5000
+      - DRY_RUN=true
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - pip install --no-cache-dir --quiet neo4j httpx && python3 /vault_sync.py
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
 
 volumes:
   backups:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/postgres"
       allow_other: "true"
       vfs_cache_mode: full
+  supabase-db-backups:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/postgres/supabase-db"
+      allow_other: "true"
+      vfs_cache_mode: full
+  keycloak-db-backups:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/postgres/keycloak-db"
+      allow_other: "true"
+      vfs_cache_mode: full
+  authelia-db-backups:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/postgres/authelia-db"
+      allow_other: "true"
+      vfs_cache_mode: full
   ephemeral-rebalance-state:
+    driver: local
+  service-autoheal-state:
     driver: local
 
 secrets:
   postgres_db_password:
     name: postgres_db_password-${CONFIG_VERSION:-0}
     file: ../../secrets/postgres/postgres_db_password
+  supabase_postgres_password:
+    name: supabase_postgres_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/supabase/postgres_password
+  keycloak_db_password:
+    name: keycloak_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/keycloak/postgres_password
+  authelia_db_password:
+    name: authelia_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/authelia/postgres_password
+  neo4j_ontology_auth_password:
+    name: neo4j_ontology_auth_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/neo4j/neo4j_auth_password
+  vault_sync_litellm_api_key:
+    name: vault_sync_litellm_api_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/vault-sync/litellm_api_key
 configs:
+  postgres-backup-script:
+    name: postgres-backup-script-${CONFIG_VERSION:-0}
+    file: ./configs/maintenance/postgres-backup.sh
+  vault-sync-script:
+    name: vault-sync-script-${CONFIG_VERSION:-0}
+    file: ./configs/maintenance/vault_sync.py
   rclone-fix-script:
     name: rclone-fix-script-${CONFIG_VERSION:-0}
     file: ./configs/rclone/check.sh
@@ -137,3 +466,6 @@ configs:
   inotify-sysctl-script:
     name: inotify-sysctl-script-${CONFIG_VERSION:-0}
     file: ./configs/maintenance/inotify-sysctl.sh
+  service_autoheal_script:
+    name: service_autoheal_script-${CONFIG_VERSION:-0}
+    file: ./configs/maintenance/service-autoheal.sh
