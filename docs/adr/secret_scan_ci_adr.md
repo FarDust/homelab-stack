@@ -34,6 +34,20 @@ pull_request_target to expose credentials to PR code.
 
 ## Local execution and review follow-up
 
+The local hook follows the same optional-credential policy. The pinned ggshield library
+owns `.env`, user configuration and selected-instance auth metadata loading. With no
+nonempty key in the environment or `.env` and no saved account for that instance, the
+guard emits a notice and skips the API command. Gitleaks still runs independently.
+
+A saved account counts as configured without dereferencing its token or prompting the
+keyring. Expired accounts, missing keyring contents and rejected keys therefore still
+reach ggshield and fail rather than becoming an absence skip. An empty environment
+value cannot hide a saved account, and an empty `.env` override cannot turn an originally
+configured environment key into absence. Malformed configuration and an invalid explicit
+dotenv path fail closed with sanitized diagnostics. Load dotenv once; child commands
+inherit that resolved environment without loading it again. Unexpected-error tracebacks
+omit locals so auth metadata cannot be dumped. This supersedes the earlier CI-only skip.
+
 The repository's `.python-version` remains 3.10.12 for existing consumers. Invoke the
 guard explicitly with `uv run --python 3.12 --script` from its hook, shebang, examples
 and subprocess tests, matching CI rather than inheriting an incompatible interpreter.

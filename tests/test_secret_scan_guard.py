@@ -86,6 +86,11 @@ def _run_guard(
             "GGSHIELD_COMMAND_TIMEOUT_SECONDS": str(behavior.command_timeout_seconds),
             "GGSHIELD_EXECUTABLE": sys.executable,
             "GGSHIELD_EXECUTABLE_PREFIX": str(fake),
+            "GITGUARDIAN_API_KEY": "not-a-key",
+            "GITGUARDIAN_INSTANCE": "https://dashboard.gitguardian.com",
+            "GITGUARDIAN_DONT_LOAD_ENV": "1",
+            "GG_CONFIG_DIR": str(tmp_path / "config"),
+            "GG_USER_HOME_DIR": str(tmp_path / "home"),
         }
     )
 
@@ -253,6 +258,10 @@ def test_missing_scanner_executable_blocks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("GGSHIELD_EXECUTABLE", str(tmp_path / "not-installed"))
+    monkeypatch.setenv("GITGUARDIAN_API_KEY", "not-a-key")
+    monkeypatch.setenv("GITGUARDIAN_DONT_LOAD_ENV", "1")
+    monkeypatch.setenv("GG_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("GG_USER_HOME_DIR", str(tmp_path / "home"))
     result = subprocess.run(
         ["uv", "run", "--python", "3.12", "--script", str(SCRIPT), "pre-commit"],
         capture_output=True,
