@@ -66,7 +66,7 @@ jobs:
           uv tool run --from pre-commit==4.5.1 pre-commit validate-config
 
       - name: Test quota failure boundaries
-        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 pytest -q tests/test_secret_scan_guard.py
+        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 --with pyyaml==6.0.3 pytest -q tests/test_secret_scan_guard.py tests/test_secret_scan_ci.py
 
       - name: Run remaining repository hooks on changed files
         run: |
@@ -74,7 +74,8 @@ jobs:
             uv tool run --from pre-commit==4.5.1 pre-commit run "$hook" --from-ref "$SCAN_BASE" --to-ref HEAD --show-diff-on-failure
           done
 
-      - name: GitGuardian required API gate
+      - name: GitGuardian optional API gate
+        id: gitguardian
         if: ${{ !cancelled() && steps.uv.outcome == 'success' }}
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
@@ -82,7 +83,12 @@ jobs:
           GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
           GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: uv run --python 3.12 --script scripts/secret_scan_guard.py ci
+        run: |
+          if [ -z "${GITGUARDIAN_API_KEY:-}" ]; then
+            echo '::notice::GitGuardian API key not configured; Gitleaks is the required gate'
+            exit 0
+          fi
+          uv run --python 3.12 --script scripts/secret_scan_guard.py ci
 
       - name: Gitleaks required independent local gate
         if: ${{ !cancelled() && steps.gitleaks.outcome == 'success' }}

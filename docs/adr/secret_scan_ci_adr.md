@@ -5,7 +5,7 @@ Date: 2026-10-11. Status: implemented; hosted execution and independent approval
 ## Context
 
 The previous workflow skipped the API scanner. The approved replacement requires the
-maintained quota guard and an independent local scanner, while preserving ordinary
+maintained quota guard when configured and an independent local scanner, while preserving ordinary
 repository hooks. It must not depend on a production-node build or change deployment.
 
 ## Decision
@@ -13,17 +13,24 @@ repository hooks. It must not depend on a production-node build or change deploy
 Use one GitHub-hosted Ubuntu 24.04 job with a five-minute timeout, full Git history,
 Python 3.12, uv 0.12.5, pre-commit 4.5.1 and Gitleaks 8.30.1. Actions are SHA-pinned;
 the Gitleaks release archive is checksum-pinned. Cache uv dependencies and hook environments.
-Retain applicable non-scanner hooks and the eight quota-boundary regression tests.
+Retain applicable non-scanner hooks, the quota-boundary regression tests and tests that
+execute the actual workflow step for absent/empty keys and a rejected configured key.
 
-Run `uv run --python 3.12 --script scripts/secret_scan_guard.py ci`, then run Gitleaks
-as a separate required step. The local scanner runs even when the API step fails;
-neither step uses continue-on-error. Only the already-approved independently confirmed
-zero-quota condition is non-blocking. Missing authentication and other failures block.
+Gabriel's 2026-10-11 decision makes GitGuardian optional when Gitleaks runs. If the API
+key is absent or empty, emit `::notice::GitGuardian API key not configured; Gitleaks is
+the required gate` and exit zero without calling the API guard. Otherwise run
+`uv run --python 3.12 --script scripts/secret_scan_guard.py ci`. A configured but rejected
+key remains blocking, as do findings and other errors. Confirmed exhausted quota retains
+the approved two-signal guard; this decision does not alter its implementation.
 
-Provision the repository secret `GITGUARDIAN_API_KEY` through approved credential custody
-before expecting a hosted pass. Its value is exposed only to the API step, not other
-steps or source files. Fork PRs do not receive repository secrets and remain explicitly
-blocked at that gate; do not use pull_request_target to expose credentials to PR code.
+Run Gitleaks as a separate required step even when the API step fails. Neither step uses
+continue-on-error. Missing or failed Gitleaks remains blocking. This supersedes the
+earlier requirement that missing API authentication block CI.
+
+When API scanning is desired, provision `GITGUARDIAN_API_KEY` through approved credential
+custody. Its value is exposed only to the API step, not other steps or source files.
+Fork PRs do not receive repository secrets and use the required local gate; do not use
+pull_request_target to expose credentials to PR code.
 
 ## Budget and lint interpretations
 
@@ -44,7 +51,7 @@ Two generic ci-budget lint findings have explicit interpretations:
 
 ## Alternatives and verification
 
-Skipping scanners, allowing every exit 128, disabling findings, compiling Gitleaks on
+Skipping Gitleaks, allowing every exit 128, disabling findings, compiling Gitleaks on
 the production node, and using a self-hosted runner for this public repository were
 rejected. No new credential was provisioned by this change.
 
