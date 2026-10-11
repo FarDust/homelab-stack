@@ -1,29 +1,89 @@
-name: 🔍 Pre-commit Checks
+name: Pre-commit Checks
 
 on:
   pull_request:
+    paths-ignore: ['**/*.png', '**/*.jpg', '**/*.svg']
   push:
-    branches:
-      - main
+    branches: [main]
+    paths-ignore: ['**/*.png', '**/*.jpg', '**/*.svg']
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Budget owner: FarDust. Assumption: 60 runs/month, 3 Linux minutes/run.
+# Gross: 180 minutes/month * USD 0.006 = USD 1.08; public-runner discount separate.
+# Target: under 5 minutes; hosted timing must be measured after runner admission.
 jobs:
   pre-commit:
-    name: Run pre-commit hooks
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    name: Linux validation and secret gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      PRE_COMMIT_HOME: ${{ github.workspace }}/.cache/pre-commit
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
+      - name: Checkout complete scan history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 0
           submodules: false
 
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up pinned uv and Python
+        id: uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
         with:
+          version: '0.12.5'
           python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: scripts/secret_scan_guard.py
 
-      - name: ✅ Run pre-commit
-        uses: pre-commit/action@v3.0.1
+      - name: Cache hook environments
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ env.PRE_COMMIT_HOME }}
+          key: pre-commit-${{ runner.os }}-py312-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install checksum-pinned Gitleaks
+        id: gitleaks
+        run: |
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          curl --fail --location --max-time 60 \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" version
+
+      - name: Validate scan range and hook configuration
+        run: |
+          test -n "$SCAN_BASE"
+          git cat-file -e "$SCAN_BASE^{commit}"
+          uv tool run --from pre-commit==4.5.1 pre-commit validate-config
+
+      - name: Test quota failure boundaries
+        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 pytest -q tests/test_secret_scan_guard.py
+
+      - name: Run remaining repository hooks on changed files
+        run: |
+          for hook in check-no-local-paths end-of-file-fixer trailing-whitespace check-added-large-files check-json detect-private-key mixed-line-ending dotenv-linter; do
+            uv tool run --from pre-commit==4.5.1 pre-commit run "$hook" --from-ref "$SCAN_BASE" --to-ref HEAD --show-diff-on-failure
+          done
+
+      - name: GitGuardian required API gate
+        if: ${{ !cancelled() && steps.uv.outcome == 'success' }}
         env:
-          SKIP: ggshield
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: uv run --python 3.12 --script scripts/secret_scan_guard.py ci
+
+      - name: Gitleaks required independent local gate
+        if: ${{ !cancelled() && steps.gitleaks.outcome == 'success' }}
+        run: gitleaks git --redact --verbose --log-opts="$SCAN_BASE..HEAD"
