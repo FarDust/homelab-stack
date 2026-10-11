@@ -36,26 +36,52 @@ services:
         constraints:
           - node.labels.swarm.leader == true
   rclone-fixer:
-    image: docker:cli
-    command: ["/bin/sh", "/fix/check.sh"]
+    image: ${RCLONE_CONTROLLER_IMAGE?err}
+    command: ["--apply", "watch"]
     environment:
       - RCLONE_FIX_ENABLED=true
       - RCLONE_FIX_INTERVAL=60
-      - RCLONE_FIX_LOG_LEVEL=DEBUG
+      - RCLONE_FIX_LOG_LEVEL=info
+      - RCLONE_EXPECTED_NODE_ID={{.Node.ID}}
+      - RCLONE_ALLOWED_PLUGIN_REFERENCES=docker.io/rclone/docker-volume-rclone:amd64-1.75.2
+      - TOKIO_WORKER_THREADS=1
+    read_only: true
+    cap_drop:
+      - ALL
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker-plugins/rclone/cache/:/state/
-      - /var/lib/docker/plugins:/host-plugins
-    configs:
-      - source: rclone-fix-script
-        target: /fix/check.sh
+      - /var/lib/docker-plugins/rclone/cache/:/state/:ro
+      - /var/lib/node_exporter/textfile_collector:/metrics
+      - rclone-fixer-journal:/var/lib/rclone-fixer
     deploy:
       mode: global
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 64M
+          pids: 32
+        reservations:
+          memory: 8M
       restart_policy:
         condition: on-failure
+        delay: 30s
+        max_attempts: 3
+        window: 300s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: pause
+        monitor: 60s
       placement:
         constraints:
           - node.platform.os == linux
+          - node.platform.arch == x86_64
   postgres-backup:
     image: kartoza/pg-backup:17-3.5
     networks:
@@ -122,6 +148,9 @@ volumes:
       vfs_cache_mode: full
   ephemeral-rebalance-state:
     driver: local
+  rclone-fixer-journal:
+    driver: local
+    name: main-maintenance_rclone-fixer-journal
 
 secrets:
   postgres_db_password:
