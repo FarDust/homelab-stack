@@ -29,6 +29,9 @@ class FakeBehavior:
     scan_stdout: str = ""
     quota_exit: int = 0
     quota_stdout: str = '{"count": 10000, "limit": 10000, "remaining": 0}'
+    scan_delay_seconds: float = 0
+    quota_delay_seconds: float = 0
+    command_timeout_seconds: float = 60
 
 
 def _write_fake_ggshield(tmp_path: Path) -> Path:
@@ -40,16 +43,19 @@ import json
 import os
 import sys
 from pathlib import Path
+from threading import Event
 
 log_path = Path(os.environ["FAKE_GGSHIELD_LOG"])
 with log_path.open("a", encoding="utf-8", newline="\\n") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
 
 if sys.argv[1:] == ["quota", "--json"]:
+    Event().wait(float(os.environ["FAKE_QUOTA_DELAY_SECONDS"]))
     print(os.environ["FAKE_QUOTA_STDOUT"])
     print(os.environ.get("FAKE_QUOTA_STDERR", ""), file=sys.stderr)
     raise SystemExit(int(os.environ.get("FAKE_QUOTA_EXIT", "0")))
 
+Event().wait(float(os.environ["FAKE_SCAN_DELAY_SECONDS"]))
 print(os.environ.get("FAKE_SCAN_STDOUT", ""))
 print(os.environ.get("FAKE_SCAN_STDERR", ""), file=sys.stderr)
 raise SystemExit(int(os.environ.get("FAKE_SCAN_EXIT", "0")))
@@ -75,17 +81,21 @@ def _run_guard(
             "FAKE_SCAN_EXIT": str(behavior.scan_exit),
             "FAKE_SCAN_STDERR": behavior.scan_stderr,
             "FAKE_SCAN_STDOUT": behavior.scan_stdout,
+            "FAKE_SCAN_DELAY_SECONDS": str(behavior.scan_delay_seconds),
+            "FAKE_QUOTA_DELAY_SECONDS": str(behavior.quota_delay_seconds),
+            "GGSHIELD_COMMAND_TIMEOUT_SECONDS": str(behavior.command_timeout_seconds),
             "GGSHIELD_EXECUTABLE": sys.executable,
             "GGSHIELD_EXECUTABLE_PREFIX": str(fake),
         }
     )
 
     completed = subprocess.run(
-        ["uv", "run", "--script", str(SCRIPT), "pre-commit"],
+        ["uv", "run", "--python", "3.12", "--script", str(SCRIPT), "pre-commit"],
         check=False,
         capture_output=True,
         env=environment,
         text=True,
+        timeout=120,
     )
     invocations = (
         tuple(
@@ -172,19 +182,83 @@ def test_returns_original_failure_when_quota_is_not_confirmed(
     # Then: the original failure remains blocking.
     assert result.returncode == 128
     assert scan_stderr in result.stderr
+    expected: tuple[tuple[str, ...], ...] = (("secret", "scan", "pre-commit"),)
+    if scan_stderr == QUOTA_MESSAGE:
+        expected += (("quota", "--json"),)
+    assert result.invocations == expected
 
 
 def test_help_describes_ci_and_pre_commit_modes() -> None:
     # Given: the installed script surface.
     # When: an operator requests help.
     completed = subprocess.run(
-        ["uv", "run", "--script", str(SCRIPT), "--help"],
+        ["uv", "run", "--python", "3.12", "--script", str(SCRIPT), "--help"],
         check=False,
         capture_output=True,
         text=True,
+        timeout=120,
     )
 
     # Then: both supported execution modes are discoverable.
     assert completed.returncode == 0
     assert "pre-commit" in completed.stdout
     assert "ci" in completed.stdout
+
+
+def test_scan_timeout_blocks_without_quota_bypass(tmp_path: Path) -> None:
+    behavior = FakeBehavior(scan_exit=0, scan_delay_seconds=3, command_timeout_seconds=1)
+    result = _run_guard(tmp_path, behavior)
+    assert result.returncode == 124
+    assert "scan timed out" in result.stderr
+    assert result.invocations == (("secret", "scan", "pre-commit"),)
+
+
+def test_quota_timeout_preserves_original_scan_failure(tmp_path: Path) -> None:
+    behavior = FakeBehavior(
+        scan_exit=128,
+        scan_stderr=QUOTA_MESSAGE,
+        quota_delay_seconds=3,
+        command_timeout_seconds=1,
+    )
+    result = _run_guard(tmp_path, behavior)
+    assert result.returncode == 128
+    assert "quota lookup timed out" in result.stderr
+    assert "not independently confirmed" in result.stderr
+
+
+@pytest.mark.parametrize("timeout_seconds", [0, -1, float("nan")])
+def test_invalid_timeout_never_starts_scanner(
+    tmp_path: Path, timeout_seconds: float
+) -> None:
+    result = _run_guard(
+        tmp_path, FakeBehavior(scan_exit=0, command_timeout_seconds=timeout_seconds)
+    )
+    assert result.returncode != 0
+    assert "command_timeout_seconds" in result.stderr
+    assert result.invocations == ()
+
+
+@pytest.mark.parametrize("exit_code", [1, 3])
+def test_quota_message_with_other_exit_remains_blocking(
+    tmp_path: Path, exit_code: int
+) -> None:
+    result = _run_guard(
+        tmp_path, FakeBehavior(scan_exit=exit_code, scan_stderr=QUOTA_MESSAGE)
+    )
+    assert result.returncode == exit_code
+    assert result.invocations == (("secret", "scan", "pre-commit"),)
+
+
+def test_missing_scanner_executable_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GGSHIELD_EXECUTABLE", str(tmp_path / "not-installed"))
+    result = subprocess.run(
+        ["uv", "run", "--python", "3.12", "--script", str(SCRIPT), "pre-commit"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert result.returncode == 127
+    assert "executable not found" in result.stderr

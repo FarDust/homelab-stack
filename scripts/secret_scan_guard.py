@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --python 3.12 --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
@@ -14,8 +14,8 @@
 # 1. Install uv (if not installed):
 #      curl -LsSf https://astral.sh/uv/install.sh | sh
 # 2. Run directly (no venv or pip install needed):
-#      uv run scripts/secret_scan_guard.py pre-commit
-#      uv run scripts/secret_scan_guard.py ci
+#      uv run --python 3.12 --script scripts/secret_scan_guard.py pre-commit
+#      uv run --python 3.12 --script scripts/secret_scan_guard.py ci
 # 3. Or make executable and run:
 #      chmod +x scripts/secret_scan_guard.py && ./scripts/secret_scan_guard.py ci
 # ──────────────────
@@ -32,13 +32,14 @@ from pathlib import Path
 from typing import Annotated, ClassVar, Final, assert_never
 
 import typer
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 
 QUOTA_ERROR: Final = "no more api calls available"
 GGSHIELD_SHARED_ERROR_EXIT: Final = 128
 COMMAND_NOT_FOUND_EXIT: Final = 127
+COMMAND_TIMEOUT_EXIT: Final = 124
 
 
 class ScanMode(StrEnum):
@@ -59,6 +60,7 @@ class Settings(BaseSettings):
 
     executable: str = "ggshield"
     executable_prefix: Path | None = None
+    command_timeout_seconds: float = Field(default=60.0, gt=0, allow_inf_nan=False)
 
 
 class QuotaStatus(BaseModel):
@@ -99,6 +101,7 @@ def _run(settings: Settings, arguments: tuple[str, ...]) -> CommandResult:
         encoding="utf-8",
         errors="replace",
         text=True,
+        timeout=settings.command_timeout_seconds,
     )
     return CommandResult(
         returncode=completed.returncode,
@@ -150,6 +153,11 @@ def main(
             f"[red]ggshield executable not found:[/red] {settings.executable}"
         )
         raise typer.Exit(COMMAND_NOT_FOUND_EXIT) from None
+    except subprocess.TimeoutExpired as exc:
+        Console(stderr=True).print(
+            f"[red]ggshield scan timed out after {exc.timeout} seconds; scan failed.[/red]"
+        )
+        raise typer.Exit(COMMAND_TIMEOUT_EXIT) from exc
 
     _replay(scan_result)
     quota_candidate = (
@@ -166,6 +174,11 @@ def main(
     try:
         exhausted = _quota_is_exhausted(settings)
     except FileNotFoundError:
+        exhausted = False
+    except subprocess.TimeoutExpired as exc:
+        Console(stderr=True).print(
+            f"[red]ggshield quota lookup timed out after {exc.timeout} seconds.[/red]"
+        )
         exhausted = False
     if not exhausted:
         Console(stderr=True).print(

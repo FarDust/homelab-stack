@@ -27,7 +27,7 @@ repos:
       hooks:
           - id: ggshield-quota-guard
             name: ggshield with independently confirmed quota guard
-            entry: uv run --script scripts/secret_scan_guard.py pre-commit
+            entry: uv run --python 3.12 --script scripts/secret_scan_guard.py pre-commit
             language: system
             pass_filenames: false
             stages: [pre-commit]
@@ -36,4 +36,9 @@ repos:
       hooks:
           - id: gitleaks
             language: system
+            entry: >-
+              bash -c 'version="$(gitleaks version)" || exit $?;
+              if [ "$version" != "8.30.1" ]; then
+              printf "Gitleaks 8.30.1 required; found %s\n" "$version" >&2; exit 1; fi;
+              exec gitleaks git --pre-commit --redact --staged --verbose'
             stages: [pre-commit]

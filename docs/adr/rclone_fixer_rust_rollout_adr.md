@@ -18,6 +18,9 @@ floating or public fallback. The initially verified artifact digest is
 Parameterizing the source must preserve the resolved live service exactly; no runtime
 redeploy is needed merely to remove a private registry identifier from tracked source.
 
+Compose interpolation enforces presence, not digest syntax. The example environment is
+render-only; the operator must supply and verify the approved digest before deployment.
+
 Run `--apply watch` with these actual CLI environment keys:
 
 - `RCLONE_FIX_ENABLED=true`
@@ -31,11 +34,18 @@ Swarm expands the node template in the environment, not argv. The node binding v
 the local socket's identity; it is not a placement pin. Use global Linux/x86_64 platform
 guards and no hostname/node-ID targeting or new labels.
 
-Retain the local Docker socket, read-only plugin cache/state and metrics mount. Remove
-the unused writable plugin-install-tree bind. Use a separate persistent local journal
+Retain the local Docker socket, make the existing plugin cache/state bind read-only,
+and add the metrics bind. Remove the unused writable plugin-install-tree bind.
+Verify `/var/lib/node_exporter/textfile_collector` exists on every eligible future node
+before scheduling, along with the required socket and cache paths.
+Use a separate persistent local journal
 volume per daemon. Enforce read-only rootfs, dropped capabilities, 64 MiB, 0.10 CPU,
 32 PIDs and an 8 MiB reservation. Use stop-first updates/rollback, a 60 s monitor window
 and bounded restart attempts. SYS_ADMIN/FUSE remain exclusively with the managed plugin.
+
+Access to the host Docker socket is root-equivalent, as it was for the legacy service.
+Dropping Linux capabilities and using a read-only rootfs do not neutralize that daemon
+authority; this is a trusted host controller, not a least-privilege sandbox.
 
 ## Publication and alternatives
 
@@ -47,7 +57,11 @@ must use the approved pull path before scheduling can succeed. Cache residency i
 claimed as autonomous bootstrap availability.
 
 Keeping the old shell controller was the exercised rollback, not the selected final
-runtime. Weakening scope validation, using a hostname workaround, disabling storage-aware
+runtime. Retain `check.sh`, `check.test.sh`, the unused `rclone-fix-script` declaration
+and `.github/workflows/check-main-maintenance.yml` to preserve that rollback option and
+its shell regression coverage. The Rust service mounts neither the script config nor
+the legacy plugin-install-tree bind. Those assets are not a second active controller.
+Weakening scope validation, using a hostname workaround, disabling storage-aware
 healthchecks or moving backup workloads were rejected as ways to manufacture success.
 
 ## Rollback and verification

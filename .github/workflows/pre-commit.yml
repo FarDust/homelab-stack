@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
           submodules: false
 
       - name: Set up pinned uv and Python
@@ -66,7 +67,7 @@ jobs:
           uv tool run --from pre-commit==4.5.1 pre-commit validate-config
 
       - name: Test quota failure boundaries
-        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 --with pyyaml==6.0.3 pytest -q tests/test_secret_scan_guard.py tests/test_secret_scan_ci.py
+        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 --with pyyaml==6.0.3 pytest -q tests/test_secret_scan_guard.py tests/test_secret_scan_ci.py tests/test_local_secret_hooks.py
 
       - name: Run remaining repository hooks on changed files
         run: |

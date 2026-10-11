@@ -32,6 +32,30 @@ custody. Its value is exposed only to the API step, not other steps or source fi
 Fork PRs do not receive repository secrets and use the required local gate; do not use
 pull_request_target to expose credentials to PR code.
 
+## Local execution and review follow-up
+
+The repository's `.python-version` remains 3.10.12 for existing consumers. Invoke the
+guard explicitly with `uv run --python 3.12 --script` from its hook, shebang, examples
+and subprocess tests, matching CI rather than inheriting an incompatible interpreter.
+
+Each guard child process has a default 60-second timeout, configurable through the
+positive, finite `GGSHIELD_COMMAND_TIMEOUT_SECONDS` setting. A scan timeout exits 124;
+a quota lookup timeout cannot confirm exhaustion and preserves the original scan exit
+128. Diagnostics identify the timed-out operation without replaying partial payloads.
+The subprocess API owns cancellation; no retry or alternate scan path is introduced.
+
+Install the official Gitleaks 8.30.1 prebuilt binary on the local PATH. The system hook
+checks its reported version before the real staged scan and blocks missing, mismatched
+or failed version queries. This retains the approved binary workflow rather than
+compiling Go on pressured nodes. Version checking is not a substitute for verifying
+the official archive checksum at installation. CI's checksum-pinned installer remains.
+
+Checkout uses `persist-credentials: false`; no later step requires a stored checkout
+token. Keep `secret.fail_on_server_error: false` under the authorized outage policy:
+API unavailability is distinct from findings or a rejected configured key, and the
+independent local gate remains required. The review suggestion to reverse this setting
+does not supersede that policy.
+
 ## Budget and lint interpretations
 
 Owner: FarDust. Planning assumption, not measured demand: 60 runs/month at three Linux

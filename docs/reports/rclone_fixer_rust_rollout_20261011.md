@@ -17,6 +17,11 @@ artifact with expanded local node bindings, read-only root/cache, all capabiliti
 64 MiB memory, 0.10 CPU, 32 PIDs and a separate persistent local journal. Samples were
 13.12/16.82 MiB, two PIDs, zero restarts and no OOM. Down-node coverage is not claimed.
 
+The retained Docker socket grants root-equivalent daemon authority. Capability dropping
+and read-only rootfs reduce some process exposure but do not make that socket least
+privileged. The cache bind became read-only and the metrics bind was added; future
+eligible nodes need its host directory provisioned as described in the rollout ADR.
+
 Initial configuration attempts used incorrect environment names and an argv node template;
 they failed and were rolled back safely. The corrected contract uses
 `RCLONE_EXPECTED_NODE_ID={{.Node.ID}}` and `RCLONE_ALLOWED_PLUGIN_REFERENCES` in the

@@ -59,6 +59,7 @@ raise SystemExit(3)
         check=False,
         capture_output=True,
         text=True,
+        timeout=10,
     )
     return result, marker.exists()
 
