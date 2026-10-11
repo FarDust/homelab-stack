@@ -23,9 +23,17 @@ repos:
           - id: dotenv-linter
             args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey']
             exclude: '\.env\.template$'
-    - repo: https://github.com/gitguardian/ggshield
-      rev: v1.27.0
+    - repo: local
       hooks:
-          - id: ggshield
-            language_version: python3
+          - id: ggshield-quota-guard
+            name: ggshield with independently confirmed quota guard
+            entry: uv run --script scripts/secret_scan_guard.py pre-commit
+            language: system
+            pass_filenames: false
+            stages: [pre-commit]
+    - repo: https://github.com/gitleaks/gitleaks
+      rev: v8.30.1
+      hooks:
+          - id: gitleaks
+            language: system
             stages: [pre-commit]
