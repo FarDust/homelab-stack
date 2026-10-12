@@ -56,35 +56,51 @@ networks:
     external: true
 
 volumes:
+  # Keep models cached 7 days with per-volume caps and a free-space floor, as decided in docs/adr/comfyui_cache_retention_adr.md
   comfyui_custom_nodes:
     driver: rclone
     driver_opts:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/custom_nodes"
       allow_other: "true"
       vfs_cache_mode: full
+      vfs_cache_max_age: 168h
+      vfs_cache_max_size: 4G
+      vfs_cache_min_free_space: 15G
   comfyui_data:
     driver: rclone
     driver_opts:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/data"
       allow_other: "true"
       vfs_cache_mode: full
+      vfs_cache_max_age: 168h
+      vfs_cache_max_size: 8G
+      vfs_cache_min_free_space: 15G
   comfyui_models:
     driver: rclone
     driver_opts:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/data/models"
       allow_other: "true"
       vfs_cache_mode: full
+      vfs_cache_max_age: 168h
+      vfs_cache_max_size: 48G
+      vfs_cache_min_free_space: 15G
   comfyui_output:
     driver: rclone
     driver_opts:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/output"
       allow_other: "true"
       vfs_cache_mode: full
+      vfs_cache_max_age: 168h
+      vfs_cache_max_size: 8G
+      vfs_cache_min_free_space: 15G
   comfyui_config:
     driver: rclone
     driver_opts:
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/comfyui/config"
       allow_other: "true"
       vfs_cache_mode: full
+      vfs_cache_max_age: 168h
+      vfs_cache_max_size: 1G
+      vfs_cache_min_free_space: 15G
   comfyui_cache:
     driver: local
