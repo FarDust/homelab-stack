@@ -546,7 +546,7 @@ services:
     image: portainer/portainer-ce:latest
     command: -H tcp://tasks.agent:9001 --tlsskipverify --admin-password-file /run/secrets/portainer_admin_password
     volumes:
-    - portainer_data:/data
+    - portainer_local:/data
     secrets:
     - source: portainer_admin_password
     networks:
@@ -614,12 +614,8 @@ services:
         condition: any
         delay: 5m
 volumes:
-  portainer_data:
-    driver: rclone
-    driver_opts:
-      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/portainer/data
-      allow_other: 'true'
-      vfs_cache_mode: full
+  # Local disk on the Swarm leader; BoltDB on the rclone FUSE volume corrupted, as decided in docs/adr/portainer_local_storage_adr.md
+  portainer_local: {}
   authelia-configs: {}
   authelia-data: {}
   authelia-redis-config: {}
