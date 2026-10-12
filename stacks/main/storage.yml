@@ -386,72 +386,7 @@ services:
         - "traefik.swarm.network=traefik"
         - com.centurylinklabs.watchtower.enable=false
 
-  infinity:
-    image: infiniflow/infinity:v0.6.15
-    networks:
-      - traefik
-      - traefik-public
-    volumes:
-      - infinity_data:/var/infinity
-    configs:
-      - source: infinity_conf
-        target: /infinity_conf.toml
-    environment:
-      - TZ=${TIMEZONE:-UTC}
-    command: ["-f", "/infinity_conf.toml"]
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 15s
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_COMPLEX}
-      update_config:
-        order: stop-first
-        failure_action: rollback
-        monitor: ${UPDATE_MONITOR_COMPLEX}
-        max_failure_ratio: 0.2
-      rollback_config:
-        order: stop-first
-        monitor: ${ROLLBACK_MONITOR_COMPLEX}
-      placement:
-        constraints:
-        - node.labels.AVX != false
-        - node.labels.storage.manager == true
-      labels:
-        - "traefik.enable=true"
-        # PostgreSQL-compatible port (5432) via TCP
-        - "traefik.tcp.routers.infinity-postgres.rule=HostSNI(`infinity.${LOCAL_DOMAIN?err}`)"
-        - "traefik.tcp.routers.infinity-postgres.entrypoints=host-internal"
-        - "traefik.tcp.routers.infinity-postgres.tls=true"
-        - "traefik.tcp.routers.infinity-postgres.tls.certresolver=le-dns"
-        - "traefik.tcp.routers.infinity-postgres.service=infinity-postgres"
-        - "traefik.tcp.services.infinity-postgres.loadbalancer.server.port=5432"
-        # Thrift client port (23817) via TCP
-        - "traefik.tcp.routers.infinity-thrift.rule=HostSNI(`infinity-thrift.${LOCAL_DOMAIN?err}`)"
-        - "traefik.tcp.routers.infinity-thrift.entrypoints=host-internal"
-        - "traefik.tcp.routers.infinity-thrift.tls=true"
-        - "traefik.tcp.routers.infinity-thrift.tls.certresolver=le-dns"
-        - "traefik.tcp.routers.infinity-thrift.service=infinity-thrift"
-        - "traefik.tcp.services.infinity-thrift.loadbalancer.server.port=23817"
-        # HTTP API port (23820) via HTTPS
-        - "traefik.http.routers.infinity-api.rule=Host(`infinity-api.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.infinity-api.entrypoints=websecure"
-        - "traefik.http.routers.infinity-api.tls=true"
-        - "traefik.http.routers.infinity-api.tls.certresolver=le-dns"
-        - "traefik.http.services.infinity-api.loadbalancer.server.port=23820"
-        - "traefik.http.routers.infinity-api-http.rule=Host(`infinity-api.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.infinity-api-http.entrypoints=web"
-        - "traefik.http.routers.infinity-api-http.middlewares=infinity-api-https@swarm"
-        - "traefik.http.middlewares.infinity-api-https.redirectscheme.scheme=https"
-        - "traefik.swarm.network=traefik-public"
-        - com.centurylinklabs.watchtower.enable=false
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:23820/admin/node/current"]
-      interval: 10s
-      timeout: 10s
-      retries: 120
-
+  # infinity removed 2026-10-12: unused (RAGFlow never worked), log-storm loops destabilised frost-fang; see docs/adr/infinity_removal_adr.md
   supabase-db:
     image: supabase/postgres:17.6.1.079
     networks:
@@ -671,6 +606,7 @@ volumes:
   opensearch_data: {}
   minio_data: {}
   mongodb_data: {}
+  # Data volume kept (not deleted) after removing the infinity service; see docs/adr/infinity_removal_adr.md
   infinity_data: {}
   qdrant_storage:
     driver: local
@@ -737,9 +673,6 @@ configs:
   supavisor_apps_pooler_exs:
     name: supavisor_apps_pooler_exs-${CONFIG_VERSION:-0}
     file: ./configs/supavisor/apps_pooler.exs
-  infinity_conf:
-    name: infinity_conf-${CONFIG_VERSION:-0}
-    file: ./configs/infinity/infinity_conf.toml
   supabase_db_realtime_sql:
     name: supabase_db_realtime_sql-${CONFIG_VERSION:-0}
     file: ./configs/supabase/docker/volumes/db/realtime.sql
