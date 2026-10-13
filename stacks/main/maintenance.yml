@@ -44,6 +44,61 @@ services:
       placement:
         constraints:
           - node.labels.swarm.leader == true
+  crash-loop-sentinel:
+    # Rust sentinel FarDust/crash-loop-sentinel (docs/adr/crash_loop_sentinel_rollout_adr.md).
+    # Opt-in by the service label sentinel.shed=true; observe mode unless SENTINEL_APPLY=true.
+    # The digest-qualified private image reference is operator configuration in .env.
+    image: ${SENTINEL_IMAGE?err}
+    command: ["run"]
+    # `docker stack deploy` rejects group_add: the docker socket group is the primary group.
+    user: "65532:${EPHEMERAL_REBALANCE_DOCKER_GID:-998}"
+    environment:
+      - SENTINEL_APPLY=${SENTINEL_APPLY:-false}
+      - SENTINEL_SELF_SERVICE=main-maintenance_crash-loop-sentinel
+      - SENTINEL_LOKI_URL=http://loki:3100
+      - SENTINEL_ALERTMANAGER_URL=http://alertmanager:9093
+      - SENTINEL_PROMETHEUS_URL=http://tasks.prometheus:9090
+      - SENTINEL_STATE_DIR=/state
+      - SENTINEL_EVIDENCE_DIR=/evidence
+      - SENTINEL_EVIDENCE_MIRROR_DIR=/evidence-gcs
+      - SENTINEL_POLL_SECONDS=${SENTINEL_POLL_SECONDS:-30}
+      - SENTINEL_GRACE_SECONDS=${SENTINEL_GRACE_SECONDS:-600}
+      - SENTINEL_LOG_RATE_WINDOW=${SENTINEL_LOG_RATE_WINDOW:-15m}
+      - RUST_LOG=info
+    networks:
+      - traefik
+      - prometheus
+    read_only: true
+    cap_drop:
+      - ALL
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - crash-loop-sentinel-state:/state
+      - crash-loop-sentinel-evidence:/evidence
+      - crash-loop-sentinel-evidence-gcs:/evidence-gcs
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+        monitor: 60s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: 48M
+          pids: 32
+        reservations:
+          memory: 8M
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+      placement:
+        constraints:
+          - node.labels.swarm.leader == true
   rclone-fixer:
     image: ${RCLONE_CONTROLLER_IMAGE?err}
     command: ["--apply", "watch"]
@@ -454,6 +509,19 @@ volumes:
       vfs_cache_mode: full
   ephemeral-rebalance-state:
     driver: local
+  crash-loop-sentinel-state:
+    driver: local
+    name: main-maintenance_crash-loop-sentinel-state
+  crash-loop-sentinel-evidence:
+    driver: local
+    name: main-maintenance_crash-loop-sentinel-evidence
+  crash-loop-sentinel-evidence-gcs:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${ARTIFACTS_GCS_BUCKET?err}/sentinel/evidence"
+      allow_other: "true"
+      vfs_cache_mode: full
   service-autoheal-state:
     driver: local
   rclone-fixer-journal:
