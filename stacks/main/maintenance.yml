@@ -296,7 +296,8 @@ services:
       - BACKUP_STATUS_INTERVAL_SECONDS=300
       - BACKUP_STATUS_TIMEOUT_SECONDS=60s
     deploy:
-      replicas: 1
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: on-failure
         delay: ${RESTART_DELAY_STANDARD}
