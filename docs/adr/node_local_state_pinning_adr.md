@@ -35,7 +35,7 @@ After gabriel-pc-wsl rejoined at 06:21 UTC on 2026-10-13, ephemeral-rebalance mo
 
 - Jackett and n8n now consume frost-fang capacity and fail to schedule if no non-leader storage-manager node is Ready.
 - The streaming and finance state on gabriel-pc has one copy plus the 2026-10-13 archive; a scheduled backup is a follow-up.
-- Jackett must gain a definition in `stacks/hobby/streaming.yml` (no source exists); until then the live constraint is the only record.
+- Jackett now has a definition in `stacks/hobby/streaming.yml`; see `jackett_stack_definition_adr.md`.
 
 ## Verification
 
