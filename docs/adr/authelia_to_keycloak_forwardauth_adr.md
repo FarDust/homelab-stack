@@ -49,3 +49,7 @@ Restore: set the `replicas:` values back in `stacks/main/traefik.yml` and `stack
 ## Verification
 
 Per route: `curl` shows 302 to the Keycloak `sigilcore` realm authorization endpoint (was 302 to `auth.tralmor.com`), and the Brave debug browser lands on the Keycloak sign-in page. Completing the login and exercising each UI needs a Keycloak credential and remains an operator step. Rollback: redeploy the previous compose file (`git revert` of the migration commit, then `uv run cluster-utils deploy service <name>`).
+
+## Addendum 2026-10-13: metaflow-ui
+
+`metaflow-ui` in `stacks/ml/orchestration.yml` no longer names `authelia@swarm`; it uses the same oauth2-proxy pattern (`metaflow-ui-oauth2-errors` plus `metaflow-ui-oauth2-forward-auth`, forwarding `Cookie`). Validated by `docker stack config` only; the service is not deployed, and its first deploy needs the browser login check described above.
