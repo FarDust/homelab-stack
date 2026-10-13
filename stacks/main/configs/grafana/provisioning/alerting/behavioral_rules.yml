@@ -1,0 +1,836 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Anomaly Alerts
+    folder: Behavioral
+    interval: 300s
+    rules:
+      - uid: eet9u4cbi0jcwa
+        title: Spike Radar 1h
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 21600
+              to: 0
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                (
+                  clamp_min(
+                    avg_over_time(
+                      (
+                        sum(rate(container_network_receive_bytes_total[1m]))
+                      + sum(rate(container_network_transmit_bytes_total[1m]))
+                      )[6m:1m]
+                    )
+                    -
+                    avg_over_time(
+                      (
+                        sum(rate(container_network_receive_bytes_total[1m]))
+                      + sum(rate(container_network_transmit_bytes_total[1m]))
+                      )[6m:1m] offset 1h
+                    )
+                  , 0)
+                )
+                /
+                clamp_min(
+                  (
+                    quantile_over_time(
+                      0.95,
+                      (
+                        avg_over_time(
+                          (
+                            sum(rate(container_network_receive_bytes_total[1m]))
+                          + sum(rate(container_network_transmit_bytes_total[1m]))
+                          )[6m:1m]
+                        )
+                      )[6h:1m] offset 1h
+                    )
+                    or
+                    quantile_over_time(
+                      0.95,
+                      (
+                        avg_over_time(
+                          (
+                            sum(rate(container_network_receive_bytes_total[1m]))
+                          + sum(rate(container_network_transmit_bytes_total[1m]))
+                          )[6m:1m]
+                        )
+                      )[6h:1m] offset 2h
+                    )
+                  )
+                , 1e6)
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: Spike score 1h
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 2
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: 3b22f0de-d83f-49c0-b6ec-7f010c4a7b43
+        panelId: 1
+        noDataState: OK
+        execErrState: OK
+        for: 10m
+        annotations:
+          __dashboardUid__: 3b22f0de-d83f-49c0-b6ec-7f010c4a7b43
+          __panelId__: "1"
+          description: 6m smoothed RX+TX vs 1h-offset p95 baseline with fallback. Triggers when score > 2 for 10m. Ignores the hourly speedtest. Check speedtest jobs, batch runs, recent deploys.
+          summary: "Network burst beyond 1h pattern"
+        labels:
+          tier: anomaly
+  - orgId: 1
+    name: Common alerts
+    folder: Behavioral
+    interval: 60s
+    rules:
+      - uid: ceslnd3qpgetcc
+        title: Blocked Queries
+        condition: B
+        data:
+          - refId: blocked
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 21600
+              to: 0
+            model:
+              adhocFilters: []
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              disableTextWrap: false
+              editorMode: code
+              exemplar: false
+              expr: |-
+                (
+                  rate(nextdns_blocked_queries_total{profile="${NEXTDNS_PROFILE_ID}"}[5m])
+                  /
+                  avg_over_time(rate(nextdns_queries_total{profile="${NEXTDNS_PROFILE_ID}"}[5m])[1h:])
+                )
+              fullMetaSearch: false
+              includeNullMetadata: true
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: Blocked
+              maxDataPoints: 43200
+              range: false
+              refId: blocked
+              useBackend: false
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    type: avg
+                  type: query
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: blocked
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: threshold
+        dashboardUid: MwiWGgFVz
+        panelId: 8
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        annotations:
+          __dashboardUid__: MwiWGgFVz
+          __panelId__: "8"
+          runbook_url: https://my.nextdns.io/${NEXTDNS_PROFILE_ID}/logs
+          summary: "DNS alert: unusual spike in blocked DNS requests detected. Investigate possible misconfigurations, bad actors, or setup failure."
+        labels:
+          service: nextdns
+          tier: security
+  - orgId: 1
+    name: Host resource alerts
+    folder: Behavioral
+    interval: 60s
+    rules:
+      - uid: host_low_swap_available
+        title: Host Low Swap Available
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                node_memory_SwapTotal_bytes > 0
+                and on(instance, job)
+                (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes < 0.25)
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ instance }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Host {{ $labels.instance }} has low swap available"
+          description: "{{ $labels.instance }} has less than 25% swap free for more than 10 minutes. Check Netdata, memory-heavy workloads, recent deploys, and swap growth before changing placements or host daemons."
+        labels:
+          tier: maintenance
+          service: host-resources
+  - orgId: 1
+    name: Ingress control-plane alerts
+    folder: Behavioral
+    interval: 60s
+    rules:
+      - uid: ingress_probe_down
+        title: Ingress Control Plane Probe Down
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: probe_success{job="blackbox",monitor_group="ingress_control_plane"} == 0
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ probe }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 2m
+        annotations:
+          summary: "Ingress probe {{ $labels.probe }} failed"
+          description: "{{ $labels.instance }} for service {{ $labels.service }} failed its blackbox probe for more than 2 minutes. Expected status is {{ $labels.expected_status }}."
+        labels:
+          tier: core
+          service: ingress-control-plane
+      - uid: ingress_unexpected_status
+        title: Ingress Control Plane Unexpected Status
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                probe_http_status_code{job="blackbox",monitor_group="ingress_control_plane",expected_status="200"} != 200
+                or
+                probe_http_status_code{job="blackbox",monitor_group="ingress_control_plane",expected_status="401"} != 401
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ probe }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 2m
+        annotations:
+          summary: "Ingress probe {{ $labels.probe }} returned unexpected HTTP status"
+          description: "{{ $labels.instance }} for service {{ $labels.service }} returned HTTP {{ $value }} while expected status is {{ $labels.expected_status }}."
+        labels:
+          tier: core
+          service: ingress-control-plane
+      - uid: ingress_probe_slow
+        title: Ingress Control Plane Probe Slow
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: probe_duration_seconds{job="blackbox",monitor_group="ingress_control_plane"} > 3
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ probe }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: "Ingress probe {{ $labels.probe }} is slow"
+          description: "{{ $labels.instance }} for service {{ $labels.service }} has blackbox duration above 3 seconds for more than 5 minutes."
+        labels:
+          tier: maintenance
+          service: ingress-control-plane
+  - orgId: 1
+    name: Workload and log durability alerts
+    folder: Behavioral
+    interval: 60s
+    rules:
+      - uid: swarm_task_churn
+        title: Swarm Service Task Churn
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                max by (container_label_com_docker_swarm_service_name) (
+                  count by (container_label_com_docker_swarm_service_name, container_label_com_docker_swarm_node_id) (
+                    count by (container_label_com_docker_swarm_service_name, container_label_com_docker_swarm_node_id, container_label_com_docker_swarm_task_id) (
+                      count_over_time(container_start_time_seconds{container_label_com_docker_swarm_service_name!=""}[30m])
+                    )
+                  )
+                ) >= 5
+              intervalMs: 15000
+              legendFormat: '{{ container_label_com_docker_swarm_service_name }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Service {{ $labels.container_label_com_docker_swarm_service_name }} is replacing its tasks repeatedly"
+          description: "Service {{ $labels.container_label_com_docker_swarm_service_name }} had {{ $value }} distinct tasks on one node within 30 minutes (stable is 1). Capture docker service ps --no-trunc and the service logs in Loki before scaling or removing it."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: swarm-health
+      - uid: swarm_task_churn_severe
+        title: Swarm Service Task Churn Severe
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                max by (container_label_com_docker_swarm_service_name) (
+                  count by (container_label_com_docker_swarm_service_name, container_label_com_docker_swarm_node_id) (
+                    count by (container_label_com_docker_swarm_service_name, container_label_com_docker_swarm_node_id, container_label_com_docker_swarm_task_id) (
+                      count_over_time(container_start_time_seconds{container_label_com_docker_swarm_service_name!=""}[30m])
+                    )
+                  )
+                ) >= 10
+              intervalMs: 15000
+              legendFormat: '{{ container_label_com_docker_swarm_service_name }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Service {{ $labels.container_label_com_docker_swarm_service_name }} is crash-looping"
+          description: "Service {{ $labels.container_label_com_docker_swarm_service_name }} had {{ $value }} distinct tasks on one node within 30 minutes. Capture evidence first (docker service ps --no-trunc, Loki logs, inspect), then decide whether to scale it down."
+        labels:
+          severity: critical
+          tier: core
+          service: swarm-health
+      - uid: loki_log_rate_high
+        title: Service Log Rate High
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: P8E80F9AEF21F6940
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              datasource:
+                type: loki
+                uid: P8E80F9AEF21F6940
+              editorMode: code
+              expr: |-
+                sum by (service_name) (rate({service_name=~".+", service_name!~"main-storage_postgres"}[5m]))
+              intervalMs: 15000
+              legendFormat: '{{ service_name }}'
+              maxDataPoints: 43200
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              refId: B
+              settings:
+                mode: dropNN
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 50
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Service {{ $labels.service_name }} is writing {{ $value }} log lines per second"
+          description: "Service {{ $labels.service_name }} sustained more than 50 log lines/s for 10 minutes (normal services stay below 5; the 2026-10-12 Infinity crash loop wrote about 83/s). Check restarts, error loops and Loki ingestion volume."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: log-volume
+      - uid: loki_log_rate_postgres_high
+        title: PostgreSQL Log Rate High
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: P8E80F9AEF21F6940
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              datasource:
+                type: loki
+                uid: P8E80F9AEF21F6940
+              editorMode: code
+              expr: |-
+                sum by (service_name) (rate({service_name="main-storage_postgres"}[5m]))
+              intervalMs: 15000
+              legendFormat: '{{ service_name }}'
+              maxDataPoints: 43200
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              refId: B
+              settings:
+                mode: dropNN
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 250
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "PostgreSQL is writing {{ $value }} log lines per second"
+          description: "main-storage_postgres sustained more than 250 log lines/s for 10 minutes. Its observed baseline on 2026-10-13 was about 133 lines/s while a connection-error storm was being fixed; re-baseline after that fix."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: log-volume
+      - uid: loki_backup_stale
+        title: Loki Backup Stale
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                time() - loki_backup_last_success_timestamp_seconds > 129600
+              intervalMs: 15000
+              legendFormat: '{{ instance }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: "Loki data archive to GCS has not succeeded for 36 hours"
+          description: "The loki-backup job (every 12 hours) has no successful archive on {{ $labels.instance }} for over 36 hours. Check main-logging_loki-backup logs, host I/O pressure and the rclone volume."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: loki-backup
+      - uid: pg_role_connections_near_limit
+        title: PostgreSQL Role Connections Near Limit
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                pg_role_activity_connections / on(rolname) pg_roles_connection_limit > 0.75
+              intervalMs: 15000
+              legendFormat: '{{ rolname }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "PostgreSQL role {{ $labels.rolname }} uses over 75% of its CONNECTION LIMIT (53300 risk)"
+          description: "Role {{ $labels.rolname }} uses {{ $value }} of its connection limit. Check pooled sessions (pgpool or Supavisor) and idle connections before the role hits SQLSTATE 53300."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: postgres-connections

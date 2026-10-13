@@ -511,6 +511,7 @@ services:
     - GF_DATABASE_MAX_IDLE_CONN=2
     - GF_DATABASE_CONN_MAX_LIFETIME=3600
     - GRAFANA_LOKI_URL=${GRAFANA_LOKI_URL}
+    - NEXTDNS_PROFILE_ID=${NEXTDNS_PROFILE?err}
     env_file:
     - ./configs/grafana/config.monitoring
     networks:
