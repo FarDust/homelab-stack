@@ -34,7 +34,16 @@ services:
         - "traefik.http.routers.gatus.entrypoints=websecure"
         - "traefik.http.routers.gatus.tls=true"
         - "traefik.http.routers.gatus.tls.certresolver=le-dns"
-        - "traefik.http.routers.gatus.middlewares=authelia@swarm"
+        - "traefik.http.routers.gatus.middlewares=gatus-oauth2-errors@swarm,gatus-oauth2-forward-auth@swarm"
+        # Keycloak via shared oauth2-proxy forwardAuth; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+        - "traefik.http.middlewares.gatus-oauth2-errors.errors.status=401"
+        - "traefik.http.middlewares.gatus-oauth2-errors.errors.service=oauth2-proxy"
+        - "traefik.http.middlewares.gatus-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}"
+        - "traefik.http.middlewares.gatus-oauth2-errors.errors.statusRewrites.401=302"
+        - "traefik.http.middlewares.gatus-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth"
+        - "traefik.http.middlewares.gatus-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method"
+        - "traefik.http.middlewares.gatus-oauth2-forward-auth.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.gatus-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email"
         - "traefik.http.services.gatus.loadbalancer.server.port=8080"
         - "traefik.swarm.network=traefik-public"
   kuma:

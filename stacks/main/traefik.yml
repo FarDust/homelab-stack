@@ -193,7 +193,16 @@ services:
       - traefik.http.routers.sablier.entrypoints=web
       - traefik.http.routers.sablier.service=sablier
       - traefik.http.services.sablier.loadbalancer.server.port=10000
-      - traefik.http.routers.sablier.middlewares=authelia@swarm
+      - traefik.http.routers.sablier.middlewares=sablier-oauth2-errors@swarm,sablier-oauth2-forward-auth@swarm
+      # Keycloak via shared oauth2-proxy forwardAuth; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.status=401
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.service=oauth2-proxy
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.statusRewrites.401=302
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.trustForwardHeader=true
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email
       - traefik.http.routers.sablier.tls=true
       - traefik.http.routers.sablier.tls.certresolver=le-dns
       - traefik.swarm.network=traefik-public
