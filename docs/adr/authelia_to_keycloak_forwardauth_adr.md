@@ -1,6 +1,6 @@
 # Authelia to Keycloak forwardAuth migration
 
-Status: partially implemented 2026-10-13. Six routes moved; Grafana has Keycloak native login deployed but still sits behind Authelia until a real Keycloak login is verified; Authelia retirement is pending.
+Status: partially implemented 2026-10-13. Six routes moved; Grafana has Keycloak native login deployed and no longer sits behind Authelia (gate removed 2026-10-13 so the login could be tested); Authelia retirement is pending Gabriel's real login check.
 
 ## Context
 
@@ -22,20 +22,20 @@ Grafana is served at `grafana.${DOMAIN_NAME}` (`grafana.tralmor.com`), outside t
 - Secret: `secrets/grafana/oidc_client_secret` (git-ignored) mounted as the Docker secret `grafana_keycloak_oidc_secret` and read through `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET__FILE`.
 - Grafana (`stacks/main/traefik.yml`, commit 7c5b644): `GF_AUTH_GENERIC_OAUTH_*` with PKCE, scopes `openid email profile`, `role_attribute_strict=true` and role path `admin` -> Admin, `mlflow-admin` -> Viewer; users with neither group cannot log in. Google login and the local admin account are unchanged (break-glass).
 - Verified 2026-10-13: from inside the Grafana network namespace, `/login/generic_oauth` returns 302 to the Keycloak `sigilcore` authorization endpoint with `client_id=grafana` and the exact redirect URI; Grafana reaches the issuer; `/api/health` returns 200 and the mcp-grafana datasource listing still works (API router and token paths unchanged). A real Keycloak login was not performed (no credential).
-- `grafana-web` still carries the `authelia@swarm` middleware. It is removed only in the final step below.
+- **Authelia gate removed from the web route (2026-10-13, applied live and persisted in the compose file):** `grafana-web` no longer carries `authelia@swarm`, so Grafana's own login page is the gate. Remaining controls: self sign-up is disabled (`GF_USERS_ALLOW_SIGN_UP=false`), Google login admits only existing accounts (`GF_AUTH_GOOGLE_ALLOW_SIGN_UP=false`, domain `gmail.com`), Keycloak login requires group `admin` or `mlflow-admin` (strict role mapping), and the local admin account remains. The `/api` router was already unauthenticated by design. The trade-off is that the Grafana login form is reachable without a prior Authelia prompt on the tailnet.
+- **Insecure e-mail lookup (2026-10-13, applied live and persisted):** `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true`. Gabriel's first Keycloak login failed with "user sync failed / unable to create user: user not found" because his Keycloak user (same e-mail) maps to a Grafana account created earlier through Google, and Grafana does not link accounts by e-mail without this flag. Risk: any OAuth provider that can assert an e-mail can take over the matching account. Accepted because the only generic_oauth IdP is our own Keycloak realm `sigilcore`, access is limited to the groups above and Google admits only existing accounts. Mitigation: keep e-mail verification required for users in `sigilcore` (Grafana does not check `email_verified` itself), and drop the flag once accounts are linked (the linked login keeps working through the stored auth id).
 
 ### Pending action owed by Gabriel
 
-Sign in once through Grafana with Keycloak: open `https://grafana.tralmor.com/login` (after the Authelia prompt), choose "Sign in with Keycloak", and authenticate as a user in the Keycloak group `admin` or `mlflow-admin` that has an e-mail address. Confirm that Grafana opens with the expected role. If Keycloak reports an invalid redirect URI, the registered value is `https://grafana.tralmor.com/login/generic_oauth` on client `grafana`; do not change the shared `oauth2-proxy` client.
+Gabriel's first Keycloak login reached Grafana and failed on account linking (fixed by the insecure e-mail lookup above). The real login check is still owed: sign in again at `https://grafana.tralmor.com/login` with "Sign in with Keycloak" and confirm Grafana opens with the expected role. Do not change the shared `oauth2-proxy` client.
 
-### Remaining one-shot checklist (after that login works)
+### Remaining one-shot checklist
 
-1. Remove the line `traefik.http.routers.grafana-web.middlewares=authelia@swarm` from Grafana in `stacks/main/traefik.yml` and deploy with `uv run cluster-utils deploy service grafana` (if it fails on an immutable config name, bump `CONFIG_VERSION` first). Confirm `https://grafana.tralmor.com/` returns 302 to `/login`.
-2. Confirm no service references the middleware: loop `docker service inspect` over all services and search labels for `authelia`.
-3. Record replica counts (authelia 3, authelia-redis 1, authelia-db 1, authelia-db-backup 1), save the logs, then scale the four services to 0. Keep volumes and the latest backups.
-4. Verify the six migrated routes and Grafana still answer, and record the result.
+1. After the real Keycloak login works: confirm no service references the middleware (loop `docker service inspect` over all services and search labels for `authelia`; only the Authelia service itself should match).
+2. Record replica counts (authelia 3, authelia-redis 1, authelia-db 1, authelia-db-backup 1), save the logs, then scale the four services to 0. Keep volumes and the latest backups.
+3. Verify the six migrated routes and Grafana still answer, and record the result.
 
-Rollback of Grafana OIDC: revert commit 7c5b644 and redeploy, or remove the `GF_AUTH_GENERIC_OAUTH_*` variables; the client and secret can stay.
+Rollback of Grafana OIDC: revert the Grafana commits and redeploy, or remove the `GF_AUTH_GENERIC_OAUTH_*` variables; the client and secret can stay. To restore the Authelia gate, re-add the `grafana-web.middlewares=authelia@swarm` label.
 
 ## Alternatives
 
