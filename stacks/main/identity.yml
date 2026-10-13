@@ -8,9 +8,12 @@ networks:
 
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4.7
+    # Pre-built image (kc.sh build at image build time) so restarts take seconds; built from stacks/main/keycloak-optimized/,
+    # see docs/adr/keycloak_optimized_image_adr.md. Previous image: quay.io/keycloak/keycloak:26.4.7 with `start` (about 100 s per restart).
+    image: ${KEYCLOAK_IMAGE?err}
     command:
       - start
+      - --optimized
       - --http-enabled=true
       - --proxy-headers=xforwarded
       - --hostname=https://idp.${LOCAL_DOMAIN?err}
