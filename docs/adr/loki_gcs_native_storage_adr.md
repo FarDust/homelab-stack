@@ -1,5 +1,7 @@
 # Loki stores chunks and index natively in GCS
 
+Superseded on 2026-10-13 18:55 UTC by `loki_local_primary_backup_adr.md`: Loki reads and writes a local store again; GCS is a write-only backup. The migration tooling, identity and findings below remain valid.
+
 Date: 2026-10-13 18:00 UTC
 Supersedes the archive-only outcome of `loki_gcs_durability_adr.md` (the archive job stays as a safety net until sign-off).
 

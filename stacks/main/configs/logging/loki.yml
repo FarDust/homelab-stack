@@ -11,35 +11,25 @@ common:
     kvstore:
       store: inmemory
 
-# Single period edited in place: migrated data keeps the same schema (tsdb v13, 24h, index_ prefix),
-# so only object_store changes from filesystem to gcs. As decided in docs/adr/loki_gcs_native_storage_adr.md
+# Primary store is local again (bind mount /var/lib/docker/loki-store on a storage-manager node).
+# GCS holds a write-only backup and the replica node a warm copy; Grafana never reads from GCS.
+# As decided in docs/adr/loki_local_primary_backup_adr.md
 schema_config:
   configs:
     - from: 2024-01-01
       store: tsdb
-      object_store: gcs
+      object_store: filesystem
       schema: v13
       index:
         prefix: index_
         period: 24h
 
 storage_config:
-  # Experimental in 3.6.4 but verified for chunks, TSDB index and compactor/delete-requests.
-  object_prefix: loki/cluster/data/
-  gcs:
-    bucket_name: ${ARTIFACTS_GCS_BUCKET}
-    request_timeout: 60s
-    # Credentials: GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/loki_gcs_sa_key (Docker secret loki_gcs_sa_key)
+  filesystem:
+    directory: /var/lib/loki/chunks
   tsdb_shipper:
     active_index_directory: /var/lib/loki/index
     cache_location: /var/lib/loki/index_cache
-
-chunk_store_config:
-  chunk_cache_config:
-    embedded_cache:
-      enabled: true
-      max_size_mb: 256
-      ttl: 1h
 
 ingester:
   wal:
@@ -53,10 +43,12 @@ compactor:
   retention_enabled: true
   retention_delete_delay: 2h
   retention_delete_worker_count: 50
-  delete_request_store: gcs
+  delete_request_store: filesystem
 
 limits_config:
   retention_period: ${LOKI_RETENTION_PERIOD}
+  # Queries may span the whole retention window (default max_query_length is 721h).
+  max_query_length: 2161h
   reject_old_samples: true
   reject_old_samples_max_age: 168h
   allow_structured_metadata: true
