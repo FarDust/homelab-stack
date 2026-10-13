@@ -60,6 +60,12 @@ services:
       - traefik-public
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          # n8n_data is a node-local volume holding installed community nodes (n8n-nodes-firecrawl) and
+          # binary data; keep it on the node that has them; as decided in docs/adr/node_local_state_pinning_adr.md
+          - node.labels.storage.manager == true
+          - node.labels.swarm.leader != true
       labels:
         - traefik.enable=true
         - traefik.http.routers.n8n.entrypoints=websecure
