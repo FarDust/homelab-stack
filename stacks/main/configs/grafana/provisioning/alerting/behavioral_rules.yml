@@ -1,5 +1,10 @@
 apiVersion: 1
 
+# The tar archive job (loki-backup) was replaced by loki-sync on 2026-10-13; see docs/adr/loki_local_primary_backup_adr.md
+deleteRules:
+  - orgId: 1
+    uid: loki_backup_stale
+
 groups:
   - orgId: 1
     name: Anomaly Alerts
@@ -716,8 +721,8 @@ groups:
           severity: warning
           tier: maintenance
           service: log-volume
-      - uid: loki_backup_stale
-        title: Loki Backup Stale
+      - uid: loki_replica_stale
+        title: Loki Replica Copy Stale
         condition: C
         data:
           - refId: A
@@ -731,9 +736,127 @@ groups:
                 uid: PBFA97CFB590B2093
               editorMode: code
               expr: |-
-                time() - loki_backup_last_success_timestamp_seconds > 129600
+                time() - max(loki_sync_last_success_timestamp_seconds{target="replica",mode="incr"}) - 1200
               intervalMs: 15000
-              legendFormat: '{{ instance }}'
+              legendFormat: '{{ target }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Loki warm copy on the second node is more than 20 minutes behind"
+          description: "The 5 minute incremental copy of the Loki store to main-logging_loki-replica has not succeeded for over 20 minutes (failover RPO target: minutes). Check main-logging_loki-sync logs, host I/O pressure and the replica service on the manager."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: loki-sync
+      - uid: loki_gcs_copy_stale
+        title: Loki GCS Backup Copy Stale
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                time() - max(loki_sync_last_success_timestamp_seconds{target="gcs",mode="incr"}) - 5400
+              intervalMs: 15000
+              legendFormat: '{{ target }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Loki write-only GCS backup copy has not succeeded for 90 minutes"
+          description: "The 30 minute copy of new Loki files to gs://<artifacts-bucket>/loki/cluster/backup-store/ has not succeeded for over 90 minutes. Check main-logging_loki-sync logs and the loki_gcs_sa_key identity."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: loki-sync
+      - uid: loki_sync_run_failed
+        title: Loki Sync Run Failed
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                count(loki_sync_last_run_success == 0) or vector(0)
+              intervalMs: 15000
+              legendFormat: '{{ target }}'
               maxDataPoints: 43200
               instant: true
               range: false
@@ -769,12 +892,71 @@ groups:
         execErrState: Error
         for: 15m
         annotations:
-          summary: "Loki data archive to GCS has not succeeded for 36 hours"
-          description: "The loki-backup job (every 12 hours) has no successful archive on {{ $labels.instance }} for over 36 hours. Check main-logging_loki-backup logs, host I/O pressure and the rclone volume."
+          summary: "A loki-sync run failed (replica or GCS)"
+          description: "The last loki-sync run for at least one target or mode reported failure (a guard refusal also counts). See main-logging_loki-sync logs."
         labels:
           severity: warning
           tier: maintenance
-          service: loki-backup
+          service: loki-sync
+      - uid: loki_sync_check_problem
+        title: Loki Sync Check Found Missing Files
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                count((loki_sync_missing_files{mode="check"} > 0) or (loki_sync_differ_files{mode="check"} > 0)) or vector(0)
+              intervalMs: 15000
+              legendFormat: '{{ target }}'
+              maxDataPoints: 43200
+              instant: true
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 1h
+        annotations:
+          summary: "The daily Loki copy check found missing or differing files"
+          description: "The daily rclone check between the local Loki store and a copy (replica or GCS) reported missing or size-differing files. Differing files need a manual repair because copies never overwrite. See main-logging_loki-sync logs."
+        labels:
+          severity: warning
+          tier: maintenance
+          service: loki-sync
       - uid: pg_role_connections_near_limit
         title: PostgreSQL Role Connections Near Limit
         condition: C

@@ -1,0 +1,67 @@
+# One-shot restore job (docker stack deploy -c this-file loki-restore). Not part of logging.yml.
+#   LOKI_RESTORE_FROM   replica | gcs                         (default replica)
+#   LOKI_RESTORE_TARGET host directory to fill                (default /var/lib/docker/loki-store)
+#   LOKI_RESTORE_MODE   empty | mirror                        (default empty: refuse a non-empty target)
+# LOKI_RESTORE_CONSTRAINT  placement constraint (default: node.labels.swarm.leader != true, i.e. the Loki storage node).
+# Read the result with: docker service logs loki-restore_restore ; remove with: docker stack rm loki-restore
+services:
+  restore:
+    image: rclone/rclone:1.75.2
+    entrypoint: ["/bin/sh", "/scripts/loki-sync.sh"]
+    command: ["restore", "${LOKI_RESTORE_FROM:-replica}", "/restore"]
+    networks:
+      - traefik
+    volumes:
+      - type: bind
+        source: ${LOKI_RESTORE_TARGET:-/var/lib/docker/loki-store}
+        target: /restore
+        bind:
+          create_host_path: false
+    configs:
+      - source: loki_sync_script
+        target: /scripts/loki-sync.sh
+        mode: 0555
+    secrets:
+      - source: loki_gcs_sa_key
+        target: loki_gcs_sa_key
+        mode: 0444
+      - source: loki_replica_pass
+        target: loki_replica_pass
+        mode: 0400
+    environment:
+      LOKI_SYNC_REPLICA_URL: ${LOKI_RESTORE_REPLICA_URL:-http://main-logging_loki-replica:8080}
+      LOKI_SYNC_GCS_BUCKET: ${ARTIFACTS_GCS_BUCKET?err}
+      LOKI_SYNC_GCS_PATH: ${ARTIFACTS_GCS_BUCKET?err}/loki/cluster/backup-store
+      LOKI_SYNC_RESTORE_MODE: ${LOKI_RESTORE_MODE:-empty}
+      LOKI_SYNC_METRICS_DIR: /tmp/metrics
+    deploy:
+      mode: replicated-job
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - ${LOKI_RESTORE_CONSTRAINT:-node.labels.swarm.leader != true}
+          - node.labels.storage.manager == true
+
+networks:
+  traefik:
+    external: true
+
+configs:
+  loki_sync_script:
+    # Own config name so deploying the job never collides with the loki-sync config of main-logging.
+    name: loki_restore_script-${CONFIG_VERSION:-0}
+    file: ${LOKI_SYNC_SCRIPT:-./configs/logging/loki-sync.sh}
+
+secrets:
+  loki_gcs_sa_key:
+    external: true
+    name: loki_gcs_sa_key
+  loki_replica_pass:
+    external: true
+    name: loki_replica_pass_2
