@@ -50,41 +50,49 @@ services:
         - "traefik.http.services.loki.loadbalancer.server.port=3100"
         - "traefik.swarm.network=traefik"
 
-  grafana-loki-token-refresh:
-    image: python:3.12-alpine
-    command:
-      - python
-      - /scripts/grafana_loki_token_refresh.py
+  loki-backup:
+    # Scheduled archive of the node-local loki-data volume to GCS (rclone volume).
+    # As decided in docs/adr/loki_gcs_durability_adr.md
+    image: rclone/rclone:1.75.2
+    entrypoint: ["/bin/sh", "/scripts/loki-backup.sh"]
+    command: ["serve"]
     networks:
       - traefik
-    extra_hosts:
-      - "idp.${LOCAL_DOMAIN?err}:${TRAEFIK_VIP?err}"
-      - "grafana.${DOMAIN_NAME?err}:${TRAEFIK_VIP?err}"
+    volumes:
+      - loki-data:/source:ro
+      - loki-backups:/dest
+      - /var/lib/node_exporter/textfile_collector:/metrics
     configs:
-      - source: grafana_loki_token_refresh
-        target: /scripts/grafana_loki_token_refresh.py
+      - source: loki_backup_script
+        target: /scripts/loki-backup.sh
         mode: 0555
     environment:
-      GRAFANA_URL: https://grafana.${DOMAIN_NAME?err}
-      GRAFANA_DATASOURCE_UID: ${GRAFANA_LOKI_DATASOURCE_UID:-P8E80F9AEF21F6940}
-      GRAFANA_API_TOKEN: ${MCP_ADMIN_GRAFANA_API_KEY?err}
-      KEYCLOAK_TOKEN_URL: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
-      KEYCLOAK_CLIENT_ID: ${SIGILCORE_LOKI_API_CLIENT_ID?err}
-      KEYCLOAK_CLIENT_SECRET: ${SIGILCORE_LOKI_API_CLIENT_SECRET?err}
-      REFRESH_SAFETY_SECONDS: ${GRAFANA_LOKI_TOKEN_REFRESH_SAFETY_SECONDS:-60}
-      MIN_REFRESH_SECONDS: ${GRAFANA_LOKI_TOKEN_REFRESH_MIN_SECONDS:-60}
-      PYTHONUNBUFFERED: "1"
+      LOKI_BACKUP_SCHEDULE: ${LOKI_BACKUP_SCHEDULE:-30 2,14 * * *}
+      LOKI_BACKUP_KEEP: ${LOKI_BACKUP_KEEP:-6}
+      LOKI_BACKUP_METRICS_FILE: /metrics/loki_backup.prom
+      TZ: ${TIMEZONE:-UTC}
     deploy:
       mode: replicated
       replicas: 1
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
       restart_policy:
         condition: on-failure
         delay: 10s
         max_attempts: 3
         window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
       placement:
         constraints:
           - node.labels.swarm.leader != true
+          - node.labels.node.ephemeral != true
 
   alertmanager:
     image: prom/alertmanager:v0.31.0
@@ -200,6 +208,13 @@ networks:
 volumes:
   loki-data:
     driver: local
+  loki-backups:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${ARTIFACTS_GCS_BUCKET?err}/loki/cluster/backup"
+      allow_other: "true"
+      vfs_cache_mode: full
   vector-data:
     driver: local
   alertmanager-data:
@@ -209,6 +224,9 @@ configs:
   loki_config:
     name: loki_config-${CONFIG_VERSION:-0}
     file: ./configs/logging/loki.yml
+  loki_backup_script:
+    name: loki_backup_script-${CONFIG_VERSION:-0}
+    file: ./configs/logging/loki-backup.sh
   loki_rules_traefik:
     name: loki_rules_traefik-${CONFIG_VERSION:-0}
     file: ./configs/logging/rules/traefik-router-conflict.yml
@@ -221,9 +239,6 @@ configs:
   otel_collector_config:
     name: otel_collector_config-${CONFIG_VERSION:-0}
     file: ./configs/logging/otel-collector.yml
-  grafana_loki_token_refresh:
-    name: grafana_loki_token_refresh-${CONFIG_VERSION:-0}
-    file: ./configs/logging/grafana_loki_token_refresh.py
 
 secrets:
   gcp_sa:

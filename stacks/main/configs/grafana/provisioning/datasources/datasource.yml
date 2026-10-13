@@ -21,9 +21,11 @@ datasources:
     access: proxy
     orgId: 1
     uid: P8E80F9AEF21F6940
-    url: ${GRAFANA_LOKI_URL}
+    # Direct overlay URL, like Prometheus above and the Vector write path. The routed
+    # https://loki.<domain> endpoint needs a 5-minute OIDC bearer; its refresher stalled
+    # for 9 h on 2026-10-12 and left the datasource at 401.
+    # As decided in docs/adr/grafana_loki_direct_datasource_adr.md
+    url: http://loki:3100
     basicAuth: false
     isDefault: false
     editable: true
-    jsonData:
-      httpHeaderName1: Authorization
