@@ -43,6 +43,8 @@ services:
       placement:
         constraints:
           - node.role == worker
+          # Keep SSO off the ephemeral node: pinned by label like its database; see docs/adr/keycloak_pinned_placement_adr.md
+          - node.labels.storage.manager == true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.keycloak.rule=Host(`idp.${LOCAL_DOMAIN?err}`)"
