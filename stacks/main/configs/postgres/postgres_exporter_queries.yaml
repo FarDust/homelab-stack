@@ -42,3 +42,24 @@ pg_kine_hot_prefixes:
     - revisions:
         usage: "GAUGE"
         description: "Current number of kine rows for the registry family."
+
+pg_role_activity:
+  query: |
+    SELECT
+      r.rolname AS rolname,
+      count(a.pid)::double precision AS connections,
+      count(a.pid) FILTER (WHERE a.state = 'idle')::double precision AS idle_connections
+    FROM pg_roles r
+    LEFT JOIN pg_stat_activity a ON a.usename = r.rolname
+    WHERE r.rolcanlogin AND r.rolconnlimit >= 0
+    GROUP BY r.rolname;
+  metrics:
+    - rolname:
+        usage: "LABEL"
+        description: "Login role that has an explicit CONNECTION LIMIT."
+    - connections:
+        usage: "GAUGE"
+        description: "Backends currently open for the role (compare with pg_roles_connection_limit)."
+    - idle_connections:
+        usage: "GAUGE"
+        description: "Backends of the role currently idle."
