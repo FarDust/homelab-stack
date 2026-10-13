@@ -11,7 +11,7 @@ Add `node.labels.storage.manager == true` to the Keycloak placement constraints.
 ## Alternatives
 
 - Teach the controller a protected-service list by name: rejected, because movement rules are label-driven.
-- Run Keycloak with `--optimized` to shorten restarts: still desirable and tracked separately; it reduces the outage, not the cause.
+- Run Keycloak with `--optimized` to shorten restarts: done separately, see [keycloak_optimized_image_adr.md](keycloak_optimized_image_adr.md); it reduces the outage, not the cause.
 - Leave it movable and accept short SSO outages: rejected, because identity is a dependency of every protected route.
 
 ## Consequences
