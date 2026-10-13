@@ -266,7 +266,8 @@ services:
       X_AUTHELIA_CONFIG: /etc/authelia/configuration.yml
     deploy:
       mode: replicated
-      replicas: 3
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: any
       labels:
@@ -298,7 +299,8 @@ services:
     - source: authelia_db_password
     deploy:
       mode: replicated
-      replicas: 1
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: any
       placement:
@@ -323,7 +325,8 @@ services:
       REDIS_PASSWORD_FILE: /run/secrets/authelia_redis_password
     deploy:
       mode: replicated
-      replicas: 1
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: any
       placement:

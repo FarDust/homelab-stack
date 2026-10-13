@@ -1,6 +1,6 @@
 # Authelia to Keycloak forwardAuth migration
 
-Status: partially implemented 2026-10-13. Six routes moved; Grafana has Keycloak native login deployed and no longer sits behind Authelia (gate removed 2026-10-13 so the login could be tested); Authelia retirement is pending Gabriel's real login check.
+Status: implemented and Authelia retired 2026-10-13. Six routes use oauth2-proxy forwardAuth, Grafana uses native Keycloak login (Gabriel confirmed a real login), and the four Authelia services are scaled to zero.
 
 ## Context
 
@@ -25,17 +25,13 @@ Grafana is served at `grafana.${DOMAIN_NAME}` (`grafana.tralmor.com`), outside t
 - **Authelia gate removed from the web route (2026-10-13, applied live and persisted in the compose file):** `grafana-web` no longer carries `authelia@swarm`, so Grafana's own login page is the gate. Remaining controls: self sign-up is disabled (`GF_USERS_ALLOW_SIGN_UP=false`), Google login admits only existing accounts (`GF_AUTH_GOOGLE_ALLOW_SIGN_UP=false`, domain `gmail.com`), Keycloak login requires group `admin` or `mlflow-admin` (strict role mapping), and the local admin account remains. The `/api` router was already unauthenticated by design. The trade-off is that the Grafana login form is reachable without a prior Authelia prompt on the tailnet.
 - **Insecure e-mail lookup (2026-10-13, applied live and persisted):** `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true`. Gabriel's first Keycloak login failed with "user sync failed / unable to create user: user not found" because his Keycloak user (same e-mail) maps to a Grafana account created earlier through Google, and Grafana does not link accounts by e-mail without this flag. Risk: any OAuth provider that can assert an e-mail can take over the matching account. Accepted because the only generic_oauth IdP is our own Keycloak realm `sigilcore`, access is limited to the groups above and Google admits only existing accounts. Mitigation: keep e-mail verification required for users in `sigilcore` (Grafana does not check `email_verified` itself), and drop the flag once accounts are linked (the linked login keeps working through the stored auth id).
 
-### Pending action owed by Gabriel
+### Login check and retirement (2026-10-13)
 
-Gabriel's first Keycloak login reached Grafana and failed on account linking (fixed by the insecure e-mail lookup above). The real login check is still owed: sign in again at `https://grafana.tralmor.com/login` with "Sign in with Keycloak" and confirm Grafana opens with the expected role. Do not change the shared `oauth2-proxy` client.
+Gabriel logged in through Grafana with Keycloak (<operator-email>) and Grafana opened. A search of every Swarm service's labels and environment and of the Traefik file configuration found no remaining reference to the `authelia` middleware or the verify endpoint. The only textual remnants are `stacks/ml/orchestration.yml` (`metaflow-ui`, not deployed) and the Authelia service's own labels in `stacks/main/traefik.yml`; migrate `metaflow-ui` to the oauth2-proxy pattern before deploying it.
 
-### Remaining one-shot checklist
+Replica counts before: authelia 3, authelia-redis 1, authelia-db 1, authelia-db-backup 1 (authelia-users 0). Last logs, service specs and a fresh `pg_dump` (custom format) of the `authelia` database were saved on fardustdev under `~/authelia-migration-rollback/retire/` of the operator account. The latest scheduled dump (`PG_authelia.12-October-2026.dmp`, 2026-10-12 23:30 UTC) was readable with `pg_restore -l`. The four services were then scaled to 0 and their `replicas:` in the compose files set to 0 so a redeploy does not bring them back. Volumes (`main-traefik_authelia-data`, `-configs`, `-redis-config`, the backup volume) and all backups were left in place.
 
-1. After the real Keycloak login works: confirm no service references the middleware (loop `docker service inspect` over all services and search labels for `authelia`; only the Authelia service itself should match).
-2. Record replica counts (authelia 3, authelia-redis 1, authelia-db 1, authelia-db-backup 1), save the logs, then scale the four services to 0. Keep volumes and the latest backups.
-3. Verify the six migrated routes and Grafana still answer, and record the result.
-
-Rollback of Grafana OIDC: revert the Grafana commits and redeploy, or remove the `GF_AUTH_GENERIC_OAUTH_*` variables; the client and secret can stay. To restore the Authelia gate, re-add the `grafana-web.middlewares=authelia@swarm` label.
+Restore: set the `replicas:` values back in `stacks/main/traefik.yml` and `stacks/main/maintenance.yml`, then `docker service scale main-traefik_authelia-db=1 main-traefik_authelia-redis=1`, wait for both to be healthy, `docker service scale main-traefik_authelia=3 main-maintenance_authelia-db-backup=1`, and re-add the `authelia@swarm` middleware label on the routes that should use it. The final dump restores with `pg_restore` into an empty `authelia` database.
 
 ## Alternatives
 
@@ -47,7 +43,7 @@ Rollback of Grafana OIDC: revert the Grafana commits and redeploy, or remove the
 ## Consequences
 
 - Access to the six routes is limited to Keycloak groups `admin` and `mlflow-admin` (oauth2-proxy `allowed_groups`).
-- Authelia, authelia-redis, authelia-db and authelia-db-backup stay at their previous replica counts until the checklist above is complete.
+- Authelia, authelia-redis, authelia-db and authelia-db-backup run at 0 replicas with volumes and backups kept; see the restore steps above.
 - Deploying `stirling-pdf` from the compose file raised it from 0 to 1 replica (Sablier normally keeps it at 0).
 
 ## Verification
