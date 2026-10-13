@@ -491,6 +491,9 @@ services:
     - GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH=groups
     - "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'admin') && 'Admin' || contains(groups[*], 'mlflow-admin') && 'Viewer'"
     - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=true
+    # Link a Keycloak login to an existing Grafana account (created earlier through Google) by e-mail;
+    # trade-off accepted in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+    - GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true
     - GF_RENDERING_SERVER_URL=http://renderer:8081/render
     - GF_RENDERING_CALLBACK_URL=https://grafana.${DOMAIN_NAME}/
     - GF_DATABASE_TYPE=postgres
@@ -538,7 +541,6 @@ services:
       - traefik.http.routers.grafana-web.rule=Host(`grafana.${DOMAIN_NAME}`)
       - traefik.http.routers.grafana-web.service=grafana-web@swarm
       - traefik.http.routers.grafana-web.entrypoints=websecure
-      - traefik.http.routers.grafana-web.middlewares=authelia@swarm
       - traefik.http.routers.grafana-web.tls=true
       - traefik.http.routers.grafana-web.tls.certresolver=le-dns
       - traefik.http.routers.grafana-web.priority=50
