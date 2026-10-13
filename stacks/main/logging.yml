@@ -10,14 +10,21 @@ services:
     networks:
       - traefik
     volumes:
-      - loki-data:/var/lib/loki
+      - loki-state:/var/lib/loki
     configs:
       - source: loki_config
         target: /etc/loki/loki.yml
       - source: loki_rules_traefik
         target: /etc/loki/rules/traefik-router-conflict.yml
+    secrets:
+      - source: loki_gcs_sa_key
+        target: loki_gcs_sa_key
+        mode: 0444
     environment:
       LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-168h}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/loki_gcs_sa_key
+    # flush_on_shutdown writes the in-memory chunks to GCS; as decided in docs/adr/loki_gcs_native_storage_adr.md
+    stop_grace_period: 2m
     deploy:
       mode: replicated
       replicas: 1
@@ -29,8 +36,8 @@ services:
       placement:
         constraints:
           - node.labels.swarm.leader != true
-          # Node-local TSDB/chunk volume: stay on a storage-manager node so a reschedule cannot start empty
-          # and ephemeral-rebalance skips the service; as decided in docs/adr/loki_pinned_placement_adr.md
+          # Chunks and index live in GCS; the local volume only holds the WAL and caches. The pin keeps the WAL
+          # next to its volume and ephemeral-rebalance away; see docs/adr/loki_pinned_placement_adr.md
           - node.labels.storage.manager == true
       labels:
         - "traefik.enable=true"
@@ -209,6 +216,10 @@ networks:
     external: true
 
 volumes:
+  # WAL and caches only (replayable); an empty volume is harmless
+  loki-state:
+    driver: local
+  # Legacy filesystem store, kept untouched until sign-off; still mounted by loki-backup
   loki-data:
     driver: local
   loki-backups:
@@ -244,6 +255,9 @@ configs:
     file: ./configs/logging/otel-collector.yml
 
 secrets:
+  loki_gcs_sa_key:
+    external: true
+    name: loki_gcs_sa_key
   gcp_sa:
     name: gcp_sa-${CONFIG_VERSION:-0}
     file: ../../secrets/google/gcloud.json

@@ -1,5 +1,7 @@
 # ADR: Loki log durability through scheduled GCS archives
 
+Superseded in part on 2026-10-13 18:00 UTC by `loki_gcs_native_storage_adr.md`: Loki now stores chunks and index natively in GCS; the archive job below remains a safety net until sign-off.
+
 Date: 2026-10-13 06:40 UTC
 
 ## Context
