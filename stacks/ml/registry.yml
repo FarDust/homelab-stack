@@ -1,0 +1,103 @@
+# MLflow (tracking UI + model registry) — stack name: ml-registry
+# Authentication is native: the mlflow-oidc-auth plugin (Keycloak OIDC browser login, bearer-token API access).
+# Decision record: docs/adr/mlflow_oidc_auth_adr.md. Image build: stacks/ml/mlflow-oidc/.
+# Requires: PostgreSQL backend (MLFLOW_BACKEND_STORE_URI via secrets/mlflow/backend_store_uri),
+#           MLFLOW_OIDC_IMAGE (digest-qualified private image) in the untracked operator .env.
+
+services:
+  mlflow:
+    image: ${MLFLOW_OIDC_IMAGE?err}
+    # One worker: each uvicorn worker imports all of MLflow; several workers OOM-looped under 1 GiB.
+    command: ["server", "--app-name", "oidc-auth", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+    networks:
+      - traefik
+      - traefik-public
+    environment:
+      MLFLOW_BACKEND_STORE_URI_FILE: /run/secrets/mlflow_backend_store_uri
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: ${MLFLOW_DEFAULT_ARTIFACT_ROOT?err}
+      # Optional: when MLFLOW_DEFAULT_ARTIFACT_ROOT is s3://... (e.g. MinIO)
+      AWS_ACCESS_KEY_ID: ${MLFLOW_MINIO_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${MLFLOW_MINIO_SECRET_KEY:-}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL:-}
+      # Job execution spawns a huey consumer pool (about 1 GiB RSS); this server only tracks experiments and models.
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
+      MLFLOW_SERVER_ALLOWED_HOSTS: mlflow.${LOCAL_DOMAIN?err}
+      MLFLOW_DISABLE_TELEMETRY: "true"
+      OIDC_DISCOVERY_URL: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/.well-known/openid-configuration
+      OIDC_CLIENT_ID: mlflow-oidc
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/mlflow_oidc_client_secret
+      SECRET_KEY_FILE: /run/secrets/mlflow_oidc_session_key
+      OIDC_REDIRECT_URI: https://mlflow.${LOCAL_DOMAIN?err}/callback
+      # Users and permissions live in the same PostgreSQL database; a separate Alembic version table avoids MLflow's own.
+      OIDC_USERS_DB_URI_FILE: /run/secrets/mlflow_backend_store_uri
+      OIDC_ALEMBIC_VERSION_TABLE: alembic_version_oidc
+      OIDC_GROUP_NAME: admin,mlflow-admin
+      OIDC_ADMIN_GROUP_NAME: mlflow-admin
+      OIDC_ISSUER: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}
+      OIDC_AUDIENCE: mlflow-oidc
+      OIDC_PROVISION_ON_BEARER_AUTH: "true"
+      # Keycloak controls the groups claim; mlflow-admin members (including service accounts) become MLflow admins.
+      OIDC_TRUST_BEARER_GROUP_CLAIMS: "true"
+      SESSION_COOKIE_SECURE: "true"
+      AUTOMATIC_LOGIN_REDIRECT: "true"
+      TRUSTED_PROXIES: 10.0.2.0/24
+    secrets:
+      - mlflow_backend_store_uri
+      - mlflow_oidc_client_secret
+      - mlflow_oidc_session_key
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 120s
+      rollback_config:
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          memory: 512M
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.platform.arch == x86_64
+          - node.labels.swarm.leader == true
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        # Authentication happens in the application (OIDC plugin); /health is unauthenticated for Traefik checks.
+        - traefik.http.routers.mlflow.rule=Host(`mlflow.${LOCAL_DOMAIN?err}`)
+        - traefik.http.routers.mlflow.entrypoints=websecure
+        - traefik.http.routers.mlflow.tls=true
+        - traefik.http.routers.mlflow.tls.certresolver=le-dns
+        - traefik.http.routers.mlflow.service=mlflow
+        - traefik.http.services.mlflow.loadbalancer.server.port=5000
+        - traefik.http.services.mlflow.loadbalancer.healthcheck.path=/health
+        - traefik.http.services.mlflow.loadbalancer.healthcheck.interval=30s
+        - traefik.http.services.mlflow.loadbalancer.healthcheck.timeout=5s
+
+volumes:
+  mlflow_artifacts:
+
+secrets:
+  mlflow_backend_store_uri:
+    file: ../../secrets/mlflow/backend_store_uri
+  mlflow_oidc_client_secret:
+    file: ../../secrets/mlflow/oidc_client_secret
+  mlflow_oidc_session_key:
+    file: ../../secrets/mlflow/session_key
+
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
