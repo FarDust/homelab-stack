@@ -79,13 +79,15 @@ services:
         target: /run/secrets/k8s_pgbouncer_tls_key
     environment:
       - PORT=4000
-      - DATABASE_URL=ecto://supavisor_apps:${SUPAVISOR_APPS_DB_PASSWORD_ENCODED?err}@postgres:5432/supavisor_apps
+      - DATABASE_URL=postgresql://supavisor_apps:${SUPAVISOR_APPS_DB_PASSWORD_ENCODED?err}@tasks.postgres:5432/supavisor_apps
       - SECRET_KEY_BASE=${SUPAVISOR_APPS_SECRET_KEY_BASE?err}
       - VAULT_ENC_KEY=${SUPAVISOR_APPS_VAULT_ENC_KEY?err}
       - API_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
       - METRICS_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
       - REGION=local
-      - ERL_AFLAGS=-proto_dist inet_tcp
+      # TCP keepalive on every Erlang socket (upstream to Postgres and client side), timings via sysctls below;
+      # as decided in docs/adr/pooler_orphan_connection_limits_adr.md
+      - "ERL_AFLAGS=-proto_dist inet_tcp -kernel inet_default_connect_options [{keepalive,true}] inet_default_listen_options [{keepalive,true}]"
       - PROXY_PORT_SESSION=5432
       - PROXY_PORT_TRANSACTION=6543
       - DB_POOL_SIZE=5
@@ -96,6 +98,10 @@ services:
       - LANGFUSE_UPSTREAM_PASSWORD=${LANGFUSE_DB_PASSWORD?err}
       - GLOBAL_DOWNSTREAM_CERT_PATH=/run/secrets/k8s_pgbouncer_tls_cert
       - GLOBAL_DOWNSTREAM_KEY_PATH=/run/secrets/k8s_pgbouncer_tls_key
+    sysctls:
+      net.ipv4.tcp_keepalive_time: 60
+      net.ipv4.tcp_keepalive_intvl: 10
+      net.ipv4.tcp_keepalive_probes: 6
     command:
       - /bin/sh
       - -c
