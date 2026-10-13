@@ -81,7 +81,7 @@ services:
         RCLONE_PASS=$$(cat /run/secrets/loki_replica_pass)
         export RCLONE_PASS
         # RCLONE_USER / RCLONE_PASS are the --user / --pass flags of serve webdav; they stay out of argv and the service spec.
-        exec nice -n 19 rclone serve webdav /data --addr :8080 --vfs-cache-mode off --dir-cache-time 2m --no-checksum -v
+        exec nice -n 19 rclone serve webdav /data --addr :8080 --vfs-cache-mode off --dir-cache-time 2m --no-checksum
     networks:
       - traefik
     volumes:
