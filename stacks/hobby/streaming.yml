@@ -78,6 +78,44 @@ services:
         constraints:
           - node.labels.site.class != cloud
           - node.role == manager
+  jackett:
+    # Reconstructed from the live service (it was deployed by hand and pinned by
+    # label on 2026-10-13); the image digest is the one running. Indexer
+    # definitions live in the node-local jackett_config volume on frost-fang,
+    # so the placement follows that data; as decided in
+    # docs/adr/jackett_stack_definition_adr.md
+    image: lscr.io/linuxserver/jackett:latest@sha256:eef3e1ad068e6d810e5e6631c02d975d88d2ee075e3b2dfb08099b2451294a0a
+    environment:
+      - AUTO_UPDATE=false
+      - RUN_OPTS=
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${USER_TIMEZONE:-Etc/UTC}
+      - FLARESOLVERR_URL=${FLARESOLVERR_URL:-http://flaresolverr:8191}
+    volumes:
+      - jackett_config:/config
+    networks:
+      - indexer-net
+      - traefik-public
+    healthcheck:
+      disable: true
+    deploy:
+      mode: replicated
+      replicas: 1
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.jackett.rule=Host(`jackett.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.jackett.entrypoints=websecure
+        - traefik.http.routers.jackett.tls=true
+        - traefik.http.routers.jackett.tls.certresolver=le-dns
+        - traefik.http.services.jackett.loadbalancer.server.port=9117
+        - traefik.swarm.network=traefik-public
+      placement:
+        constraints:
+          - node.labels.site.class != cloud
+          - node.labels.storage.manager == true
+          - node.labels.swarm.leader != true
+
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     environment:
@@ -236,6 +274,7 @@ services:
 volumes:
   qbittorrent_config:
   prowlarr_config:
+  jackett_config:
   sonarr_config:
   radarr_config:
   bazarr_config:
