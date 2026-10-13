@@ -17,12 +17,19 @@ repos:
           - id: end-of-file-fixer
           - id: mixed-line-ending
           - id: trailing-whitespace
-    - repo: https://github.com/dotenv-linter/dotenv-linter
-      rev: v4.0.0
+    # Prebuilt-image runner; the upstream hook (language: docker) compiles
+    # dotenv-linter from source on every environment rebuild. As decided in
+    # docs/adr/pre_commit_dotenv_linter_prebuilt_adr.md
+    - repo: local
       hooks:
           - id: dotenv-linter
-            args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey']
+            name: dotenv-linter (prebuilt image)
+            entry: scripts/dotenv-lint.sh
+            language: system
+            files: '\.env*'
             exclude: '\.env\.template$'
+            types: [text]
+            args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey']
     - repo: local
       hooks:
           - id: ggshield-quota-guard
