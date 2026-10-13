@@ -10,20 +10,28 @@ services:
     networks:
       - traefik
     volumes:
-      - loki-state:/var/lib/loki
+      # Primary store on a host directory. Swarm does not create missing bind sources, so the task fails to start
+      # when the directory or the marker file is absent (an empty node can never host Loki by accident). Create the
+      # marker only after seeding or restoring; as decided in docs/adr/loki_local_primary_backup_adr.md
+      - type: bind
+        source: /var/lib/docker/loki-store
+        target: /var/lib/loki
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/docker/loki-store/.loki-store-initialized
+        target: /run/loki-store-initialized
+        read_only: true
+        bind:
+          create_host_path: false
     configs:
       - source: loki_config
         target: /etc/loki/loki.yml
       - source: loki_rules_traefik
         target: /etc/loki/rules/traefik-router-conflict.yml
-    secrets:
-      - source: loki_gcs_sa_key
-        target: loki_gcs_sa_key
-        mode: 0444
     environment:
-      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-168h}
-      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/loki_gcs_sa_key
-    # flush_on_shutdown writes the in-memory chunks to GCS; as decided in docs/adr/loki_gcs_native_storage_adr.md
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-2160h}
+    # flush_on_shutdown writes the in-memory chunks to the local store; as decided in docs/adr/loki_local_primary_backup_adr.md
     stop_grace_period: 2m
     deploy:
       mode: replicated
@@ -36,8 +44,8 @@ services:
       placement:
         constraints:
           - node.labels.swarm.leader != true
-          # Chunks and index live in GCS; the local volume only holds the WAL and caches. The pin keeps the WAL
-          # next to its volume and ephemeral-rebalance away; see docs/adr/loki_pinned_placement_adr.md
+          # The primary store is node-local: stay on a storage-manager node (never the ephemeral node) so
+          # ephemeral-rebalance skips the service; see docs/adr/loki_pinned_placement_adr.md
           - node.labels.storage.manager == true
       labels:
         - "traefik.enable=true"
