@@ -29,6 +29,9 @@ services:
       placement:
         constraints:
           - node.labels.swarm.leader != true
+          # Node-local TSDB/chunk volume: stay on a storage-manager node so a reschedule cannot start empty
+          # and ephemeral-rebalance skips the service; as decided in docs/adr/loki_pinned_placement_adr.md
+          - node.labels.storage.manager == true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.loki.rule=Host(`loki.${LOCAL_DOMAIN?err}`) && !PathPrefix(`/otlp`)"
