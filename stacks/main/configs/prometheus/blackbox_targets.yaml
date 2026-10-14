@@ -11,15 +11,6 @@
     monitor_group: monitoring_path
 
 - targets:
-  - https://auth.tralmor.com/
-  labels:
-    probe: ingress_auth
-    service: auth
-    monitor_group: ingress_control_plane
-    expected_status: "200"
-    module: http_2xx
-
-- targets:
   - https://grafana.tralmor.com/api/health
   labels:
     probe: ingress_grafana_health
