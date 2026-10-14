@@ -40,6 +40,7 @@ def test_every_critical_domain_has_a_tls_probe():
 def test_tls_connect_module_does_a_tls_handshake():
     module = yaml.safe_load(BLACKBOX.read_text(encoding="utf-8"))["modules"]["tls_connect"]
     assert module["prober"] == "tcp" and module["tcp"]["tls"] is True
+    assert module["tcp"]["preferred_ip_protocol"] == "ip4"  # cluster nodes have no IPv6 route
 
 
 def test_rule_fires_on_failure_only():
