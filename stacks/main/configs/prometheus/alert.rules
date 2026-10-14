@@ -2,24 +2,34 @@ groups:
 - name: example
   rules:
 
-  # Alert for any instance that is unreachable for >2 minutes.
+  # One-person homelab: only interrupt on core monitoring/control-plane scrape loss.
   - alert: service_down
-    expr: up == 0
-    for: 2m
+    expr: up{job=~"prometheus|grafana|traefik|blackbox-exporter"} == 0
+    for: 10m
     labels:
-      severity: page
+      severity: warning
+      tier: core
     annotations:
-      summary: "Instance {{ $labels.instance }} down"
-      description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 2 minutes."
+      summary: "Core monitoring target {{ $labels.job }} unavailable"
+      description: "{{ $labels.instance }} (job {{ $labels.job }}) has been unreachable for more than 10 minutes. Chronic non-user-facing scrape gaps stay in dashboards instead of paging."
 
+  # One-person homelab: alert on sustained saturation, not ordinary busy-node background load.
   - alert: high_load
-    expr: node_load1 > 1.5
-    for: 2m
+    expr: |
+      (
+        node_load15 / count by (instance, job) (node_cpu_seconds_total{mode="idle"}) > 3
+      )
+      and on(instance, job)
+      (
+        1 - avg by (instance, job) (rate(node_cpu_seconds_total{mode="idle"}[15m])) > 0.85
+      )
+    for: 30m
     labels:
-      severity: page
+      severity: warning
+      tier: maintenance
     annotations:
-      summary: "Instance {{ $labels.instance }} under high load"
-      description: "{{ $labels.instance }} of job {{ $labels.job }} is under high load."
+      summary: "Host {{ $labels.instance }} under sustained saturation"
+      description: "{{ $labels.instance }} has load/core > 3 and CPU busy > 85% for 30 minutes. Treat as capacity or runaway-work investigation, not a transient spike."
 
 - name: mtu-mesh
   rules:
@@ -148,22 +158,23 @@ groups:
   rules:
   - alert: DockerHealthTargetDown
     expr: up{job="docker-health"} == 0
-    for: 2m
+    for: 10m
     labels:
       severity: warning
+      tier: maintenance
     annotations:
-      summary: "docker-health target down on {{ $labels.instance }}"
-      description: "Prometheus cannot scrape docker-health target {{ $labels.instance }} for more than 2 minutes."
+      summary: "docker-health target unavailable on {{ $labels.instance }}"
+      description: "Prometheus cannot scrape docker-health target {{ $labels.instance }} for more than 10 minutes. This stays warning-level to avoid flapping pages for a one-person homelab."
 
   - alert: DockerContainerUnhealthy
     expr: max by (instance, engine_host, com_docker_swarm_service_name, container_name) (docker_container_health_failing_streak{job="docker-health",container_status="running"}) > 0
-    for: 3m
+    for: 10m
     labels:
       severity: warning
+      tier: maintenance
     annotations:
       summary: "Container unhealthy on {{ $labels.engine_host }}"
-      description: "Container {{ $labels.container_name }} (service {{ $labels.com_docker_swarm_service_name }}) has failing healthchecks for more than 3 minutes (streak={{ $value }})."
-
+      description: "Container {{ $labels.container_name }} (service {{ $labels.com_docker_swarm_service_name }}) has failing healthchecks for more than 10 minutes (streak={{ $value }})."
 - name: monitoring-path
   rules:
   - alert: PrometheusVipPathDivergence
