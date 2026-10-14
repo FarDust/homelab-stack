@@ -280,7 +280,7 @@ groups:
                 type: prometheus
                 uid: PBFA97CFB590B2093
               editorMode: code
-              expr: probe_success{job="blackbox",monitor_group="ingress_control_plane"} == 0
+              expr: probe_success{job="blackbox",monitor_group="ingress_control_plane"}
               instant: true
               interval: ""
               intervalMs: 15000
@@ -296,8 +296,8 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:
