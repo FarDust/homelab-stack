@@ -175,6 +175,22 @@ groups:
     annotations:
       summary: "Container unhealthy on {{ $labels.engine_host }}"
       description: "Container {{ $labels.container_name }} (service {{ $labels.com_docker_swarm_service_name }}) has failing healthchecks for more than 10 minutes (streak={{ $value }})."
+
+- name: host-resources
+  rules:
+  - alert: HostLowSwapAvailable
+    expr: |
+      node_memory_SwapTotal_bytes > 0
+      and on(instance, job)
+      (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes < 0.25)
+    for: 10m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Host {{ $labels.instance }} has low swap available"
+      description: "{{ $labels.instance }} has less than 25% swap free for more than 10 minutes. Check Netdata, memory-heavy workloads, recent deploys, and swap growth before changing placements or host daemons."
+
 - name: monitoring-path
   rules:
   - alert: PrometheusVipPathDivergence
