@@ -441,6 +441,68 @@ groups:
           tier: maintenance
           service: ingress-control-plane
   - orgId: 1
+    name: External dependency alerts
+    folder: Behavioral
+    interval: 60s
+    rules:
+      - uid: critical_external_domain_unreachable
+        title: Critical External Domain Unreachable
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: probe_success{job="blackbox",monitor_group="critical_external_dns"}
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ probe }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 10m
+        annotations:
+          summary: "Critical domain {{ $labels.service }} unreachable from the cluster"
+          description: "TLS connection to {{ $labels.instance }} failed for 10 minutes. A DNS block (for example NextDNS answering with blockpage.nextdns.io) or an outage breaks backups, DVC, image pulls or package installs. Check NextDNS logs and the allowlist first."
+        labels:
+          tier: core
+          service: external-dependencies
+  - orgId: 1
     name: Workload and log durability alerts
     folder: Behavioral
     interval: 60s
