@@ -10,6 +10,11 @@ modules:
   tcp_connect:
     prober: tcp
     timeout: 5s
+  tls_connect:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      tls: true
   icmp:
     prober: icmp
     timeout: 5s
