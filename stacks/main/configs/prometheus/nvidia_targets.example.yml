@@ -1,0 +1,3 @@
+# Optional NVIDIA exporter target discovery. Supply deployment targets via
+# NVIDIA_GPU_TARGETS_FILE; the default intentionally scrapes no host.
+[]
