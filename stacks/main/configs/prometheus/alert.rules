@@ -209,3 +209,35 @@ groups:
   rules:
   - record: volcano_node_uname_info
     expr: node_uname_info{job="node-exporter"}
+
+- name: postgres-backups
+  rules:
+  - alert: PostgreSQLBackupStatusUnhealthy
+    expr: postgres_backup_status_ok == 0
+    for: 15m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "PostgreSQL backup status unhealthy for {{ $labels.service }}"
+      description: "Backup status metric for {{ $labels.service }} reports unhealthy reason {{ $labels.reason }} for more than 15 minutes. This is observation-only and does not restart backup services."
+
+  - alert: PostgreSQLBackupMetricsStale
+    expr: label_replace((time() - node_textfile_mtime_seconds{job="node-exporter",file=~"/rootfs/var/lib/node_exporter/textfile_collector/postgres_backup_(postgres-backup|supabase-db-backup|keycloak-db-backup|authelia-db-backup)\\.prom"} > 900), "service", "$1", "file", ".*/postgres_backup_(.*)\\.prom")
+    for: 10m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "PostgreSQL backup metrics stale for {{ $labels.service }}"
+      description: "Textfile metrics for {{ $labels.service }} have not been refreshed for more than 15 minutes. The backup container, observer loop, status command, or node textfile path may be stuck while old green metrics remain scraped."
+
+  - alert: PostgreSQLBackupMetricsMissing
+    expr: absent(postgres_backup_status_ok{service="postgres-backup"}) or absent(postgres_backup_status_ok{service="supabase-db-backup"}) or absent(postgres_backup_status_ok{service="keycloak-db-backup"}) or absent(postgres_backup_status_ok{service="authelia-db-backup"})
+    for: 10m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "PostgreSQL backup metrics missing for {{ $labels.service }}"
+      description: "Prometheus has no postgres_backup_status_ok series for expected backup service {{ $labels.service }}. This detects missing textfiles, stopped observers, stopped backup containers, or scrape coverage gaps."
