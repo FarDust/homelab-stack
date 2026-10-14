@@ -1,0 +1,91 @@
+rule_files:
+  - /rules/alert.rules
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox",instance="https://auth.tralmor.com/",probe="ingress_auth",service="auth",monitor_group="ingress_control_plane",expected_status="200",module="http_2xx"}'
+        values: '0x5'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: IngressControlPlaneProbeDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: core
+              job: blackbox
+              instance: https://auth.tralmor.com/
+              probe: ingress_auth
+              service: auth
+              monitor_group: ingress_control_plane
+              expected_status: "200"
+              module: http_2xx
+            exp_annotations:
+              summary: Ingress probe ingress_auth failed
+              description: https://auth.tralmor.com/ for service auth failed its blackbox probe for more than 2 minutes. Expected status is 200.
+
+  - interval: 1m
+    input_series:
+      - series: 'probe_http_status_code{job="blackbox",instance="https://grafana.tralmor.com/api/health",probe="ingress_grafana_health",service="grafana",monitor_group="ingress_control_plane",expected_status="200",module="http_2xx"}'
+        values: '502x5'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: IngressControlPlaneUnexpectedStatus
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: core
+              job: blackbox
+              instance: https://grafana.tralmor.com/api/health
+              probe: ingress_grafana_health
+              service: grafana
+              monitor_group: ingress_control_plane
+              expected_status: "200"
+              module: http_2xx
+            exp_annotations:
+              summary: Ingress probe ingress_grafana_health returned unexpected HTTP status
+              description: https://grafana.tralmor.com/api/health for service grafana returned HTTP 502 while expected status is 200.
+
+  - interval: 1m
+    input_series:
+      - series: 'probe_http_status_code{job="blackbox",instance="https://trust-agent.local.tralmor.com/",probe="ingress_trust_agent_auth_boundary",service="trust-agent",monitor_group="ingress_control_plane",expected_status="401",module="http_status_401"}'
+        values: '200x5'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: IngressControlPlaneUnexpectedStatus
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: core
+              job: blackbox
+              instance: https://trust-agent.local.tralmor.com/
+              probe: ingress_trust_agent_auth_boundary
+              service: trust-agent
+              monitor_group: ingress_control_plane
+              expected_status: "401"
+              module: http_status_401
+            exp_annotations:
+              summary: Ingress probe ingress_trust_agent_auth_boundary returned unexpected HTTP status
+              description: https://trust-agent.local.tralmor.com/ for service trust-agent returned HTTP 200 while expected status is 401.
+
+  - interval: 1m
+    input_series:
+      - series: 'probe_duration_seconds{job="blackbox",instance="mcp-grafana.local.tralmor.com:443",probe="ingress_mcp_grafana_tcp",service="mcp-grafana",monitor_group="ingress_control_plane",expected_status="tcp",module="tcp_connect"}'
+        values: '4x8'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: IngressControlPlaneProbeSlow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: blackbox
+              instance: mcp-grafana.local.tralmor.com:443
+              probe: ingress_mcp_grafana_tcp
+              service: mcp-grafana
+              monitor_group: ingress_control_plane
+              expected_status: tcp
+              module: tcp_connect
+            exp_annotations:
+              summary: Ingress probe ingress_mcp_grafana_tcp is slow
+              description: mcp-grafana.local.tralmor.com:443 for service mcp-grafana has blackbox duration above 3 seconds for more than 5 minutes.

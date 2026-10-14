@@ -241,3 +241,39 @@ groups:
     annotations:
       summary: "PostgreSQL backup metrics missing for {{ $labels.service }}"
       description: "Prometheus has no postgres_backup_status_ok series for expected backup service {{ $labels.service }}. This detects missing textfiles, stopped observers, stopped backup containers, or scrape coverage gaps."
+
+
+- name: ingress-control-plane
+  rules:
+  - alert: IngressControlPlaneProbeDown
+    expr: probe_success{job="blackbox",monitor_group="ingress_control_plane"} == 0
+    for: 2m
+    labels:
+      severity: warning
+      tier: core
+    annotations:
+      summary: "Ingress probe {{ $labels.probe }} failed"
+      description: "{{ $labels.instance }} for service {{ $labels.service }} failed its blackbox probe for more than 2 minutes. Expected status is {{ $labels.expected_status }}."
+
+  - alert: IngressControlPlaneUnexpectedStatus
+    expr: |
+      probe_http_status_code{job="blackbox",monitor_group="ingress_control_plane",expected_status="200"} != 200
+      or
+      probe_http_status_code{job="blackbox",monitor_group="ingress_control_plane",expected_status="401"} != 401
+    for: 2m
+    labels:
+      severity: warning
+      tier: core
+    annotations:
+      summary: "Ingress probe {{ $labels.probe }} returned unexpected HTTP status"
+      description: "{{ $labels.instance }} for service {{ $labels.service }} returned HTTP {{ $value }} while expected status is {{ $labels.expected_status }}."
+
+  - alert: IngressControlPlaneProbeSlow
+    expr: probe_duration_seconds{job="blackbox",monitor_group="ingress_control_plane"} > 3
+    for: 5m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Ingress probe {{ $labels.probe }} is slow"
+      description: "{{ $labels.instance }} for service {{ $labels.service }} has blackbox duration above 3 seconds for more than 5 minutes."
