@@ -563,7 +563,7 @@ groups:
           description: "{{ $labels.instance }} failed its HTTPS probe for 5 minutes (expected status {{ $labels.expected_status }}). autotransport.com timed out on 2026-10-09."
         labels:
           tier: core
-          service: external-sites
+          component: external-sites
       - uid: external_site_probe_missing
         title: External Site Probe Missing
         condition: C
@@ -620,7 +620,7 @@ groups:
           description: "No probe_success series for monitor_group=external_sites for 15 minutes: the autotransport.com probe is not running, so an outage would go unnoticed."
         labels:
           tier: core
-          service: external-sites
+          component: external-sites
   - orgId: 1
     name: Workload and log durability alerts
     folder: Behavioral

@@ -53,3 +53,10 @@ def test_missing_rule_fires_when_the_series_is_absent():
     assert query(item) == 'absent(probe_success{job="blackbox",monitor_group="external_sites"})'
     assert fires(item, 1.0) and not fires(item, 0.0)  # absent() returns 1 only when no series exists
     assert item["for"] == "15m"
+
+
+def test_rule_labels_keep_the_series_service():
+    for uid in ("external_site_probe_failed", "external_site_probe_missing"):
+        labels = rule(uid)["labels"]
+        assert "service" not in labels  # the series label service=<site> must reach the alert
+        assert labels["component"] == "external-sites"
