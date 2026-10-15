@@ -503,6 +503,125 @@ groups:
           tier: core
           service: external-dependencies
   - orgId: 1
+    name: External site alerts
+    folder: Behavioral
+    interval: 60s
+    rules:
+      - uid: external_site_probe_failed
+        title: External Site Probe Failed
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: probe_success{job="blackbox",monitor_group="external_sites"}
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ probe }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: "External site {{ $labels.service }} failed its probe"
+          description: "{{ $labels.instance }} failed its HTTPS probe for 5 minutes (expected status {{ $labels.expected_status }}). autotransport.com timed out on 2026-10-09."
+        labels:
+          tier: core
+          service: external-sites
+      - uid: external_site_probe_missing
+        title: External Site Probe Missing
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: absent(probe_success{job="blackbox",monitor_group="external_sites"})
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ probe }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 15m
+        annotations:
+          summary: "External site probes are missing"
+          description: "No probe_success series for monitor_group=external_sites for 15 minutes: the autotransport.com probe is not running, so an outage would go unnoticed."
+        labels:
+          tier: core
+          service: external-sites
+  - orgId: 1
     name: Workload and log durability alerts
     folder: Behavioral
     interval: 60s

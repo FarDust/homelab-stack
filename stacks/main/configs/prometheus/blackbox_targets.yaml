@@ -153,3 +153,12 @@
     monitor_group: critical_external_dns
     expected_status: tls
     module: tls_connect
+
+- targets:
+  - https://autotransport.com/
+  labels:
+    probe: external_autotransport_com
+    service: autotransport.com
+    monitor_group: external_sites
+    expected_status: "200"
+    module: http_2xx
