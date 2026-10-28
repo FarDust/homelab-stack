@@ -199,12 +199,15 @@ services:
     image: bitnami/redis:latest
     secrets:
       - redis_password
+      - redis_acl
     volumes:
       - redis-data:/data
     networks:
       - traefik
     environment:
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+      # ACL users incl. ci_queue (agent-skills CI FIFO); card trust-agent-redis-ci-custody
+      - REDIS_ACLFILE=/run/secrets/redis_acl
     deploy:
       mode: replicated
       replicas: 1
@@ -661,6 +664,8 @@ secrets:
     file: ../../secrets/k8s/pgbouncer_tls_key.pem
   redis_password:
     file: ../../secrets/redis/redis_password
+  redis_acl:
+    file: ../../secrets/redis/users.acl
   opensearch_password:
     file: ../../secrets/opensearch/opensearch_password
   minio_access_key:
