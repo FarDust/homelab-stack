@@ -25,3 +25,7 @@ path "secret/data/services/graphify-headless/litellm" {
 path "secret/data/services/postgres/*" {
   capabilities = ["create", "update", "read"]
 }
+
+path "secret/data/services/redis/*" {
+  capabilities = ["create", "update", "read"]
+}
