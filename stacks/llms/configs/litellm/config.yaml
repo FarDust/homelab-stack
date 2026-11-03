@@ -30,6 +30,9 @@ router_settings:
   redis_host: os.environ/REDIS_HOST
   redis_port: os.environ/REDIS_PORT
   redis_password: os.environ/REDIS_PASSWORD
+  model_group_retry_policy:
+    trust-agent-chat: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    trust-agent-chat-low-end: {DefaultRetries: 0, TimeoutErrorRetries: 0}
   # Local-first aliases for automation workloads (e.g. n8n).
   # Existing model names are unchanged; these add stable route targets.
   fallbacks:
@@ -993,6 +996,7 @@ model_list:
     litellm_params:
       model: ollama_chat/qwen3.5:9b
       api_base: os.environ/OLLAMA_API_BASE
+      timeout: 10
     model_info:
       owned_by: alibaba
 
@@ -1000,6 +1004,7 @@ model_list:
     litellm_params:
       model: ollama_chat/qwen3.5:9b
       api_base: os.environ/OLLAMA_LOWEND_API_BASE
+      timeout: 10
     model_info:
       owned_by: alibaba
 

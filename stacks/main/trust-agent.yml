@@ -12,6 +12,9 @@ services:
       dockerfile: agents/trust-agent/Dockerfile
     networks:
       - trust-internal
+    # Keep TLS hostname; this isolated network cannot reliably reach MagicDNS.
+    extra_hosts:
+      - "litellm.${LOCAL_DOMAIN?err}:${LITELLM_GATEWAY_HOST_IP?err}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
