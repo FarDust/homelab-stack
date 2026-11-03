@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   web:
-    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    image: ${JOURNEY_IMAGE?err}
     user: '101:101'
     entrypoint: [nginx]
     command: ['-g', 'daemon off;']
@@ -16,16 +16,6 @@ services:
     configs:
       - source: nginx
         target: /etc/nginx/nginx.conf
-      - source: index
-        target: /usr/share/nginx/html/index.html
-      - source: javascript
-        target: /usr/share/nginx/html/assets/${JOURNEY_JS_FILENAME?err}
-      - source: stylesheet
-        target: /usr/share/nginx/html/assets/${JOURNEY_CSS_FILENAME?err}
-      - source: photo_one
-        target: /usr/share/nginx/html/assets/${JOURNEY_PHOTO_ONE_FILENAME?err}
-      - source: photo_two
-        target: /usr/share/nginx/html/assets/${JOURNEY_PHOTO_TWO_FILENAME?err}
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/healthz']
       interval: 20s
@@ -75,18 +65,3 @@ configs:
   nginx:
     name: static_journey_nginx-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
     file: ./configs/static-journey/nginx.conf
-  index:
-    name: static_journey_index-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
-    file: ${JOURNEY_ASSET_DIR?err}/index.html
-  javascript:
-    name: static_journey_js-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
-    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_JS_FILENAME?err}
-  stylesheet:
-    name: static_journey_css-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
-    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_CSS_FILENAME?err}
-  photo_one:
-    name: static_journey_photo_one-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
-    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_PHOTO_ONE_FILENAME?err}
-  photo_two:
-    name: static_journey_photo_two-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
-    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_PHOTO_TWO_FILENAME?err}
