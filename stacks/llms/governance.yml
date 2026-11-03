@@ -263,6 +263,7 @@ services:
       - traefik-public
     environment:
       - PORT=4000
+      - CHATGPT_TOKEN_DIR=/var/lib/litellm/chatgpt
       - SEARXNG_API_BASE=http://searxng:8080
       - OPENAI_API_KEY=${OPENAI_API_KEY?err}
       - GITHUB_API_KEY=${LITELLM_GITHUB_TOKEN?err}
@@ -286,6 +287,8 @@ services:
       - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
       - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
       - MCP_GATEWAY_OIDC_CLIENT_ID=${MCP_GATEWAY_OIDC_CLIENT_ID:-litellm-mcp-gateway}
+    volumes:
+      - litellm_chatgpt_auth:/var/lib/litellm/chatgpt
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
@@ -433,6 +436,8 @@ networks:
     internal: true
     attachable: true
 volumes:
+  litellm_chatgpt_auth:
+    driver: local
   ollama_data:
     driver: rclone
     driver_opts:
