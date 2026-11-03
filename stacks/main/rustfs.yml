@@ -1,0 +1,46 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
+    environment:
+      RUSTFS_ACCESS_KEY_FILE: /run/secrets/rustfs_access_key
+      RUSTFS_SECRET_KEY_FILE: /run/secrets/rustfs_secret_key
+      RUSTFS_ADDRESS: ':9000'
+      RUSTFS_CONSOLE_ENABLE: 'false'
+      RUSTFS_VOLUMES: /data
+    secrets:
+      - source: rustfs_access_key
+        target: rustfs_access_key
+      - source: rustfs_secret_key
+        target: rustfs_secret_key
+    volumes:
+      - rustfs_data:/data
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.storage.manager == true
+          - node.labels.swarm.leader != true
+          - node.labels.node.ephemeral != true
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+volumes:
+  rustfs_data:
+    driver: local
+networks:
+  traefik:
+    external: true
+secrets:
+  rustfs_access_key:
+    name: rustfs_access_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/rustfs/access_key
+  rustfs_secret_key:
+    name: rustfs_secret_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/rustfs/secret_key
