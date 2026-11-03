@@ -1,11 +1,5 @@
 version: '3.9'
 x-common:
-  database:
-    &db-environment
-    # Do not remove the "&db-password" from the end of the line below, it is important
-    # for Panel functionality.
-    MYSQL_PASSWORD: &db-password "${MYSQL_PASSWORD}"
-    MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
   panel:
     &panel-environment
     APP_URL: "https://gaming.${DOMAIN_NAME}"
@@ -26,23 +20,39 @@ x-common:
     MAIL_ENCRYPTION: "true"
 
 services:
+  # Backup custody and recovery: docs/adr/pterodactyl_gcs_backup_proposal_adr.md
   database:
-    image: mariadb:10.5
+    image: mariadb:10.5@sha256:a530aeeefd82f4fa5150f391b6c75462140904780338766f6b03acecb1cca3ce
     command: --default-authentication-plugin=mysql_native_password
     networks:
       - default
     volumes:
       - "/srv/pterodactyl/database:/var/lib/mysql"
     environment:
-      <<: *db-environment
       MYSQL_DATABASE: "panel"
       MYSQL_USER: "pterodactyl"
+      MYSQL_PASSWORD_FILE: /run/secrets/pterodactyl-panel-db-password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/pterodactyl-db-root-password
+    secrets:
+      - source: panel-db-password
+        target: pterodactyl-panel-db-password
+        uid: "0"
+        gid: "0"
+        mode: 0400
+      - source: panel-db-root-password
+        target: pterodactyl-db-root-password
+        uid: "0"
+        gid: "0"
+        mode: 0400
     deploy:
+      replicas: 1
       placement:
-          constraints:
-            - node.role == manager
+        constraints:
+          - node.labels.storage.manager == true
+          - node.role == manager
       restart_policy:
-        condition: on-failure
+        condition: any
+        delay: 5s
   cache:
     image: redis:alpine
     networks:
@@ -54,19 +64,21 @@ services:
       restart_policy:
         condition: on-failure
   panel:
-    image: ghcr.io/pterodactyl/panel:latest
+    image: ghcr.io/pterodactyl/panel:v1.15.2@sha256:cd7cda1727f110cee375ed52a95adfe73065548576715e7b92f8c899558271e3
     networks:
       - traefik-public
       - default
     volumes:
-      - "/srv/pterodactyl/var/:/app/var/"
-      - "/srv/pterodactyl/nginx/:/etc/nginx/http.d/"
-      - "/srv/pterodactyl/certs/:/etc/letsencrypt/"
-      - "/srv/pterodactyl/logs/:/app/storage/logs"
-      - "/srv/pterodactyl/certbot/www/:/var/www/certbot"
+      - pterodactyl-panel-config:/app/var/
+      - pterodactyl-panel-logs:/app/storage/logs
+    secrets:
+      - source: panel-dotenv
+        target: /app/var/.env
+        uid: "0"
+        gid: "101"
+        mode: 0440
     environment:
       <<: [*panel-environment, *mail-environment]
-      DB_PASSWORD: *db-password
       APP_ENV: "production"
       APP_ENVIRONMENT_ONLY: "false"
       CACHE_DRIVER: "redis"
@@ -74,33 +86,40 @@ services:
       QUEUE_DRIVER: "redis"
       REDIS_HOST: "cache"
       DB_HOST: "database"
+      PTERODACTYL_TELEMETRY_ENABLED: "false"
+      TRUSTED_PROXIES: "*"
+      AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
+      AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 4m
     deploy:
-      mode: global
+      replicas: 1
       labels:
         - "traefik.swarm.lbswarm=true"
         - "traefik.enable=true"
-        - "sablier.enable=true"
-        - "sablier.group=gaming"
         - "traefik.http.routers.pterodactyl-panel.rule=Host(`gaming.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-panel.service=pterodactyl-panel@swarm"
-        #- "traefik.http.routers.pterodactyl-panel.middlewares=load-gaming@file"
-        - "traefik.http.routers.pterodactyl-panel-http.entrypoints=web"
-        - "traefik.http.routers.pterodactyl-panel-http.rule=Host(`gaming.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-panel.entrypoints=websecure"
-        - "traefik.http.routers.pterodactyl-panel-http.middlewares=pterodactyl-panel-https@swarm"
-        - "traefik.http.middlewares.pterodactyl-panel-https.redirectscheme.scheme=https"
         - "traefik.http.routers.pterodactyl-panel.tls=true"
         - "traefik.http.routers.pterodactyl-panel.tls.certresolver=le-dns"
-        - "traefik.http.services.pterodactyl-panel.loadbalancer.server.port=80"
+        - "traefik.http.services.pterodactyl-panel.loadbalancer.healthcheck.interval=60s"
+        - "traefik.http.services.pterodactyl-panel.loadbalancer.healthcheck.path=/"
+        - "traefik.http.services.pterodactyl-panel.loadbalancer.server.url=http://panel:80"
       placement:
         constraints:
           - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
       restart_policy:
         condition: on-failure
         delay: 5m
         window: 10m
   wings:
-    image: ghcr.io/pterodactyl/wings:latest
+    image: ghcr.io/pterodactyl/wings:v1.13.4@sha256:f3eb1fcca035ba94256d612e31315bf33db948693db1a9c4646ce398aefc2f1b
+    hostname: "{{.Node.Hostname}}-{{.Node.ID}}"
     networks:
       - wings0
       - traefik-public
@@ -114,29 +133,30 @@ services:
       WINGS_USERNAME: pterodactyl
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "/var/lib/docker/containers/:/var/lib/docker/containers/"
       - "/etc/pterodactyl/:/etc/pterodactyl/"
-      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
-      - "/var/log/pterodactyl/:/var/log/pterodactyl/"
-      - "/etc/ssl/certs:/etc/ssl/certs:ro"
+      - "/tmp:/tmp"
+      - "/var/lib/pterodactyl/volumes:/var/lib/pterodactyl/volumes"
+      - "pterodactyl-wings-archives:/var/lib/pterodactyl/archives/"
+      - "pterodactyl-wings-staging:/var/lib/pterodactyl/backups/"
+      - "pterodactyl-wings-data:/var/lib/pterodactyl/"
+      - "pterodactyl-wings-logs:/var/log/pterodactyl/"
     deploy:
       mode: global
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.pterodactyl-wings.rule=Host(`wings.${DOMAIN_NAME}`)"
+        - "traefik.http.routers.pterodactyl-wings.rule=Host(`wings.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.pterodactyl-wings.service=pterodactyl-wings@swarm"
-        - "traefik.http.routers.pterodactyl-wings-http.entrypoints=web"
-        - "traefik.http.routers.pterodactyl-wings-http.rule=Host(`wings.${DOMAIN_NAME}`)"
         - "traefik.http.routers.pterodactyl-wings.entrypoints=websecure"
-        - "traefik.http.routers.pterodactyl-wings-http.middlewares=pterodactyl-wings-https@swarm"
-        - "traefik.http.middlewares.pterodactyl-wings-https.redirectscheme.scheme=https"
         - "traefik.http.routers.pterodactyl-wings.tls=true"
         - "traefik.http.routers.pterodactyl-wings.tls.certresolver=le-dns"
         - "traefik.http.services.pterodactyl-wings.loadbalancer.server.port=443"
         - "traefik.swarm.network=traefik-public"
       placement:
         constraints:
-          - node.role == manager
+          - node.labels.gpu.class != high-end
+          - node.platform.os == linux
+          - node.role != manager
+          - node.labels.pterodactyl.backup-staging == true
       restart_policy:
         condition: on-failure
         delay: 5m
@@ -181,3 +201,31 @@ networks:
         - subnet: 172.20.0.0/16
 volumes:
   factorio-data: {}
+  pterodactyl-panel-config:
+    driver: rclone
+    driver_opts:
+      remote: gcs:${PTERODACTYL_PANEL_STORAGE_BUCKET}/pterodactyl/panel/config
+      allow_other: "true"
+      vfs_cache_mode: full
+  pterodactyl-panel-logs:
+    driver: rclone
+    driver_opts:
+      remote: gcs:${PTERODACTYL_PANEL_STORAGE_BUCKET}/pterodactyl/panel/logs
+      allow_other: "true"
+      vfs_cache_mode: full
+  pterodactyl-wings-archives: {}
+  pterodactyl-wings-data: {}
+  pterodactyl-wings-logs: {}
+  pterodactyl-wings-staging:
+    external: true
+    name: pterodactyl-wings-staging
+secrets:
+  panel-db-password:
+    external: true
+    name: ${PTERODACTYL_PANEL_DB_SECRET}
+  panel-db-root-password:
+    external: true
+    name: ${PTERODACTYL_DB_ROOT_SECRET}
+  panel-dotenv:
+    external: true
+    name: ${PTERODACTYL_PANEL_DOTENV_SECRET}

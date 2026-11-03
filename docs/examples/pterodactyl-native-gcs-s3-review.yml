@@ -1,0 +1,11 @@
+# Non-secret settings for the built-in S3 adapter; use protected runtime custody
+# for credentials and supply deployment-specific identifiers out of band.
+services:
+  panel:
+    environment:
+      APP_BACKUP_DRIVER: "s3"
+      AWS_ENDPOINT: "https://storage.googleapis.com"
+      AWS_DEFAULT_REGION: "<s3-signing-region>"
+      AWS_BACKUPS_BUCKET: "<backup-bucket>"
+      AWS_USE_PATH_STYLE_ENDPOINT: "true"
+      AWS_BACKUPS_USE_ACCELERATE: "false"
