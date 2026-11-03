@@ -19,3 +19,7 @@ The upgrade is explicit and auditable; maintaining it requires future reviewed v
 ## Verification
 
 Validate compose, verify image version, restore a database dump into isolated PostgreSQL, rehearse the target migration, deploy only the gateway, and verify readiness plus existing consumer-facing models.
+
+## ChatGPT authentication storage
+
+The gateway uses a dedicated writable node-local Docker volume for the ChatGPT OAuth token directory. Existing placement selects the storage-manager leader, so routine task replacement on that node retains the refreshed file; a node loss does not. This is an interim single-node design, not shared storage or a verified backup. Adding a RustFS-backed volume needs validation of synchronous writes and refresh-token concurrency before it can provide stronger failover. Never place the tokens in the image or source control.
