@@ -23,3 +23,7 @@ Validate compose, verify image version, restore a database dump into isolated Po
 ## ChatGPT authentication storage
 
 The gateway uses a dedicated writable node-local Docker volume for the ChatGPT OAuth token directory. Existing placement selects the storage-manager leader, so routine task replacement on that node retains the refreshed file; a node loss does not. This is an interim single-node design, not shared storage or a verified backup. Adding a RustFS-backed volume needs validation of synchronous writes and refresh-token concurrency before it can provide stronger failover. Never place the tokens in the image or source control.
+
+### Subscription model isolation
+
+Explicit `chatgpt-subscription-sol` and `chatgpt-subscription-luna` aliases target the ChatGPT provider and do not fall back to paid API deployments. Their availability depends on the enrolled ChatGPT account. Gateway authorization and OpenAI subscription authorization are distinct. Confirm actual provider and successful request rather than treating a listed model as proof.

@@ -46,6 +46,16 @@ search_tools:
       api_base: os.environ/SEARXNG_API_BASE
 
 model_list:
+  - model_name: chatgpt-subscription-sol
+    litellm_params:
+      model: chatgpt/gpt-6.1-sol
+    model_info:
+      mode: responses
+  - model_name: chatgpt-subscription-luna
+    litellm_params:
+      model: chatgpt/gpt-6-luna
+    model_info:
+      mode: responses
   # OpenAI Models
   - model_name: gpt-4o-mini
     litellm_params:
