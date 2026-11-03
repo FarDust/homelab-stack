@@ -1,0 +1,92 @@
+version: '3.9'
+services:
+  web:
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    user: '101:101'
+    entrypoint: [nginx]
+    command: ['-g', 'daemon off;']
+    read_only: true
+    cap_drop: [ALL]
+    networks: [traefik-public]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+      - source: index
+        target: /usr/share/nginx/html/index.html
+      - source: javascript
+        target: /usr/share/nginx/html/assets/${JOURNEY_JS_FILENAME?err}
+      - source: stylesheet
+        target: /usr/share/nginx/html/assets/${JOURNEY_CSS_FILENAME?err}
+      - source: photo_one
+        target: /usr/share/nginx/html/assets/${JOURNEY_PHOTO_ONE_FILENAME?err}
+      - source: photo_two
+        target: /usr/share/nginx/html/assets/${JOURNEY_PHOTO_TWO_FILENAME?err}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/healthz']
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 8M
+        limits:
+          memory: 32M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.static-journey.rule=Host(`${JOURNEY_HOSTNAME?err}`)
+        - traefik.http.routers.static-journey.entrypoints=websecure
+        - traefik.http.routers.static-journey.tls=true
+        - traefik.http.routers.static-journey.tls.certresolver=le-dns
+        - traefik.http.services.static-journey.loadbalancer.server.port=8080
+        - traefik.http.routers.static-journey.middlewares=static-journey-oauth2-errors@swarm,static-journey-oauth2-forward-auth@swarm
+        - traefik.http.middlewares.static-journey-oauth2-errors.errors.status=401
+        - traefik.http.middlewares.static-journey-oauth2-errors.errors.service=oauth2-proxy
+        - traefik.http.middlewares.static-journey-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}
+        - traefik.http.middlewares.static-journey-oauth2-errors.errors.statusRewrites.401=302
+        - traefik.http.middlewares.static-journey-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth
+        - traefik.http.middlewares.static-journey-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method
+        - traefik.http.middlewares.static-journey-oauth2-forward-auth.forwardAuth.trustForwardHeader=true
+        - traefik.http.middlewares.static-journey-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email
+networks:
+  traefik-public:
+    external: true
+configs:
+  nginx:
+    name: static_journey_nginx-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ./configs/static-journey/nginx.conf
+  index:
+    name: static_journey_index-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ${JOURNEY_ASSET_DIR?err}/index.html
+  javascript:
+    name: static_journey_js-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_JS_FILENAME?err}
+  stylesheet:
+    name: static_journey_css-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_CSS_FILENAME?err}
+  photo_one:
+    name: static_journey_photo_one-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_PHOTO_ONE_FILENAME?err}
+  photo_two:
+    name: static_journey_photo_two-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ${JOURNEY_ASSET_DIR?err}/assets/${JOURNEY_PHOTO_TWO_FILENAME?err}
