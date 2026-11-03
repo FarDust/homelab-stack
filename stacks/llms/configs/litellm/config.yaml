@@ -36,7 +36,8 @@ router_settings:
     - {"n8n-chat": ["n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
     - {"n8n-chat-low-end": ["n8n-chat-fallback", "gemini-2.5-flash"]}
     - {"n8n-code": ["n8n-code-fallback", "gemini-2.5-flash-lite"]}
-    - {"trust-agent-chat": ["trust-agent-chat-low-end"]}
+    - {"trust-agent-chat": ["trust-agent-chat-low-end", "chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
+    - {"trust-agent-chat-low-end": ["chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
     - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
 
 search_tools:
@@ -46,6 +47,10 @@ search_tools:
       api_base: os.environ/SEARXNG_API_BASE
 
 model_list:
+  - model_name: chatgpt-subscription-terra
+    litellm_params:
+      model: chatgpt/gpt-6.1-terra
+
   - model_name: chatgpt-subscription-sol
     litellm_params:
       model: chatgpt/gpt-6.1-sol
