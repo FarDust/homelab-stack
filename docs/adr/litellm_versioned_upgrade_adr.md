@@ -27,3 +27,5 @@ The gateway uses a dedicated writable node-local Docker volume for the ChatGPT O
 ### Subscription model isolation
 
 Explicit `chatgpt-subscription-sol` and `chatgpt-subscription-luna` aliases target the ChatGPT provider and do not fall back to paid API deployments. Their availability depends on the enrolled ChatGPT account. Gateway authorization and OpenAI subscription authorization are distinct. Confirm actual provider and successful request rather than treating a listed model as proof.
+
+On 2026-11-03, after enrolling the gateway account through the device flow, a gateway redeployment retained the token file and both subscription aliases returned HTTP 200 with the expected short response via Chat Completions. This verifies one task replacement on the same node, not automatic refresh, node-failover persistence or backup recovery.
