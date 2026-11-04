@@ -47,3 +47,19 @@ def test_minecraft_chat_local_aliases_are_removed() -> None:
     assert {m["model_name"] for m in config["model_list"]}.isdisjoint(
         {"minecraft-chat-local", "minecraft-chat-low-end"}
     )
+
+
+def test_zeus_cheap_uses_only_subscription_and_api_routes() -> None:
+    config = _load()
+    names = ["zeus-cheap", *_chain(config, "zeus-cheap")]
+    assert names == ["zeus-cheap", "gemini-3-flash-preview"]
+    assert _deployments(config, "zeus-cheap")[0]["litellm_params"]["model"] == "chatgpt/gpt-6-luna"
+    for name in names:
+        deployments = _deployments(config, name)
+        assert deployments, name
+        for deployment in deployments:
+            params = deployment["litellm_params"]
+            assert params["model"].startswith(("chatgpt/", "vertex_ai/")), name
+            assert "api_base" not in params, name
+    retry = config["router_settings"]["model_group_retry_policy"]["zeus-cheap"]
+    assert retry == {"DefaultRetries": 0, "TimeoutErrorRetries": 0}
