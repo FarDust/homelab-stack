@@ -33,6 +33,9 @@ router_settings:
   model_group_retry_policy:
     trust-agent-chat: {DefaultRetries: 0, TimeoutErrorRetries: 0}
     trust-agent-chat-low-end: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    minecraft-chat: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    minecraft-chat-local: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    minecraft-chat-low-end: {DefaultRetries: 0, TimeoutErrorRetries: 0}
   # Local-first aliases for automation workloads (e.g. n8n).
   # Existing model names are unchanged; these add stable route targets.
   fallbacks:
@@ -41,6 +44,8 @@ router_settings:
     - {"n8n-code": ["n8n-code-fallback", "gemini-2.5-flash-lite"]}
     - {"trust-agent-chat": ["trust-agent-chat-low-end", "chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
     - {"trust-agent-chat-low-end": ["chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
+    - {"minecraft-chat": ["minecraft-chat-local", "minecraft-chat-low-end"]}
+    - {"minecraft-chat-local": ["minecraft-chat-low-end"]}
     - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
 
 search_tools:
@@ -1001,6 +1006,29 @@ model_list:
       owned_by: alibaba
 
   - model_name: trust-agent-chat-low-end
+    litellm_params:
+      model: ollama_chat/qwen3.5:9b
+      api_base: os.environ/OLLAMA_LOWEND_API_BASE
+      timeout: 10
+    model_info:
+      owned_by: alibaba
+
+  # Minecraft chat: ChatGPT subscription Terra, then local Ollama only (no paid API fallback);
+  # see docs/adr/litellm_versioned_upgrade_adr.md "Minecraft chat route".
+  - model_name: minecraft-chat
+    litellm_params:
+      model: chatgpt/gpt-6.1-terra
+      timeout: 20
+
+  - model_name: minecraft-chat-local
+    litellm_params:
+      model: ollama_chat/qwen3.5:9b
+      api_base: os.environ/OLLAMA_API_BASE
+      timeout: 10
+    model_info:
+      owned_by: alibaba
+
+  - model_name: minecraft-chat-low-end
     litellm_params:
       model: ollama_chat/qwen3.5:9b
       api_base: os.environ/OLLAMA_LOWEND_API_BASE
