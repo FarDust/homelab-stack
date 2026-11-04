@@ -1,0 +1,12 @@
+model: /model
+served-model-name: qwen3-asr-1.7b
+host: 0.0.0.0
+port: 8000
+dtype: bfloat16
+max-model-len: 4096
+max-num-seqs: 2
+max-num-batched-tokens: 4096
+gpu-memory-utilization: 0.30
+enforce-eager: true
+enable-prefix-caching: false
+generation-config: vllm

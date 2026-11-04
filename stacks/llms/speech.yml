@@ -1,0 +1,65 @@
+x-release: "0.1.0"
+services:
+  qwen3-asr:
+    image: vllm/vllm-openai:v0.33.0@sha256:d825baf9ce4b1b6bfc5ecc7b79880c7e6748c65a72d697ce3d47607aafa84c6e
+    command: ["--config", "/etc/vllm/speech.yaml"]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      HF_HUB_OFFLINE: "1"
+      HF_HOME: /cache/huggingface
+      VLLM_CACHE_ROOT: /cache/vllm
+      TORCHINDUCTOR_CACHE_DIR: /cache/torchinductor
+      TRITON_CACHE_DIR: /cache/triton
+      OMP_NUM_THREADS: "2"
+    configs:
+      - source: speech_qwen3_config
+        target: /etc/vllm/speech.yaml
+    volumes:
+      - type: bind
+        source: /mnt/d/stt-qwen-runtime/model
+        target: /model
+        read_only: true
+    networks:
+      - traefik
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15m
+    deploy:
+      replicas: ${STT_REPLICAS:-0}
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.platform.arch == x86_64
+          - node.labels.gpu == true
+          - node.labels.gpu.class == high-end
+      resources:
+        limits:
+          cpus: '4'
+          memory: 10G
+        reservations:
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 3
+        window: 20m
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 120s
+      rollback_config:
+        order: stop-first
+        monitor: 120s
+      labels:
+        - traefik.enable=false
+        - org.opencontainers.image.version=0.1.0
+configs:
+  speech_qwen3_config:
+    name: speech_qwen3_config-v0.1.0
+    file: ./configs/speech/qwen3-asr.yaml
+networks:
+  traefik:
+    external: true

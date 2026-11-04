@@ -1,0 +1,62 @@
+x-release: "0.1.0"
+services:
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp@sha256:eb5f21530421cefcb1c5bf18a276dc5082110e66dd4962eb403e578679562126
+    entrypoint: ["whisper-server"]
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --model
+      - /models/ggml-large-v3-turbo-q5_0.bin
+      - --language
+      - auto
+      - --threads
+      - "2"
+      - --inference-path
+      - /v1/audio/transcriptions
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    user: "1000:1000"
+    working_dir: /tmp
+    volumes:
+      - type: bind
+        source: /mnt/d/stt-qwen-runtime/ggml-large-v3-turbo-q5_0.bin
+        target: /models/ggml-large-v3-turbo-q5_0.bin
+        read_only: true
+    networks: [traefik]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--max-time", "3", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    deploy:
+      replicas: ${STT_GPU_REPLICAS:-1}
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.platform.arch == x86_64
+          - node.labels.gpu == true
+          - node.labels.gpu.class == high-end
+      resources:
+        limits:
+          cpus: "2"
+          memory: 3G
+        reservations:
+          memory: 1536M
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 1
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=false
+        - org.opencontainers.image.version=0.1.0
+networks:
+  traefik:
+    external: true
