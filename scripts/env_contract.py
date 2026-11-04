@@ -45,6 +45,7 @@ NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 NAME_RE = re.compile(NAME)
 BRACED_RE = re.compile(rf"({NAME})(?:(:?[-?+])(.*))?", re.S)
 # `export NAME=...` or `NAME=...`; only the name and the start of the right side are ever inspected.
+REFERENCE_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 LIVE_LINE_RE = re.compile(rf"^(?P<export>export\s+)?(?P<name>{NAME})=(?P<rest>.*)$")
 SECRET_READ_PREFIX = "$(cat secrets/"
 REQUIRED_OPERATORS = {"?", ":?"}
@@ -318,19 +319,33 @@ def _shell_value(value: str) -> str:
 
 
 def render_example(contract: Contract) -> str:
+    # `.env` is sourced top to bottom, so a name that another value interpolates (for example
+    # LOCAL_DOMAIN in https://host.${LOCAL_DOMAIN}) must be defined before its first use.
+    values = {
+        var.name: _shell_value(_placeholder(var))
+        for var in contract.variables
+        if var.in_example and var.kind is not Kind.SECRET_FILE
+    }
+    referenced = {
+        name
+        for value in values.values()
+        for name in REFERENCE_RE.findall(value)
+        if name in values
+    }
     groups: dict[str, list[Variable]] = defaultdict(list)
     for var in contract.variables:
-        groups[var.owner if var.used_by else "external"].append(var)
+        owner = var.owner if var.used_by else "external"
+        groups["" if var.name in referenced else owner].append(var)
     lines = [EXAMPLE_HEADER.rstrip("\n")]
     for owner in sorted(groups):
-        lines.append(f"\n# {owner}")
+        lines.append(f"\n# {owner or 'referenced by other values'}")
         for var in sorted(groups[owner], key=lambda v: v.name):
             if not var.in_example:
                 continue
             if var.kind is Kind.SECRET_FILE:
                 right = f"$(cat secrets/{var.secret_file} | tr -d '\\n')"
             else:
-                right = _shell_value(_placeholder(var))
+                right = values[var.name]
             flag = "required" if var.required else "optional"
             lines.append(f"export {var.name}={right}  # {flag} {var.kind.value}: {var.description}")
     return "\n".join(lines) + "\n"

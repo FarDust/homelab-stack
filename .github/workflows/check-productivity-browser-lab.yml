@@ -30,6 +30,7 @@ jobs:
       - name: 🔍 Both services present
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
 
@@ -44,6 +45,7 @@ jobs:
       - name: 🔍 coturn security flags present
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
 
@@ -58,6 +60,7 @@ jobs:
       - name: 🔍 NEKO WebRTC ICE server env vars rendered
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
 
@@ -79,6 +82,7 @@ jobs:
       - name: 🔍 coturn UDP relay port range published
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
 
@@ -94,6 +98,7 @@ jobs:
       - name: 🔍 Network assignments correct
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/productivity/browser-lab.yml config)
 

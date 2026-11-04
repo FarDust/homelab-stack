@@ -60,6 +60,15 @@ jobs:
           echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gitleaks-bin/gitleaks" version
 
+      - name: Install checksum-pinned dotenv-linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/dotenv-linter-bin"
+          curl --fail --location --max-time 60             https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-linux-x86_64.tar.gz             -o "$RUNNER_TEMP/dotenv-linter.tar.gz"
+          echo "9e2f1f6eb88a71ac15ef209f78f5a68644db82f132d2677112b4f80ec2bd2127  $RUNNER_TEMP/dotenv-linter.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/dotenv-linter.tar.gz" -C "$RUNNER_TEMP/dotenv-linter-bin" dotenv-linter
+          echo "$RUNNER_TEMP/dotenv-linter-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/dotenv-linter-bin/dotenv-linter" --version
+
       - name: Validate scan range and hook configuration
         run: |
           test -n "$SCAN_BASE"

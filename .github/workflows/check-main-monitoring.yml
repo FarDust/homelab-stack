@@ -21,6 +21,7 @@ jobs:
       - name: 🔍 Core monitoring services present
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/main/monitoring.yml config)
 
