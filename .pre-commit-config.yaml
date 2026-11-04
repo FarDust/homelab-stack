@@ -44,7 +44,7 @@ repos:
       hooks:
           - id: check-private-indicators
             name: check-private-indicators
-            entry: uv run --script scripts/check_private_indicators.py
+            entry: uv run --script scripts/check_private_indicators.py pre-commit
             language: system
             pass_filenames: false
             stages: [pre-commit]

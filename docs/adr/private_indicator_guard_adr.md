@@ -18,6 +18,11 @@ A local pre-commit hook, `scripts/check_private_indicators.py`, inspects only wh
 - Paths that never belong here: `reports/`, `docs/reports/`, live environment backups, timestamped backups, agent state
   directories and generated graph output.
 
+`scripts/check_private_indicators.py scan-tree [--deny-list FILE]` applies the same generic and path rules to every tracked file, not
+only to a staged change, and the deny-list only when a file is given. CI runs it without a deny-list (`.github/workflows/pre-commit.yml`),
+so the generic subset is enforced on the whole tree; the live deployment domain stays on the untracked local deny-list. The committed
+templates use the placeholder range `100.64.0.0/24`, which the rules accept. Details of the private inputs: `docs/homelab-private.md`.
+
 Configuration that is cluster specific belongs in environment variables, in private folders, or in private sub-repositories.
 
 ## Alternatives
@@ -35,4 +40,4 @@ fixed by replacing the value with a variable or placeholder. The hook does not s
 
 Run the hook against a staged change that contains a CGNAT address, a consumer e-mail, a bucket-with-project-id name, a
 deny-list entry and a file under `reports/`: it exits 1 and prints no values. Run it against a change that only uses
-environment-variable placeholders: it exits 0.
+environment-variable placeholders: it exits 0. `tests/test_check_private_indicators.py` covers `scan-tree` (clean tree, each generic rule, forbidden paths, optional and missing deny-list, binary files).

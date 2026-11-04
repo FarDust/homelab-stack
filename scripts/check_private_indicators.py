@@ -37,10 +37,12 @@ console = Console(stderr=True)
 SELF = "scripts/check_private_indicators.py"
 ALLOWED_ADDRESSES = {"100.100.100.100"}
 CGNAT = ipaddress.ip_network("100.64.0.0/10")
+# Placeholder range used by the committed templates (for example clusters/main/k3s/k3s.env.template).
+PLACEHOLDER_RANGE = ipaddress.ip_network("100.64.0.0/24")
 IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
 GENERIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("tailnet-name", re.compile(r"\b[\w-]+\.ts\.net\b")),
-    ("bucket-with-numeric-project-id", re.compile(r"\b[a-z][a-z0-9-]*-\d{9,}\b")),
+    ("bucket-with-numeric-project-id", re.compile(r"(?<![#\w-])[a-z][a-z0-9-]*-\d{9,}\b")),
     ("consumer-email", re.compile(r"\b[\w.+-]+@(?:gmail|googlemail|outlook|hotmail|yahoo|icloud|proton|protonmail)\.[a-z.]+\b", re.I)),
 )
 FORBIDDEN_PATHS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -76,6 +78,42 @@ def private_rules(path: Path) -> list[tuple[int, re.Pattern[str]]]:
     return rules
 
 
+def scan_text(path: str, line_no: int, text: str, rules: list[tuple[int, re.Pattern[str]]]) -> list[str]:
+    """Findings (values redacted) for one line of text."""
+    findings: list[str] = []
+    for label, pattern in GENERIC_PATTERNS:
+        if pattern.search(text):
+            findings.append(f"{path}:{line_no}: generic rule '{label}'")
+    for match in IPV4.finditer(text):
+        try:
+            address = ipaddress.ip_address(match.group(1))
+        except ValueError:
+            continue
+        if address in CGNAT and address not in PLACEHOLDER_RANGE and match.group(1) not in ALLOWED_ADDRESSES:
+            findings.append(f"{path}:{line_no}: generic rule 'tailnet-address'")
+    for number, pattern in rules:
+        if pattern.search(text):
+            findings.append(f"{path}:{line_no}: private deny-list rule #{number}")
+    return findings
+
+
+def path_findings(name: str) -> list[str]:
+    return [f"{name}: path rule '{label}'" for label, pattern in FORBIDDEN_PATHS if pattern.search(name)]
+
+
+def report(findings: list[str], scope: str) -> None:
+    if not findings:
+        return
+    console.print(f"[bold red]Private indicators in {scope} (values are not printed):[/bold red]")
+    for finding in sorted(set(findings)):
+        console.print(f"  - {finding}")
+    console.print(
+        "Replace each value with an environment variable or a placeholder, or keep the file out of the repository "
+        "(private sub-repository, ignored path)."
+    )
+    sys.exit(1)
+
+
 def added_lines() -> list[tuple[str, int, str]]:
     """(path, line number, text) for every line the staged change adds."""
     out = git("diff", "--cached", "-U0", "--no-color", "--diff-filter=ACMR")
@@ -101,36 +139,40 @@ def pre_commit() -> None:
     findings: list[str] = []
 
     for name in git("diff", "--cached", "--name-only", "--diff-filter=ACMR").splitlines():
-        for label, pattern in FORBIDDEN_PATHS:
-            if pattern.search(name):
-                findings.append(f"{name}: path rule '{label}'")
+        findings.extend(path_findings(name))
 
     for path, line_no, text in added_lines():
         if path == SELF:
             continue  # this file must name the ranges it looks for
-        for label, pattern in GENERIC_PATTERNS:
-            if pattern.search(text):
-                findings.append(f"{path}:{line_no}: generic rule '{label}'")
-        for match in IPV4.finditer(text):
-            try:
-                address = ipaddress.ip_address(match.group(1))
-            except ValueError:
-                continue
-            if address in CGNAT and match.group(1) not in ALLOWED_ADDRESSES:
-                findings.append(f"{path}:{line_no}: generic rule 'tailnet-address'")
-        for number, pattern in rules:
-            if pattern.search(text):
-                findings.append(f"{path}:{line_no}: private deny-list rule #{number}")
+        findings.extend(scan_text(path, line_no, text, rules))
 
-    if findings:
-        console.print("[bold red]Private indicators in the staged change (values are not printed):[/bold red]")
-        for finding in sorted(set(findings)):
-            console.print(f"  - {finding}")
-        console.print(
-            "Replace each value with an environment variable or a placeholder, or keep the file out of the repository "
-            "(private sub-repository, ignored path)."
-        )
-        sys.exit(1)
+    report(findings, "the staged change")
+
+
+@app.command()
+def scan_tree(
+    deny_list: Path | None = typer.Option(None, "--deny-list", help="Optional private deny-list file (one regex per line)."),
+) -> None:
+    """Scan every tracked file with the generic rules (and the optional deny-list); exit 1 on findings.
+
+    Intended for CI, where the private deny-list is absent: it enforces the generic subset over the whole tree.
+    """
+    if deny_list is not None and not deny_list.is_file():
+        console.print(f"[bold red]Deny-list file not found:[/bold red] {deny_list}")
+        sys.exit(2)
+    rules = private_rules(deny_list) if deny_list is not None else []
+    findings: list[str] = []
+    for name in git("ls-files", "--cached").splitlines():
+        if not name or name == SELF or not Path(name).is_file():
+            continue
+        findings.extend(path_findings(name))
+        try:
+            content = Path(name).read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue  # binary file
+        for line_no, text in enumerate(content.splitlines(), start=1):
+            findings.extend(scan_text(name, line_no, text, rules))
+    report(findings, "the tracked tree")
 
 
 if __name__ == "__main__":
