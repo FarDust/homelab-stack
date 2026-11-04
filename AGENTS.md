@@ -2,6 +2,8 @@
 
 Quick reference for AI agents working on this infrastructure.
 
+Documentation index: [docs/README.md](docs/README.md).
+
 ## Conventional Commits
 
 Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/): use a type (`feat`, `fix`, `docs`, `chore`, `refactor`, etc.), optional scope in parentheses, and a short description. Use two `-m` when adding body:
@@ -93,6 +95,9 @@ network: traefik
 4. **SIGILL exit 132**: Check hardware compatibility (`node.labels.AVX != false` for CPU-dependent services)
 5. **Service won't deploy**: Verify node label combinations exist (`docker node inspect <node> --format '{{.Spec.Labels}}'`)
 6. **Image pull fails**: Always verify tag exists before deployment (`curl -s "https://registry.hub.docker.com/v2/repositories/org/image/tags/" | jq '.results[].name'`)
+7. **Service "stuck at New"**: Two distinct causes:
+   - **With errors in logs**: Check `journalctl -u docker --since 5m | grep -E "error|fatal|pull"` — common cascade: healthcheck binary missing from slim image → unhealthy kill → re-pull from Hub → node underweighted → looks "stuck". Fix root cause.
+   - **Silent (no errors in logs)**: Treat as allocator/scheduler instability. Gather evidence only: `docker service ps`, `docker node ps`, `docker info`, `docker network inspect`, and `journalctl -u docker`. Do not drain nodes from Codex; if a drain/active intervention is still desired after evidence collection, escalate to the operator.
 
 ## Common Mistakes
 - Using websecure for database protocols
@@ -118,6 +123,8 @@ Examples:
 - `stacks/main/traefik.yml` → deploy as `main-traefik` → services `main-traefik_*`
 - `stacks/admin/dashboards.yml` → deploy as `admin-dashboards` → services `admin-dashboards_*`
 - `stacks/productivity/tools.yml` → deploy as `productivity-tools` → services `productivity-tools_*`
+- `agents/{name}/` → gitignored agent app codebase → Swarm service `main-{name}_*`
+- Isolated network: `{name}-internal` overlay for high-privilege services (shared only with Traefik)
 
 Deploy command: `uv run cluster-utils deploy --help`
 Exception: Use default detach behavior for stacks with sidecars that die after deploy (e.g., traefik.yml)
@@ -143,7 +150,22 @@ stacks/[stack]/
 - If Docker Swarm config errors occur, increment `CONFIG_VERSION` in `.env` (e.g., from 89 to 90)
 - Config versioning resolves conflicts with existing swarm configurations
 - Rollback may be temporarily deactivated on an unstable service if needed to force a corrective config or schema fix onto the live workload. This must be treated as a temporary recovery step only; restore the standard rollback policy after the service is stable again.
+- **Memory budgets must include swap explicitly.** `memory.max`/systemd `MemoryMax` controls resident charged memory separately from `memory.swap.max`/`MemorySwapMax`; a process is not guaranteed protection from OOM until all swap is exhausted. Every new memory budget must state the intended swap budget, including `0` when swap should be denied.
+- Docker Swarm service resources do not expose a supported per-task memory-swap knob. Parent slice or cgroup caps are aggregate host controls, not per-service limits. Standalone Docker `--memory-swap` is a RAM+swap total, and omitting it with `--memory` normally allows swap equal to RAM; do not translate that into a Swarm per-task promise. Treat Docker daemon `cgroup-parent`, node swap changes, service placement changes, and `vm.swappiness` changes as staged proposals only; `vm.swappiness` is tuning, not a hard limit.
+- **Never drain a Swarm node from Codex**. `docker node update --availability drain ...` is prohibited in this repo. If node availability changes are being considered, stop and hand control back to the operator.
 - **Never skip verifications** (tests, checks, or validation steps); if a verification cannot be run, state why and provide the exact alternative confirmation performed.
+
+### End-to-end verification (browser / HTTPS services)
+
+For changes that affect **HTTPS UIs**, **Traefik routing**, **forwardAuth**, **OAuth/OIDC/SSO**, or **anything users see in a browser**:
+
+- **Chrome DevTools (or Chromium-based equivalent) is required** — not optional. Command-line checks alone (`curl`, `docker run` + `curl`, compose render) do **not** replace a real browser pass for login redirects, cookies, CORS, or interactive UI.
+- **Minimum DevTools workflow** (use an **incognito/private** window so prior cookies do not mask failures):
+  1. Open **DevTools** before navigation (**Network** panel; enable **Preserve log** where useful).
+  2. Load the service URL (`https://…${LOCAL_DOMAIN}` or as documented). Confirm TLS, document request, and expected **redirect chain** (e.g. oauth2-proxy → Keycloak → back to app) when auth is required.
+  3. Complete login if applicable; confirm **Application → Cookies** (or **Storage**) shows the expected session/auth cookies for the domain.
+  4. Exercise the main UI or API calls from the page; confirm no unexpected **4xx/5xx** on critical requests after auth.
+- **Agents** that cannot run a browser (no VPN, no DNS to `${LOCAL_DOMAIN}`, no credentials) must **say so explicitly** and give the **exact DevTools steps** for the operator. They must **not** claim E2E or “auth works” without DevTools confirmation or a recorded operator sign-off.
 
 ## Collaboration in No-TTY Environments
 - **Use tmux as the shared TTY** for interactive steps (GPG passphrase, prompts).
@@ -173,3 +195,19 @@ stacks/[stack]/
 - Grafana/Prometheus are core infrastructure monitoring, not admin tools
 - They monitor Docker hosts, containers, network health across all stacks
 - Service-specific dashboards (PGAdmin, Mongo Express) belong in admin/ stack
+
+## Forbidden Operations (ENFORCED BY HOOKS)
+
+The following operations are blocked by pre-tool hooks. No exceptions.
+
+### Cluster Destruction (hook-enforced)
+- force-new-cluster on swarm init - destroys Raft quorum history
+- swarm leave - removes node from cluster
+- node rm - removes node from Swarm
+- node demote - demotes manager, risks quorum loss
+- deleting swarm/raft directories - destroys Raft consensus data
+
+### Recovery Rules
+- Services stuck in New: wait for allocator, investigate logs. Do NOT restart daemons.
+- rclone plugin disabled: clear state file + enable with timeout 300. Do NOT restart Docker daemon as first resort.
+- Raft service not found: service rm + single stack redeploy. Do NOT rm the whole stack.

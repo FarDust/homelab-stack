@@ -1,0 +1,39 @@
+# REVIEW ONLY. Not a stack or deployment input: current gaming.yml differs
+# from live service specs and must not be blindly redeployed.
+services:
+  database:
+    environment:
+      MYSQL_PASSWORD_FILE: /run/secrets/pterodactyl-panel-db-password
+      # Remove the prior MYSQL_PASSWORD service environment entry.
+    secrets:
+      - source: pterodactyl-panel-db-password-VERSION
+        target: pterodactyl-panel-db-password
+        uid: "0"
+        gid: "0"
+        mode: 0400
+  panel:
+    # Remove the prior DB_PASSWORD service environment entry. The value is
+    # supplied by the new protected dotenv secret; preserve its APP_KEY.
+    secrets:
+      - source: pterodactyl-panel-dotenv-VERSION
+        target: /app/var/.env
+        uid: "0"
+        gid: "101"
+        mode: 0440
+secrets:
+  pterodactyl-panel-db-password-VERSION:
+    external: true
+  pterodactyl-panel-dotenv-VERSION:
+    external: true
+
+# Before rotation, preserve the database and dotenv, stage both secrets, and
+# test complete config and password handling against an isolated DB. Restrict
+# SQL to the existing dedicated pterodactyl@% account, do not change root.
+# Native image supports MYSQL_PASSWORD_FILE; confirm it resolves successfully.
+# Do not expose secret values in service specs, argv, logs, output or Git.
+# Perform an atomic ordered change, verify new authentication and old denial,
+# then verify Panel starts and can decrypt existing node credentials. Changing
+# the DB service spec replaces its task; plan and observe that interruption.
+# Preserve exact prior service receipts and rollback information. A database
+# user change alone is not completion; future canonical deploys must consume
+# the secret-file configuration instead of reintroducing the old plaintext.

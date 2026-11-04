@@ -1,0 +1,15 @@
+# REVIEW EXAMPLE ONLY: merge into the reconciled live stack, do not deploy alone.
+# Existing live volume contract, observed 2026-11-03. Plugin credentials remain
+# in their existing protected runtime custody; none are included in this file.
+services:
+  wings:
+    volumes:
+      - pterodactyl-wings-backups:/var/lib/pterodactyl/backups/
+
+volumes:
+  pterodactyl-wings-backups:
+    driver: rclone
+    driver_opts:
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/pterodactyl/wings/backups"
+      allow_other: "true"
+      vfs_cache_mode: full
