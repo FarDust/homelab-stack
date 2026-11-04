@@ -1014,20 +1014,20 @@ model_list:
       owned_by: alibaba
 
   # Minecraft chat: ChatGPT subscription Terra, then local Ollama only (no paid API fallback);
-  # replies capped at 200 tokens;
   # see docs/adr/litellm_versioned_upgrade_adr.md "Minecraft chat route".
   - model_name: minecraft-chat
     litellm_params:
       model: chatgpt/gpt-6.1-terra
       timeout: 20
-      max_tokens: 200
 
   - model_name: minecraft-chat-local
     litellm_params:
       model: ollama_chat/qwen3.5:9b
       api_base: os.environ/OLLAMA_API_BASE
       timeout: 10
-      max_tokens: 200
+      max_tokens: 400
+      # qwen3.5 thinking on exhausts the cap with an empty reply; see the ADR.
+      reasoning_effort: none
     model_info:
       owned_by: alibaba
 
@@ -1036,7 +1036,9 @@ model_list:
       model: ollama_chat/qwen3.5:9b
       api_base: os.environ/OLLAMA_LOWEND_API_BASE
       timeout: 10
-      max_tokens: 200
+      max_tokens: 400
+      # qwen3.5 thinking on exhausts the cap with an empty reply; see the ADR.
+      reasoning_effort: none
     model_info:
       owned_by: alibaba
 
