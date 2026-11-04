@@ -4,6 +4,12 @@
 # table so that Supavisor can proxy connections on their behalf.
 # New tenants should be added here as additional services are onboarded.
 
+# Increase Ecto pool timeouts for cross-node latency (frost-fang → fardustdev)
+repo_config = Application.get_env(:supavisor, Supavisor.Repo, [])
+Application.put_env(:supavisor, Supavisor.Repo,
+  Keyword.merge(repo_config, [timeout: 60_000, queue_target: 5_000, queue_interval: 5_000])
+)
+
 Application.ensure_all_started(:supavisor)
 
 upstream_host = System.get_env("UPSTREAM_DB_HOST", "postgres")

@@ -63,8 +63,8 @@ services:
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_STANDARD}
+        max_attempts: 0
+        window: 120s
       update_config:
         order: start-first
         failure_action: rollback
@@ -82,7 +82,7 @@ services:
         - com.centurylinklabs.watchtower.enable=false
 
   netdata-parent:
-    image: netdata/netdata:edge
+    image: netdata/netdata:v2.12.1
     hostname: netdata-parent
     networks:
       - traefik
@@ -101,7 +101,7 @@ services:
       - netdata_config:/etc/netdata
       - netdata_data:/var/lib/netdata
       - netdata_cache:/var/cache/netdata
-      - netdata_certs:/lego/certs:ro
+      - tls-certs-netdata:/lego/certs:ro
     secrets:
       - source: netdata_conf
         target: /etc/netdata/netdata.conf
@@ -118,8 +118,11 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      resources:
+        limits:
+          memory: 3G
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: ${RESTART_DELAY_STANDARD}
         max_attempts: ${RESTART_MAX_ATTEMPTS}
         window: ${RESTART_WINDOW_STANDARD}
@@ -195,16 +198,12 @@ volumes:
   netdata_config: {}
   netdata_data: {}
   netdata_cache: {}
-  netdata_certs:
-    driver: rclone
+  tls-certs-netdata:
+    driver: local
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/netdata.${LOCAL_DOMAIN?err}"
-      allow_other: "true"
-      vfs_cache_mode: full
-      uid: "101"
-      gid: "103"
-      file_perms: "600"
-      dir_perms: "700"
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,ro,soft,timeo=60
+      device: ":/srv/tls-certs/certs/netdata.${LOCAL_DOMAIN}"
 
 secrets:
   supavisor_k3s_tls_cert:
