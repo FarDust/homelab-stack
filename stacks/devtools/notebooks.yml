@@ -9,7 +9,7 @@ services:
       - JUPYTER_ENABLE_LAB=yes
       - JUPYTER_TOKEN=${JUPYTER_TOKEN?err}
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - UV_BOOTSTRAP_ENABLED=true
     command:
       - start-notebook.py
@@ -63,7 +63,7 @@ services:
       - JUPYTER_ENABLE_LAB=yes
       - JUPYTER_TOKEN=${JUPYTER_TOKEN?err}
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - UV_BOOTSTRAP_ENABLED=false
     command:
       - start-notebook.py
@@ -115,6 +115,7 @@ volumes:
   jupyter_tensorflow_shared_work_gcs_v2:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/colab/shared/work"
       allow_other: "true"
       vfs_cache_mode: full
@@ -126,6 +127,7 @@ volumes:
   jupyter_tensorflow_shared_venvs_gcs_v3:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/colab/shared/venvs-v2"
       allow_other: "true"
       vfs_cache_mode: full
