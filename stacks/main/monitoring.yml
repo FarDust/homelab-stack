@@ -24,6 +24,7 @@ services:
       - "--path.rootfs=/rootfs"
       - "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)"
       - "--no-collector.ipvs"
+      - "--collector.textfile.directory=/rootfs/var/lib/node_exporter/textfile_collector"
     deploy:
       mode: global
       resources:

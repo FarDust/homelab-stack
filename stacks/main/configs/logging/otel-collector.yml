@@ -24,6 +24,24 @@ processors:
     check_interval: 5s
     limit_mib: 256
     spike_limit_mib: 64
+  filter/gpu_idle_lab_metrics:
+    error_mode: ignore
+    metrics:
+      metric:
+        - resource.attributes["service.name"] != "gpu-idle-lab"
+        - instrumentation_scope.name != "gpu_idle_lab.execution"
+        - instrumentation_scope.version != "1"
+        - metric.type != METRIC_DATA_TYPE_GAUGE
+        - metric.name != "gpu_idle_lab_phase_duration_seconds" and metric.name != "gpu_idle_lab_phase_finished_timestamp_seconds" and metric.name != "gpu_idle_lab_phase_work_completed" and metric.name != "gpu_idle_lab_phase_work_per_second"
+  transform/gpu_idle_lab_metrics:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - keep_keys(resource.attributes, ["service.name"])
+      - context: datapoint
+        statements:
+          - keep_keys(datapoint.attributes, ["execution_class", "experiment_kind", "platform", "worker_role", "worker_slot", "host", "phase", "outcome", "work_unit"])
   batch:
     send_batch_size: 1024
     timeout: 1s
@@ -38,6 +56,13 @@ exporters:
       storage: redis_storage
     retry_on_failure:
       enabled: true
+  prometheus/gpu_idle_lab:
+    endpoint: 0.0.0.0:8889
+    send_timestamps: true
+    metric_expiration: 5m
+    enable_open_metrics: true
+    resource_to_telemetry_conversion:
+      enabled: false
 
 service:
   extensions: [health_check, redis_storage]
@@ -46,3 +71,7 @@ service:
       receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [otlphttp/loki]
+    metrics/gpu_idle_lab:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/gpu_idle_lab_metrics, transform/gpu_idle_lab_metrics, batch]
+      exporters: [prometheus/gpu_idle_lab]

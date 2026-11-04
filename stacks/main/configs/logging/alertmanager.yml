@@ -2,11 +2,15 @@ global:
   resolve_timeout: 5m
 
 route:
-  receiver: "null"
+  receiver: routine-n8n
   group_by: [alertname]
   group_wait: 10s
   group_interval: 5m
   repeat_interval: 4h
 
 receivers:
-  - name: "null"
+  - name: routine-n8n
+    webhook_configs:
+      - url_file: /run/secrets/grafana_routine_n8n_webhook_url
+        send_resolved: true
+        max_alerts: 10
