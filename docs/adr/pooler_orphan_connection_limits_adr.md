@@ -5,9 +5,9 @@ Applies to: `main-storage_postgres` roles `loglynx` and `vizlord`; `main-storage
 Implementation: `stacks/main/configs/postgres/pooled-connection-settings.sql`,
 `stacks/main/storage.yml` (service `supavisor-apps`),
 `stacks/main/configs/postgres/postgres_exporter_queries.yaml` (`pg_role_activity`).
-Evidence: `reports/2026-10-13-0620-apps-pgpool-connection-limit-keepalive.md`.
+Evidence: the supporting report is kept in the private deployment records.
 Related: `docs/adr/postgres_pooled_idle_session_adr.md`,
-`reports/2026-10-12-1910-postgres-pool-resets-overlay-duplicate-ip.md`.
+The related pool-reset report is kept in the private deployment records.
 
 ## Context
 
@@ -75,7 +75,7 @@ tenant `grafana` pool 5, role limit 18. The tenant pool sizes live in the
 - Re-apply `pooled-connection-settings.sql` after restoring or recreating the
   cluster (role limits and `postgresql.auto.conf` live in the data volume).
 - The `supavisor-apps` `DATABASE_URL` host is `tasks.postgres` (live workaround
-  from `reports/vfs-monitoring-session-2026-04-16.md`); the source now matches
+  from an earlier monitoring session recorded in the private deployment records); the source now matches
   the live value so a deploy does not revert it.
 - `supavisor-k3s` (`bridges.yml`) is unchanged; its role `assimilation` has limit
   40 against pool 20 and no incident. Extend the same keepalive settings there

@@ -7,7 +7,7 @@ Date: 2026-10-12. Status: accepted; deployed in dry-run, apply mode pending veri
 `main-maintenance_ephemeral-rebalance` ran a mounted shell script in a Docker CLI image. On
 2026-10-11 it force-updated every rejected service roughly every 45 seconds while the rclone
 volume driver timed out on every node, and it was scaled to 0 as a stopgap. Its replacement is
-the reviewed Rust controller (FarDust/ephemeral-rebalance `v0.2.0`), which adds a systemic-failure
+the reviewed Rust controller (the ephemeral-rebalance project, `v0.2.0`), which adds a systemic-failure
 breaker, a cluster-wide update budget, optional node-health gating and staged, convergence-paced
 node-driven rebalances. This repository is public, so private registry and project identifiers
 belong in operator configuration, not in source history.

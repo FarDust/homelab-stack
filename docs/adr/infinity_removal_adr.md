@@ -21,4 +21,4 @@ The Traefik routes `infinity.*`, `infinity-thrift.*` and `infinity-api.*` disapp
 
 ## Verification
 
-`docker service ls` no longer lists `main-storage_infinity`. The stack renders without the service. The evidence logs are in `reports/2026-10-12-frost-memory-shed-logs/`.
+`docker service ls` no longer lists `main-storage_infinity`. The stack renders without the service. The evidence logs are kept in the private deployment records.

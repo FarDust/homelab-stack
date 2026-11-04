@@ -1,6 +1,6 @@
 # ADR: Crash-loop sentinel rollout
 
-Status: accepted (2026-10-13). Source of truth for the behaviour: `FarDust/crash-loop-sentinel`,
+Status: accepted (2026-10-13). Source of truth for the behaviour: the crash-loop sentinel project (a separate repository),
 `docs/adr/shed_sentinel_adr.md`.
 
 ## Context

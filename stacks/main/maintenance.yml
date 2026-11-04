@@ -13,7 +13,7 @@ networks:
    name: main-traefik_authelia-db
 services:
   ephemeral-rebalance:
-    # Rust controller FarDust/ephemeral-rebalance (docs/adr/ephemeral_rebalance_rust_rollout_adr.md).
+    # Rust ephemeral-rebalance controller (docs/adr/ephemeral_rebalance_rust_rollout_adr.md).
     # The digest-qualified private image reference is operator configuration in .env.
     image: ${EPHEMERAL_REBALANCE_IMAGE?err}
     command: ["run"]
@@ -74,7 +74,7 @@ services:
         constraints:
           - node.labels.swarm.leader == true
   crash-loop-sentinel:
-    # Rust sentinel FarDust/crash-loop-sentinel (docs/adr/crash_loop_sentinel_rollout_adr.md).
+    # Rust crash-loop sentinel (docs/adr/crash_loop_sentinel_rollout_adr.md).
     # Opt-in by the service label sentinel.shed=true; observe mode unless SENTINEL_APPLY=true.
     # The digest-qualified private image reference is operator configuration in .env.
     image: ${SENTINEL_IMAGE?err}

@@ -3,8 +3,7 @@
 Status: accepted, 2026-10-12.
 Applies to: `main-storage_postgres`, database `langfuse`.
 Implementation: `stacks/main/configs/postgres/database-session-settings.sql`.
-Evidence: untracked operator report
-`reports/2026-10-12-1910-postgres-pool-resets-overlay-duplicate-ip.md`.
+Evidence: the operator report is kept in the private deployment records.
 
 ## Context
 

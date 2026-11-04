@@ -62,7 +62,7 @@ The image is overridable through `MLFLOW_OIDC_IMAGE` in the operator `.env`, the
 
 1. Database backup before cutover: `mlflow-precutover-<timestamp>.dump` in the `mlflow-backups` directory of the operator account on the manager (`pg_dump -Fc
    --no-owner`, mode 0600, with `.sha256`), 19 tables.
-2. Service: restore `reports/mlflow-oidc-20261013/registry.yml.before` over `stacks/ml/registry.yml`, then
+2. Service: restore the pre-change `registry.yml` copy (kept in the private deployment records) over `stacks/ml/registry.yml`, then
    `pg_restore --clean --if-exists --no-owner` of the dump into the `mlflow` database, then
    `uv run cluster-utils deploy service mlflow --compose-file stacks/ml/registry.yml --stack-name ml-registry`.
    `docker service rollback ml-registry_mlflow` returns only the service spec, not the migrated schema.

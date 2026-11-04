@@ -73,8 +73,8 @@ files. Credentials, connection URLs and key values were omitted from the report.
   insufficient evidence for reassignment.
 - AOF is enabled and the repaired service mounts the named volume at the active
   `/bitnami/redis/data` directory. The data-preserving repair and source/runtime
-  mount proof are recorded in
-  `reports/main-storage-redis-persistence-repair-20261004-2317.md`.
+  mount proof are recorded in a report kept in
+  the private deployment records.
 
 ## Migration status and procedure
 
@@ -89,7 +89,7 @@ completed JSON `cluster.example.v1` retained-result canaries before and after th
 dedicated Redis retirement. The cluster worker is not subscribed to the Windows
 queue. Old source records, dedicated Redis historical results/control keys, and
 checkpoints remain on the retained volume. See `docs/messaging.md`,
-`reports/main-messaging-rq-worker-shared-redis-db10-20261005.md`, and agents-utils
+the supporting report in the private deployment records, and agents-utils
 `docs/rq-migration.md`. Never FLUSHDB/FLUSHALL; endpoint rollback after new writes
 requires state reconciliation.
 

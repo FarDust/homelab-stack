@@ -2,7 +2,7 @@
 
 Deployed and verified: 2026-10-04 18:30 UTC. Owner: cluster operations.
 Canonical source: `stacks/main/messaging.yml`; runtime package/configuration:
-`stacks/main/configs/messaging/`. Evidence: `reports/messaging-20261004/`.
+`stacks/main/configs/messaging/`. Evidence: kept in the private deployment records.
 
 ## Components and deliberate boundaries
 
@@ -37,8 +37,8 @@ approximately 20MiB, limited to 512MiB. The retired dedicated Redis service had
 used a 384MiB container limit, 256MiB maxmemory, noeviction and everysec AOF;
 those settings are historical recovery context only. The active worker uses
 repaired `main-storage_redis` DB10;
-its mounted persistence and consumer recovery are documented in
-`reports/main-storage-redis-persistence-repair-20261004-2317.md`. Neither instance
+its mounted persistence and consumer recovery are documented in a report kept in the
+private deployment records. Neither instance
 is described as host-loss HA or off-host disaster recovery by this document.
 
 ## Credentials, networking and project onboarding
