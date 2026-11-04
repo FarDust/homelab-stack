@@ -13,7 +13,7 @@ services:
         max_attempts: ${RESTART_MAX_ATTEMPTS:?err}
         window: ${RESTART_WINDOW_STANDARD:?err}
   n8n:
-    image: n8nio/n8n
+    image: n8nio/n8n:2.14.0
     environment:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_DATABASE=${N8N_DB_POSTGRESDB_DATABASE:?err}
