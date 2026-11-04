@@ -35,7 +35,7 @@ def test_minecraft_chat_uses_only_subscription_and_api_routes() -> None:
         assert deployments, name
         for deployment in deployments:
             params = deployment["litellm_params"]
-            assert not params["model"].startswith("ollama"), name
+            assert params["model"].startswith(("chatgpt/", "vertex_ai/")), name
             assert "api_base" not in params, name
 
 
