@@ -714,7 +714,7 @@ configs:
     file: ./configs/supabase/docker/volumes/db/pooler.sql
   supabase_db_hba_conf:
     name: supabase_db_hba_conf-${CONFIG_VERSION:-0}
-    file: ./configs/supabase/pg_hba.conf
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/main/configs/supabase/pg_hba.conf
   supabase_db_custom_overrides_conf:
     name: supabase_db_custom_overrides_conf-${CONFIG_VERSION:-0}
-    file: ./configs/supabase/postgresql-custom-overrides.conf
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/main/configs/supabase/postgresql-custom-overrides.conf
