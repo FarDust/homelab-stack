@@ -37,3 +37,7 @@ path "secret/data/services/redis/*" {
 path "secret/data/services/openchamber-stt/litellm" {
   capabilities = ["create", "update", "read"]
 }
+
+path "secret/data/services/minecraft-chat/litellm" {
+  capabilities = ["create", "update", "read"]
+}
