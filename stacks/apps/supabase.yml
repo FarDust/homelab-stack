@@ -1,6 +1,12 @@
 services:
   studio:
     image: supabase/studio:2026.02.02-sha-b0b7db6
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})\""]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 60s
     networks:
       - traefik
     secrets:
