@@ -21,11 +21,21 @@ This directory contains the core infrastructure services for the Docker Swarm cl
 - **security.yml**: Security monitoring and threat detection (CrowdSec)
 - **mtu.yml**: MTU / network path probes and related exporters for cluster networking diagnostics
 
+### PostgreSQL backup reliability
+
+- [Authelia backup direct-task discovery decision](../../docs/adr/authelia_backup_direct_discovery_adr.md): scoped avoidance of a reproduced overlay VIP failure, deployment verification and rollback.
+
 ## Monitoring vs Uptime Semantics
 
 1. `monitoring.yml` is for telemetry collection/export pipelines consumed by Prometheus/Grafana.
 2. `uptime.yml` is for operator-facing uptime/status interfaces.
 3. Uptime-related metrics can be collected in monitoring while still being presented in uptime tools.
+
+## Memory and Swap Budgeting
+
+Memory controls and swap controls are separate budgets. A Swarm service memory limit or systemd `MemoryMax`/cgroup `memory.max` bounds resident charged memory; it does not by itself bound `memory.swap.max`/`MemorySwapMax`, and a workload is not guaranteed to avoid OOM until all configured swap is exhausted. Every new memory budget must document the intended swap allowance, including `0` when swap must be denied.
+
+Docker Swarm service resources do not provide a supported per-task memory-swap knob. Standalone Docker `--memory-swap` is a RAM+swap total, and omitting it with `--memory` normally allows swap equal to RAM; that distinction does not create a supported Swarm per-task swap limit. Node-level options such as Docker daemon `cgroup-parent`, parent slices, host swap sizing, or `vm.swappiness` are proposals that require staging and explicit approval. A parent cgroup cap is aggregate across its descendants, not a per-service guarantee, and `vm.swappiness` is tuning rather than a hard limit.
 
 ## Traefik Architecture
 

@@ -15,6 +15,7 @@ RCLONE_REJECT_CHECK_INTERVAL="${RCLONE_REJECT_CHECK_INTERVAL:-60}"
 RCLONE_REJECT_COOLDOWN_SECONDS="${RCLONE_REJECT_COOLDOWN_SECONDS:-300}"
 RCLONE_REJECT_ERROR_PATTERN="${RCLONE_REJECT_ERROR_PATTERN:-rclone}"
 REBALANCE_SERVICE_COOLDOWN_SECONDS="${REBALANCE_SERVICE_COOLDOWN_SECONDS:-${COOLDOWN_SECONDS}}"
+REBALANCE_INTER_SERVICE_DELAY_SECONDS="${REBALANCE_INTER_SERVICE_DELAY_SECONDS:-5}"
 
 mkdir -p "${STATE_DIR}/nodes"
 mkdir -p "${STATE_DIR}/rejected"
@@ -177,6 +178,11 @@ handle_rejected_service() {
     message="Rebalance update triggered after rejection: ${service}"
     log INFO "$message"
     send_otel "$message"
+    # Global inter-service delay: pace reject-driven force-updates the same
+    # way as bulk rebalances to avoid cluster-wide stampede.
+    if [ "$REBALANCE_INTER_SERVICE_DELAY_SECONDS" -gt 0 ] 2>/dev/null; then
+      sleep "$REBALANCE_INTER_SERVICE_DELAY_SECONDS"
+    fi
   else
     message="Rebalance update failed after rejection: ${service}"
     log ERROR "$message"
@@ -258,6 +264,13 @@ rebalance_services() {
       message="Rebalance update triggered: ${service}"
       log INFO "$message"
       send_otel "$message"
+      # Global inter-service delay: avoid stampeding the cluster with parallel
+      # service updates. Each update triggers volume-driver calls, overlay
+      # network changes, and Traefik backend re-discovery. Spacing them
+      # out prevents rclone plugin timeouts and overlay VIP churn.
+      if [ "$REBALANCE_INTER_SERVICE_DELAY_SECONDS" -gt 0 ] 2>/dev/null; then
+        sleep "$REBALANCE_INTER_SERVICE_DELAY_SECONDS"
+      fi
     else
       message="Rebalance update failed: ${service}"
       log WARN "$message"
