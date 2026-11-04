@@ -30,6 +30,16 @@ foreign_exceptions=(
   grafana_alerting_contact_points
   grafana_alerting_notification_policies
 )
+committed_dashboard_artifacts=(
+  cluster-operations-overview
+  ingress-reliability
+  swarm-workload-pressure
+)
+working_dashboard_artifacts=(
+  "${committed_dashboard_artifacts[@]}"
+  swarm-service-detail
+  observability-pipeline-health
+)
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -57,6 +67,14 @@ if [ "${1:-}" = '--from-index' ]; then
   shift
 fi
 [ "$#" -eq 0 ] || fail 'unsupported argument'
+
+if [ "$mode" = index ]; then
+  dashboard_artifacts=("${committed_dashboard_artifacts[@]}")
+  expected_scoped_config_count=18
+else
+  dashboard_artifacts=("${working_dashboard_artifacts[@]}")
+  expected_scoped_config_count=21
+fi
 
 [ -x "$helper" ] || fail 'missing executable scoped version helper'
 
@@ -107,7 +125,7 @@ elif [ "$gitlink" != "$expected_gitlink" ]; then
   git -C "$submodule" rev-parse HEAD | grep -Fqx "$expected_sha" || fail 'submodule is not pinned to the approved private IaC commit'
 fi
 
-for artifact in cluster-operations-overview ingress-reliability swarm-workload-pressure; do
+for artifact in "${dashboard_artifacts[@]}"; do
   artifact_path="$submodule/dist/$artifact.json"
   if [ "$mode" = index ]; then
     git -C "$submodule" show "$expected_sha:dist/$artifact.json" | python3 - "$artifact" 3<&0 <<'PY'
@@ -136,14 +154,20 @@ PY
   fi
 done
 
-owned_names=("${baseline_migrated[@]}" grafana_dashboard_cluster_operations_overview grafana_dashboard_ingress_reliability grafana_dashboard_swarm_workload_pressure)
+owned_names=("${baseline_migrated[@]}")
+if [ "$mode" != index ]; then
+  owned_names+=(grafana_dashboard_gpu_history)
+fi
+for artifact in "${dashboard_artifacts[@]}"; do
+  owned_names+=("grafana_dashboard_${artifact//-/_}")
+done
 for config_name in "${owned_names[@]}"; do
   printf -v expected_name '    name: %s-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}' "$config_name"
   expect_count 1 "$expected_name" "$compose"
 done
 
 scoped_names=$(rg -N '^    name: grafana_[A-Za-z0-9_]+-\$\{GRAFANA_CONFIG_VERSION:\?GRAFANA_CONFIG_VERSION must be set\}$' "$compose" | wc -l | tr -d '[:space:]')
-[ "$scoped_names" = '18' ] || fail "expected 18 scoped Grafana config names; found $scoped_names"
+[ "$scoped_names" = "$expected_scoped_config_count" ] || fail "expected $expected_scoped_config_count scoped Grafana config names; found $scoped_names"
 
 for exception in "${foreign_exceptions[@]}"; do
   if grep -Fq "  $exception:" "$compose"; then
@@ -166,7 +190,7 @@ if [ "$mode" = index ]; then
   done
 fi
 
-for artifact in cluster-operations-overview ingress-reliability swarm-workload-pressure; do
+for artifact in "${dashboard_artifacts[@]}"; do
   config_name="grafana_dashboard_${artifact//-/_}"
   expect_count 1 "  $config_name:" "$compose"
   expect_count 1 "    - source: $config_name" "$compose"

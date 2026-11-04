@@ -1,0 +1,16 @@
+{
+  "uid": "gpu-utilization-history",
+  "title": "GPU utilization history",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [{
+    "id": 1,
+    "type": "timeseries",
+    "title": "Device utilization (not workload attribution)",
+    "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+    "datasource": "Prometheus",
+    "targets": [{"refId": "A", "expr": "100 * nvidia_smi_utilization_gpu_ratio", "legendFormat": "{{uuid}}"}],
+    "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "custom": {"spanNulls": false}}}
+  }]
+}
