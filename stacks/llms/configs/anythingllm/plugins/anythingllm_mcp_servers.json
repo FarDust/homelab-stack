@@ -3,11 +3,11 @@
   "mcpServers": {
     "grafana-mcp": {
       "type": "sse",
-      "url": "http://mcp-grafana:8000/sse"
+      "url": "http://mcp-grafana:8000/mcp"
     },
     "playwright-mcp": {
       "type": "sse",
-      "url": "http://mcp-playwright:8931/sse"
+      "url": "http://mcp-playwright:8931/mcp"
     },
     "notion-mcp": {
       "type": "sse",
