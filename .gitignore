@@ -33,3 +33,31 @@ __pycache__
 **/*.rendered.yaml
 
 cluster-utils/
+agents/
+vault/
+
+
+# Local agent/editor operational state
+.claude/
+.sisyphus/
+
+# Backup/original files produced during live operations
+*.bak
+*.bak.*
+*.orig
+
+# Generated experiment outputs
+stacks/llms/context_ladder_plots/
+
+# Backup copies of live env files and timestamped backups (they hold real values)
+.env.bak*
+*.bak-*
+
+# Agent operational state and generated graph output
+.omo/
+.opencode/
+graphify-out/
+**/graphify-out/
+
+# Accidental archives
+*.tar
