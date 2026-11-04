@@ -20,6 +20,7 @@ jobs:
       - name: 🔍 sse-headers middleware present
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/llms/mcp.yml config)
 
@@ -32,6 +33,7 @@ jobs:
       - name: 🔍 responseForwarding.flushInterval present
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/llms/mcp.yml config)
 

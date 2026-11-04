@@ -81,7 +81,7 @@ This is the canonical list of Docker Swarm node labels used for placement constr
 | --- | --- | --- | --- |
 | `site.class` | `datacenter` / `cloud` | Distinguish on-prem DC vs cloud environments. | `node.labels.site.class == cloud` |
 | `instance.class` | `metal` / `virtual` | Distinguish bare metal vs VM instances. | `node.labels.instance.class == virtual` |
-| `site.name` | `home` / `dc1` / `oracle` / `gcp` | Identify the physical site or provider. | `node.labels.site.name == oracle` |
+| `site.name` | `home` / `dc1` / `oracle` / `gcp` / `roaming` | Identify the physical site or provider. Use `roaming` for mobile nodes without a fixed site. | `node.labels.site.name == oracle` |
 | `region` | Provider region code (cloud) or short site code (on-prem). Examples: `southamerica-west1`, `sa-east-1`, `chilecentral`, `sa-santiago-1`, `scl`. | Regional affinity and failover targeting. | `node.labels.region == sa-santiago-1` |
 
 ## Label management examples
@@ -119,6 +119,7 @@ Use the inspect command above to refresh. Example snapshot:
 | Gabriel-PC | datacenter | home | heavy | true | true | On-prem, GPU |
 | fardustdev | datacenter | home | light | — | — | On-prem, swarm.leader, storage.manager |
 | frost-fang | datacenter | home | heavy | true | — | On-prem, storage.manager |
+| pop-os | datacenter | roaming | light | — | true | Mobile laptop node |
 | instance-20220415-1702 | **cloud** | oracle | light | — | true | Oracle cloud |
 | instance-20220415-1709 | **cloud** | oracle | light | — | true | Oracle cloud |
 | instance-20220415-1710 | **cloud** | oracle | light | — | true | Oracle cloud |

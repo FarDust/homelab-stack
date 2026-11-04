@@ -1,79 +1,487 @@
-version: '3.9'
+version: "3.9"
 
-x-common:
-  database:
-    &db-environment
-    MYSQL_USER: &db-user "firefly"
-    MYSQL_PASSWORD: &db-password "${MYSQL_PASSWORD}"
-    MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+# Local file-backed consumers must reuse this exact existing-label placement.
+x-finance-file-storage-placement: &finance-file-storage-placement
+  constraints:
+    - node.labels.site.name == home
+    - node.labels.instance.class == metal
+    - node.labels.load.tier == heavy
+    - node.labels.gpu == true
+    - node.labels.gpu.class == high-end
+    - node.labels.gpu.model == rtx5090
+    - node.labels.node.ephemeral == true
+
+# Firefly III and its upload backup share one placement because the upload volume
+# is node-local; storage-manager pin as in docs/adr/node_local_state_pinning_adr.md
+x-firefly-placement: &firefly-placement
+  constraints:
+    - node.role == worker
+    - node.labels.site.name == home
+    - node.labels.instance.class == metal
+    - node.labels.load.tier == heavy
+    - node.labels.storage.manager == true
 
 services:
+  wealthfolio:
+    # Conditional admission: freshly scan this digest and both platform children
+    # immediately before every deploy because the upstream Alpine 3.19 base is EOL.
+    image: wealthfolio/wealthfolio:3.6.3@sha256:2c939f64043481d7c5e4fc737ed872518633c838bff9b9de699f0c158df4bc0b
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        export WF_SECRET_KEY="$$(cat /run/secrets/wealthfolio_secret_key)"
+        export WF_OIDC_CLIENT_SECRET="$$(cat /run/secrets/wealthfolio_oidc_client_secret)"
+        export WF_OIDC_ALLOWED_EMAILS="$$(cat /run/secrets/wealthfolio_oidc_allowed_email)"
+        export WF_OIDC_ALLOWED_SUBS="$$(cat /run/secrets/wealthfolio_oidc_allowed_subject)"
+        exec /usr/local/bin/wealthfolio-server
+    volumes:
+      - wealthfolio_data:/data
+    networks:
+      - traefik
+      - traefik-public
+    secrets:
+      - source: wealthfolio_secret_key
+        target: wealthfolio_secret_key
+      - source: wealthfolio_oidc_client_secret
+        target: wealthfolio_oidc_client_secret
+      - source: wealthfolio_oidc_allowed_email
+        target: wealthfolio_oidc_allowed_email
+      - source: wealthfolio_oidc_allowed_subject
+        target: wealthfolio_oidc_allowed_subject
+    environment:
+      WF_LISTEN_ADDR: 0.0.0.0:8088
+      WF_DB_PATH: /data/wealthfolio.db
+      WF_SECRET_FILE: /data/secrets.json
+      WF_ADDONS_DIR: /data/addons
+      WF_AUTH_REQUIRED: "true"
+      WF_AUTH_TOKEN_TTL_MINUTES: "60"
+      WF_COOKIE_SECURE: "true"
+      WF_CORS_ALLOW_ORIGINS: https://wealthfolio.${LOCAL_DOMAIN?err}
+      WF_OIDC_ISSUER_URL: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}
+      WF_OIDC_CLIENT_ID: finance-wealthfolio
+      WF_OIDC_REDIRECT_URL: https://wealthfolio.${LOCAL_DOMAIN?err}/api/v1/auth/oidc/callback
+      WF_OIDC_SCOPES: openid email profile
+      WF_OIDC_ALLOW_ANY: "false"
+      WF_OIDC_POST_LOGOUT_REDIRECT_URL: https://wealthfolio.${LOCAL_DOMAIN?err}/
+      WF_OIDC_RP_LOGOUT: "true"
+      WF_REQUEST_TIMEOUT_MS: "300000"
+      WF_LOG_FORMAT: json
+      WF_MCP_ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8088/api/v1/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        <<: *finance-file-storage-placement
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.wealthfolio-http.entrypoints=web
+        - traefik.http.routers.wealthfolio-http.rule=Host(`wealthfolio.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.wealthfolio-http.middlewares=wealthfolio-https-redirect@swarm
+        - traefik.http.middlewares.wealthfolio-https-redirect.redirectscheme.scheme=https
+        - traefik.http.routers.wealthfolio-health.entrypoints=websecure
+        - traefik.http.routers.wealthfolio-health.rule=Host(`wealthfolio.${LOCAL_DOMAIN}`) && Path(`/api/v1/healthz`)
+        - traefik.http.routers.wealthfolio-health.tls=true
+        - traefik.http.routers.wealthfolio-health.tls.certresolver=le-dns
+        - traefik.http.routers.wealthfolio-health.service=wealthfolio
+        - traefik.http.routers.wealthfolio-health.priority=100
+        - traefik.http.routers.wealthfolio.entrypoints=websecure
+        - traefik.http.routers.wealthfolio.rule=Host(`wealthfolio.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.wealthfolio.tls=true
+        - traefik.http.routers.wealthfolio.tls.certresolver=le-dns
+        - traefik.http.routers.wealthfolio.service=wealthfolio
+        - traefik.http.routers.wealthfolio.priority=10
+        - traefik.http.services.wealthfolio.loadbalancer.server.port=8088
+
+  actual:
+    # Conditional admission: freshly scan this digest and both platform children
+    # immediately before every deploy; runtime hardening is mandatory.
+    image: actualbudget/actual-server:26.8.1@sha256:6478d9ddfc0924479c09e6699c205e354c6f2216dfe7de3c0fb7b590d6edcdc5
+    # Upstream leaves OCI User empty. Task 18 initialized this named local volume
+    # for the existing non-root numeric identity selected here.
+    user: "1001:1001"
+    entrypoint: ["/usr/bin/tini", "-g", "--", "/bin/sh", "-ec"]
+    command:
+      - |
+        export ACTUAL_OPENID_CLIENT_SECRET="$$(cat /run/secrets/actual_oidc_client_secret)"
+        exec node app.js
+    volumes:
+      - actual_data:/data
+    networks:
+      - traefik
+      - traefik-public
+    secrets:
+      - source: actual_oidc_client_secret
+        target: actual_oidc_client_secret
+    environment:
+      ACTUAL_DATA_DIR: /data
+      ACTUAL_PORT: "5006"
+      ACTUAL_LOGIN_METHOD: openid
+      # Native OpenID is the browser default. Password remains enabled only for
+      # the Accounting-local official-API subprocess boundary.
+      ACTUAL_ALLOWED_LOGIN_METHODS: openid,password
+      ACTUAL_OPENID_ENFORCE: "false"
+      ACTUAL_OPENID_DISCOVERY_URL: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/.well-known/openid-configuration
+      ACTUAL_OPENID_CLIENT_ID: finance-actual
+      ACTUAL_OPENID_SERVER_HOSTNAME: https://actual.${LOCAL_DOMAIN?err}
+      ACTUAL_OPENID_AUTH_METHOD: openid
+      ACTUAL_TOKEN_EXPIRATION: openid-provider
+      ACTUAL_USER_CREATION_MODE: manual
+    healthcheck:
+      test: ["CMD", "node", "scripts/health-check.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Backup hooks: stop-first lifecycle quiesces the single writer before the
+    # named /data volume snapshot; restore occurs while this service is stopped.
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    deploy:
+      replicas: 1
+      placement:
+        <<: *finance-file-storage-placement
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.actual-http.entrypoints=web
+        - traefik.http.routers.actual-http.rule=Host(`actual.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.actual-http.middlewares=actual-https-redirect@swarm
+        - traefik.http.middlewares.actual-https-redirect.redirectscheme.scheme=https
+        - traefik.http.routers.actual-health.entrypoints=websecure
+        - traefik.http.routers.actual-health.rule=Host(`actual.${LOCAL_DOMAIN}`) && Path(`/health`)
+        - traefik.http.routers.actual-health.tls=true
+        - traefik.http.routers.actual-health.tls.certresolver=le-dns
+        - traefik.http.routers.actual-health.service=actual
+        - traefik.http.routers.actual-health.priority=100
+        - traefik.http.routers.actual.entrypoints=websecure
+        - traefik.http.routers.actual.rule=Host(`actual.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.actual.tls=true
+        - traefik.http.routers.actual.tls.certresolver=le-dns
+        - traefik.http.routers.actual.service=actual
+        - traefik.http.routers.actual.priority=10
+        - traefik.http.services.actual.loadbalancer.server.port=5006
+
   fireflyiii:
-    image: fireflyiii/core:latest
+    image: fireflyiii/core:version-6.6.6
     volumes:
       - firefly_iii_upload:/var/www/html/storage/upload
     networks:
-      - financial-private
+      - traefik
       - traefik-public
     secrets:
       - source: fireflyiii_app_key
+        target: fireflyiii_app_key
+      - source: fireflyiii_db_password
+        target: fireflyiii_db_password
+      - source: fireflyiii_passport_private_key
+        target: fireflyiii_passport_private_key
+      - source: fireflyiii_passport_public_key
+        target: fireflyiii_passport_public_key
     environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_LOG_LEVEL: notice
+      AUDIT_LOG_LEVEL: emergency
+      LOG_CHANNEL: stdout
       SITE_OWNER: ${MAINTAINER_EMAIL}
-      TZ: America/Santiago
-      TRUSTED_PROXIES: '**'
-      DB_CONNECTION: mysql
-      DB_HOST: fireflyiii-db
-      DB_DATABASE: firefly
-      DB_PASSWORD: *db-password
-      DB_USERNAME: *db-user
-      ALLOW_WEBHOOKS: 'true'
+      TZ: ${USER_TIMEZONE}
+      DEFAULT_LANGUAGE: es_ES
+      DEFAULT_LOCALE: es_ES
+      TRUSTED_PROXIES: "**"
       APP_URL: https://fireflyiii.${LOCAL_DOMAIN}
       APP_KEY_FILE: /run/secrets/fireflyiii_app_key
-    depends_on:
-      - fireflyiii-db
+      PASSPORT_PRIVATE_KEY_FILE: /run/secrets/fireflyiii_passport_private_key
+      PASSPORT_PUBLIC_KEY_FILE: /run/secrets/fireflyiii_passport_public_key
+      DB_CONNECTION: pgsql
+      DB_HOST: main-storage_postgres
+      DB_PORT: "5432"
+      DB_DATABASE: fireflyiii
+      DB_USERNAME: fireflyiii
+      DB_PASSWORD_FILE: /run/secrets/fireflyiii_db_password
+      PGSQL_SSL_MODE: require
+      PGSQL_SCHEMA: public
+      CACHE_DRIVER: file
+      SESSION_DRIVER: file
+      ALLOW_WEBHOOKS: "true"
+      AUTHENTICATION_GUARD: remote_user_guard
+      AUTHENTICATION_GUARD_HEADER: HTTP_X_AUTH_REQUEST_EMAIL
+      AUTHENTICATION_GUARD_EMAIL: HTTP_X_AUTH_REQUEST_EMAIL
     deploy:
-      placement:
-          constraints:
-            - node.role == manager
+      replicas: 1
+      placement: *firefly-placement
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.10"
+          memory: 256M
       restart_policy:
         condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_COMPLEX}
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
       labels:
         - traefik.enable=true
+        - traefik.swarm.network=traefik
+        - traefik.swarm.lbswarm=true
         - traefik.http.routers.fireflyiii-http.entrypoints=web
         - traefik.http.routers.fireflyiii-http.rule=Host(`fireflyiii.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.fireflyiii-http.middlewares=fireflyiii-https-redirect@swarm
+        - traefik.http.middlewares.fireflyiii-https-redirect.redirectscheme.scheme=https
+        - traefik.http.routers.fireflyiii-health.entrypoints=websecure
+        - traefik.http.routers.fireflyiii-health.rule=Host(`fireflyiii.${LOCAL_DOMAIN}`) && Path(`/health`)
+        - traefik.http.routers.fireflyiii-health.tls=true
+        - traefik.http.routers.fireflyiii-health.tls.certresolver=le-dns
+        - traefik.http.routers.fireflyiii-health.service=fireflyiii
+        - traefik.http.routers.fireflyiii-health.priority=100
+        - traefik.http.routers.fireflyiii-api.entrypoints=websecure
+        - traefik.http.routers.fireflyiii-api.rule=Host(`fireflyiii.${LOCAL_DOMAIN}`) && PathPrefix(`/api/`)
+        - traefik.http.routers.fireflyiii-api.tls=true
+        - traefik.http.routers.fireflyiii-api.tls.certresolver=le-dns
+        - traefik.http.routers.fireflyiii-api.service=fireflyiii
+        - traefik.http.routers.fireflyiii-api.priority=90
         - traefik.http.routers.fireflyiii.entrypoints=websecure
         - traefik.http.routers.fireflyiii.rule=Host(`fireflyiii.${LOCAL_DOMAIN}`)
-        - traefik.http.routers.fireflyiii-http.middlewares=fireflyiii-https@swarm
-        - traefik.http.middlewares.fireflyiii-https.redirectscheme.scheme=https
         - traefik.http.routers.fireflyiii.tls=true
         - traefik.http.routers.fireflyiii.tls.certresolver=le-dns
+        - traefik.http.routers.fireflyiii.service=fireflyiii
+        - traefik.http.routers.fireflyiii.priority=10
+        - traefik.http.routers.fireflyiii.middlewares=fireflyiii-oauth2-errors@swarm,fireflyiii-oauth2-forward-auth@swarm
+        - traefik.http.middlewares.fireflyiii-oauth2-errors.errors.status=401
+        - traefik.http.middlewares.fireflyiii-oauth2-errors.errors.service=oauth2-proxy
+        - traefik.http.middlewares.fireflyiii-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}
+        - traefik.http.middlewares.fireflyiii-oauth2-errors.errors.statusRewrites.401=302
+        - traefik.http.middlewares.fireflyiii-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth
+        - traefik.http.middlewares.fireflyiii-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method
+        - traefik.http.middlewares.fireflyiii-oauth2-forward-auth.forwardAuth.trustForwardHeader=true
+        - traefik.http.middlewares.fireflyiii-oauth2-forward-auth.forwardAuth.authResponseHeaders=Authorization,X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Access-Token
         - traefik.http.services.fireflyiii.loadbalancer.server.port=8080
-        - "traefik.swarm.network=traefik-public"
-  fireflyiii-db:
-    image: mariadb
-    command: --default-authentication-plugin=mysql_native_password
+
+  actual-data-backup:
+    # Dormant one-shot helper. The canonical operation first quiesces Actual;
+    # this service is then activated for one archive and isolated restore probe.
+    image: alpine:3.20@sha256:a4f4213abb84c497377b8544c81b3564f313746700372ec4fe84653e4fb03805
+    command: ["/bin/sh", "/backup/actual-data-backup.sh"]
     environment:
-      <<: *db-environment
-      MYSQL_DATABASE: "firefly"
-    networks:
-      - financial-private
+      BACKUP_ONCE: "true"
+    volumes:
+      - actual_data:/source:ro
+      - actual_data_backups:/backups
+      - actual_data_restore_probe:/restore
+    configs:
+      - source: actual-data-backup-script
+        target: /backup/actual-data-backup.sh
+        mode: 0555
     deploy:
+      replicas: 0
       placement:
-          constraints:
-            - node.role == manager
+        <<: *finance-file-storage-placement
+      restart_policy:
+        condition: none
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+
+  firefly-upload-backup:
+    image: alpine:3.20@sha256:a4f4213abb84c497377b8544c81b3564f313746700372ec4fe84653e4fb03805
+    command: ["/bin/sh", "/backup/firefly-upload-backup.sh"]
+    volumes:
+      - firefly_iii_upload:/source:ro
+      - firefly_upload_backups:/backups
+      - firefly_upload_restore_probe:/restore
+    configs:
+      - source: firefly-upload-backup-script
+        target: /backup/firefly-upload-backup.sh
+        mode: 0555
+    healthcheck:
+      test: ["CMD", "test", "-f", "/run/firefly-upload-backup-ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    deploy:
+      replicas: 1
+      # Same node as fireflyiii: firefly_iii_upload is a node-local volume, so the
+      # backup must mount the copy the application uses; as decided in
+      # docs/adr/firefly_upload_backup_placement_adr.md
+      placement: *firefly-placement
       restart_policy:
         condition: on-failure
-    volumes:
-      - firefly_iii_db:/var/lib/mysql
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+
 volumes:
-   firefly_iii_upload:
-   firefly_iii_db:
+  wealthfolio_data:
+    name: productivity-finance_wealthfolio_data
+    driver: local
+  actual_data:
+    name: productivity-finance_actual_data
+    driver: local
+  actual_data_backups:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: "true"
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/actual"
+      allow_other: "true"
+      vfs_cache_mode: full
+  actual_data_restore_probe:
+    driver: local
+  firefly_iii_upload:
+  firefly_upload_backups:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: "true"
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/backups/fireflyiii-upload"
+      allow_other: "true"
+      vfs_cache_mode: full
+  firefly_upload_restore_probe:
+    driver: local
+
+configs:
+  actual-data-backup-script:
+    name: actual-data-backup-script-${CONFIG_VERSION:-0}
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/productivity/configs/finance/actual-data-backup.sh
+  firefly-upload-backup-script:
+    name: firefly-upload-backup-script-${CONFIG_VERSION:-0}
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/productivity/configs/finance/firefly-upload-backup.sh
 
 networks:
+  traefik:
+    external: true
   traefik-public:
     external: true
-  financial-private:
-    driver: overlay
+
 secrets:
+  wealthfolio_secret_key:
+    external: true
+    name: finance-wealthfolio-secret-key
+  wealthfolio_oidc_client_secret:
+    external: true
+    name: finance-wealthfolio-oidc-client-secret
+  wealthfolio_oidc_allowed_email:
+    external: true
+    name: finance-oidc-allowed-email
+  wealthfolio_oidc_allowed_subject:
+    external: true
+    name: finance-oidc-allowed-subject
+
+  actual_oidc_client_secret:
+    external: true
+    name: finance-actual-oidc-client-secret
+
   fireflyiii_app_key:
+    name: fireflyiii_app_key-${CONFIG_VERSION:-0}
     file: ../../secrets/fireflyiii/app_key
+  fireflyiii_db_password:
+    name: fireflyiii_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/fireflyiii/db_password
+  fireflyiii_passport_private_key:
+    name: fireflyiii_passport_private_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/fireflyiii/passport_private_key
+  fireflyiii_passport_public_key:
+    name: fireflyiii_passport_public_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/fireflyiii/passport_public_key
+
+  sure_db_password:
+    name: sure_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/sure/db_password
+  ezbookkeeping_db_password:
+    name: ezbookkeeping_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/ezbookkeeping/db_password
+  accounting_journal_db_password:
+    name: accounting_journal_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/accounting-journal/db_password
+  accounting_journal_migration_db_password:
+    name: accounting_journal_migration_db_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/accounting-journal-migration/db_password

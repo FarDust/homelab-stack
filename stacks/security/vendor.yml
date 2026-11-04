@@ -1,6 +1,6 @@
 services:
   cloudflared-n8n:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.10.4@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_N8N_TUNNEL_TOKEN:?err}
     environment:
       - CLOUDFLARE_N8N_TUNNEL_TOKEN=${CLOUDFLARE_N8N_TUNNEL_TOKEN:?err}

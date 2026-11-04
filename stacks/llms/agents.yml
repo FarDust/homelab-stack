@@ -310,12 +310,14 @@ volumes:
   opencode_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/opencode/data"
       allow_other: "true"
       vfs_cache_mode: full
   opencode_workspace:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/opencode/workspace"
       allow_other: "true"
       vfs_cache_mode: full

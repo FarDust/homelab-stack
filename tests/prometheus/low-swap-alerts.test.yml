@@ -1,0 +1,76 @@
+rule_files:
+  - /rules/alert.rules
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_SwapTotal_bytes{job="node-exporter",instance="manager:9100"}'
+        values: '1000x20'
+      - series: 'node_memory_SwapFree_bytes{job="node-exporter",instance="manager:9100"}'
+        values: '300x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostLowSwapAvailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_SwapTotal_bytes{job="node-exporter",instance="frost-fang:9100"}'
+        values: '1000x20'
+      - series: 'node_memory_SwapFree_bytes{job="node-exporter",instance="frost-fang:9100"}'
+        values: '200x20'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: HostLowSwapAvailable
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: HostLowSwapAvailable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              instance: frost-fang:9100
+            exp_annotations:
+              summary: Host frost-fang:9100 has low swap available
+              description: frost-fang:9100 has less than 25% swap free for more than 10 minutes. Check Netdata, memory-heavy workloads, recent deploys, and swap growth before changing placements or host daemons.
+
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_SwapTotal_bytes{job="node-exporter",instance="threshold:9100"}'
+        values: '1000x20'
+      - series: 'node_memory_SwapFree_bytes{job="node-exporter",instance="threshold:9100"}'
+        values: '250x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostLowSwapAvailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_SwapTotal_bytes{job="node-exporter",instance="noswap:9100"}'
+        values: '0x20'
+      - series: 'node_memory_SwapFree_bytes{job="node-exporter",instance="noswap:9100"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostLowSwapAvailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_SwapTotal_bytes{job="node-exporter",instance="missing-free:9100"}'
+        values: '1000x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostLowSwapAvailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_SwapFree_bytes{job="node-exporter",instance="missing-total:9100"}'
+        values: '100x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostLowSwapAvailable
+        exp_alerts: []

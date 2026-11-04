@@ -13,7 +13,7 @@ services:
         max_attempts: ${RESTART_MAX_ATTEMPTS:?err}
         window: ${RESTART_WINDOW_STANDARD:?err}
   n8n:
-    image: n8nio/n8n
+    image: n8nio/n8n:2.14.0
     environment:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_DATABASE=${N8N_DB_POSTGRESDB_DATABASE:?err}
@@ -60,6 +60,12 @@ services:
       - traefik-public
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          # n8n_data is a node-local volume holding installed community nodes (n8n-nodes-firecrawl) and
+          # binary data; keep it on the node that has them; as decided in docs/adr/node_local_state_pinning_adr.md
+          - node.labels.storage.manager == true
+          - node.labels.swarm.leader != true
       labels:
         - traefik.enable=true
         - traefik.http.routers.n8n.entrypoints=websecure

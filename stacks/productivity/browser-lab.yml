@@ -129,6 +129,7 @@ volumes:
   browser_neko_brave_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/browser-lab/neko-brave"
       allow_other: "true"
       vfs_cache_mode: full

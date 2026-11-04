@@ -1,0 +1,15 @@
+{
+  "uid": "swarm-service-detail",
+  "title": "Example: swarm-service-detail",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Placeholder",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 0},
+      "options": {"mode": "markdown", "content": "Replace this example with the dashboard 'swarm-service-detail' from your private grafana-dashboards checkout (docs/homelab-private.md)."}
+    }
+  ]
+}

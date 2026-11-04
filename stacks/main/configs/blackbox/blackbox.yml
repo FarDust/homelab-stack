@@ -2,9 +2,21 @@ modules:
   http_2xx:
     prober: http
     timeout: 10s
+  http_status_401:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: [401]
   tcp_connect:
     prober: tcp
     timeout: 5s
+  tls_connect:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      tls: true
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: true
   icmp:
     prober: icmp
     timeout: 5s

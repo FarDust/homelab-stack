@@ -8,7 +8,7 @@
 [![validate-compose](https://github.com/FarDust/homelab-stack/actions/workflows/validate-compose.yml/badge.svg)](https://github.com/FarDust/homelab-stack/actions/workflows/validate-compose.yml)
 [![pre-commit](https://github.com/FarDust/homelab-stack/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/FarDust/homelab-stack/actions/workflows/pre-commit.yml)
 
-**[AGENTS.md](AGENTS.md)** (conventions, deploy, secrets, commits) · **[stacks/main/README.md](stacks/main/README.md)** (Traefik, networks, entrypoints)
+**[AGENTS.md](AGENTS.md)** (conventions, deploy, secrets, commits, memory/swap guardrails) · **[stacks/main/README.md](stacks/main/README.md)** (Traefik, networks, entrypoints, memory/swap budgeting)
 
 ## Table of contents
 
@@ -188,7 +188,7 @@ If your **uplink IP changes** but you still need a **public** name (ACME or rare
 | [stacks/vision/README.md](stacks/vision/README.md) | Image generation (ComfyUI) |
 | [clusters/main/k3s/README.md](clusters/main/k3s/README.md) | K3s |
 
-**More in `docs/`:** [node-labels.md](docs/node-labels.md) · [redis-db-ids.md](docs/redis-db-ids.md) · [troubleshoot/rclone.md](docs/troubleshoot/rclone.md)
+**More in `docs/`:** [node-labels.md](docs/node-labels.md) · [redis-db-ids.md](docs/redis-db-ids.md) · [memory-swap-budgeting ADR](docs/adr/2026-10-11-memory-swap-budgeting.md) · [troubleshoot/rclone.md](docs/troubleshoot/rclone.md)
 
 ---
 

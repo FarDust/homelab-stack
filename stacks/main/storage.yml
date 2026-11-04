@@ -13,9 +13,12 @@ services:
       - source: postgres_pgvector_bootstrap_sh
         target: /usr/local/bin/postgres-pgvector-bootstrap.sh
         mode: 0555
+      - source: postgres_cert_watch_sh
+        target: /usr/local/bin/postgres-cert-watch.sh
+        mode: 0555
     volumes:
       - postgres_data:/var/lib/postgresql/
-      - postgres_certs:/lego/certs:ro
+      - tls-certs-postgres:/lego:ro
     secrets:
       - source: postgres_db_password
     entrypoint:
@@ -25,8 +28,8 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
-      - SSL_CERT_FILE=/lego/certs/fullchain.pem
-      - SSL_KEY_FILE=/lego/certs/privkey.pem
+      - SSL_CERT_FILE=/ssl_certificates/fullchain.pem
+      - SSL_KEY_FILE=/ssl_certificates/privkey.pem
       - SHARED_PRELOAD_LIBRARIES=pg_cron,pg_stat_statements
       - |
         EXTRA_CONF=pg_stat_statements.track=all
@@ -37,8 +40,8 @@ services:
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_STANDARD}
+        max_attempts: 0
+        window: 120s
       update_config:
         order: stop-first
         failure_action: rollback
@@ -63,6 +66,7 @@ services:
         - "traefik.tcp.routers.postgres.tls.certresolver=le-dns"
         - "traefik.tcp.services.postgres.loadbalancer.server.port=5432"
         - "traefik.swarm.network=traefik"
+        - "traefik.swarm.lbswarm=true"
         - com.centurylinklabs.watchtower.enable=false
 
   supavisor-apps:
@@ -79,16 +83,18 @@ services:
         target: /run/secrets/k8s_pgbouncer_tls_key
     environment:
       - PORT=4000
-      - DATABASE_URL=ecto://supavisor_apps:${SUPAVISOR_APPS_DB_PASSWORD_ENCODED?err}@postgres:5432/supavisor_apps
+      - DATABASE_URL=postgresql://supavisor_apps:${SUPAVISOR_APPS_DB_PASSWORD_ENCODED?err}@tasks.postgres:5432/supavisor_apps
       - SECRET_KEY_BASE=${SUPAVISOR_APPS_SECRET_KEY_BASE?err}
       - VAULT_ENC_KEY=${SUPAVISOR_APPS_VAULT_ENC_KEY?err}
       - API_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
       - METRICS_JWT_SECRET=${SUPABASE_JWT_SECRET?err}
       - REGION=local
-      - ERL_AFLAGS=-proto_dist inet_tcp
+      # TCP keepalive on every Erlang socket (upstream to Postgres and client side), timings via sysctls below;
+      # as decided in docs/adr/pooler_orphan_connection_limits_adr.md
+      - "ERL_AFLAGS=-proto_dist inet_tcp -kernel inet_default_connect_options [{keepalive,true}] inet_default_listen_options [{keepalive,true}]"
       - PROXY_PORT_SESSION=5432
       - PROXY_PORT_TRANSACTION=6543
-      - DB_POOL_SIZE=5
+      - DB_POOL_SIZE=10
       - MAX_CONNECTIONS=1000
       - NUM_ACCEPTORS=100
       - NAMED_PREPARED_STATEMENTS_ENABLED=true
@@ -96,10 +102,14 @@ services:
       - LANGFUSE_UPSTREAM_PASSWORD=${LANGFUSE_DB_PASSWORD?err}
       - GLOBAL_DOWNSTREAM_CERT_PATH=/run/secrets/k8s_pgbouncer_tls_cert
       - GLOBAL_DOWNSTREAM_KEY_PATH=/run/secrets/k8s_pgbouncer_tls_key
+    sysctls:
+      net.ipv4.tcp_keepalive_time: 60
+      net.ipv4.tcp_keepalive_intvl: 10
+      net.ipv4.tcp_keepalive_probes: 6
     command:
       - /bin/sh
       - -c
-      - /app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
+      - /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
     healthcheck:
       test:
         - CMD
@@ -117,10 +127,10 @@ services:
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_STANDARD}
+        max_attempts: 0
+        window: 120s
       update_config:
-        order: start-first
+        order: stop-first
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
@@ -193,22 +203,25 @@ services:
     image: bitnami/redis:latest
     secrets:
       - redis_password
+      - redis_acl
     volumes:
-      - redis-data:/data
+      - redis-data:/bitnami/redis/data
     networks:
       - traefik
     environment:
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+      # ACL users incl. ci_queue (agent-skills CI FIFO); card trust-agent-redis-ci-custody
+      - REDIS_ACLFILE=/run/secrets/redis_acl
     deploy:
       mode: replicated
       replicas: 1
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_CACHE}
+        max_attempts: 0
+        window: 60s
       update_config:
-        order: start-first
+        order: stop-first
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_CACHE}
         max_failure_ratio: 0.3
@@ -229,6 +242,7 @@ services:
         - "traefik.tcp.routers.redis.tls.certresolver=le-dns"
         - "traefik.tcp.services.redis.loadbalancer.server.port=6379"
         - "traefik.swarm.network=traefik"
+        - "traefik.swarm.lbswarm=true"
 
   opensearch:
     image: opensearchproject/opensearch:2.19.1
@@ -386,72 +400,7 @@ services:
         - "traefik.swarm.network=traefik"
         - com.centurylinklabs.watchtower.enable=false
 
-  infinity:
-    image: infiniflow/infinity:v0.6.15
-    networks:
-      - traefik
-      - traefik-public
-    volumes:
-      - infinity_data:/var/infinity
-    configs:
-      - source: infinity_conf
-        target: /infinity_conf.toml
-    environment:
-      - TZ=${TIMEZONE:-UTC}
-    command: ["-f", "/infinity_conf.toml"]
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 15s
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_COMPLEX}
-      update_config:
-        order: stop-first
-        failure_action: rollback
-        monitor: ${UPDATE_MONITOR_COMPLEX}
-        max_failure_ratio: 0.2
-      rollback_config:
-        order: stop-first
-        monitor: ${ROLLBACK_MONITOR_COMPLEX}
-      placement:
-        constraints:
-        - node.labels.AVX != false
-        - node.labels.storage.manager == true
-      labels:
-        - "traefik.enable=true"
-        # PostgreSQL-compatible port (5432) via TCP
-        - "traefik.tcp.routers.infinity-postgres.rule=HostSNI(`infinity.${LOCAL_DOMAIN?err}`)"
-        - "traefik.tcp.routers.infinity-postgres.entrypoints=host-internal"
-        - "traefik.tcp.routers.infinity-postgres.tls=true"
-        - "traefik.tcp.routers.infinity-postgres.tls.certresolver=le-dns"
-        - "traefik.tcp.routers.infinity-postgres.service=infinity-postgres"
-        - "traefik.tcp.services.infinity-postgres.loadbalancer.server.port=5432"
-        # Thrift client port (23817) via TCP
-        - "traefik.tcp.routers.infinity-thrift.rule=HostSNI(`infinity-thrift.${LOCAL_DOMAIN?err}`)"
-        - "traefik.tcp.routers.infinity-thrift.entrypoints=host-internal"
-        - "traefik.tcp.routers.infinity-thrift.tls=true"
-        - "traefik.tcp.routers.infinity-thrift.tls.certresolver=le-dns"
-        - "traefik.tcp.routers.infinity-thrift.service=infinity-thrift"
-        - "traefik.tcp.services.infinity-thrift.loadbalancer.server.port=23817"
-        # HTTP API port (23820) via HTTPS
-        - "traefik.http.routers.infinity-api.rule=Host(`infinity-api.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.infinity-api.entrypoints=websecure"
-        - "traefik.http.routers.infinity-api.tls=true"
-        - "traefik.http.routers.infinity-api.tls.certresolver=le-dns"
-        - "traefik.http.services.infinity-api.loadbalancer.server.port=23820"
-        - "traefik.http.routers.infinity-api-http.rule=Host(`infinity-api.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.infinity-api-http.entrypoints=web"
-        - "traefik.http.routers.infinity-api-http.middlewares=infinity-api-https@swarm"
-        - "traefik.http.middlewares.infinity-api-https.redirectscheme.scheme=https"
-        - "traefik.swarm.network=traefik-public"
-        - com.centurylinklabs.watchtower.enable=false
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:23820/admin/node/current"]
-      interval: 10s
-      timeout: 10s
-      retries: 120
-
+  # infinity removed 2026-10-12: unused (RAGFlow never worked), log-storm loops destabilised frost-fang; see docs/adr/infinity_removal_adr.md
   supabase-db:
     image: supabase/postgres:17.6.1.079
     networks:
@@ -459,7 +408,7 @@ services:
     volumes:
       - supabase-db-data:/var/lib/postgresql/data
       - supabase-db-config:/etc/postgresql-custom
-      - supabase-db-certs:/lego/certs:ro
+      - tls-certs-supabase-db:/lego/certs:ro
     configs:
       - source: supabase_db_realtime_sql
         target: /docker-entrypoint-initdb.d/migrations/99-realtime.sql
@@ -516,6 +465,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 20s
     deploy:
       replicas: 1
       restart_policy:
@@ -645,20 +595,17 @@ services:
 volumes:
   # DB data volumes cannot be synced, could cause issues with data integrity
   postgres_data: {}
-  postgres_certs:
-    driver: rclone
+  tls-certs-postgres:
+    driver: local
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/postgres.${LOCAL_DOMAIN?err}"
-      allow_other: "true"
-      vfs_cache_mode: full
-      uid: "101"
-      gid: "103"
-      file_perms: "600"
-      dir_perms: "700"
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,ro,soft,timeo=60
+      device: ":/srv/tls-certs/certs/postgres.${LOCAL_DOMAIN}"
   influx: {}
   influx_certs:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/influx.${LOCAL_DOMAIN?err}"
       allow_other: "true"
       vfs_cache_mode: full
@@ -671,6 +618,7 @@ volumes:
   opensearch_data: {}
   minio_data: {}
   mongodb_data: {}
+  # Data volume kept (not deleted) after removing the infinity service; see docs/adr/infinity_removal_adr.md
   infinity_data: {}
   qdrant_storage:
     driver: local
@@ -680,24 +628,22 @@ volumes:
   supabase-db-config:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
       allow_other: "true"
       vfs_cache_mode: full
-  supabase-db-certs:
-    driver: rclone
+  tls-certs-supabase-db:
+    driver: local
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/supabase-db.${LOCAL_DOMAIN?err}"
-      allow_other: "true"
-      vfs_cache_mode: full
-      uid: "101"
-      gid: "102"
-      file_perms: "600"
-      dir_perms: "700"
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,ro,soft,timeo=60
+      device: ":/srv/tls-certs/certs/supabase-db.${LOCAL_DOMAIN}"
   clickhouse-olap-data:
     driver: local
   clickhouse-logs:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/clickhouse/logs"
       allow_other: "true"
       vfs_cache_mode: full
@@ -719,6 +665,8 @@ secrets:
     file: ../../secrets/k8s/pgbouncer_tls_key.pem
   redis_password:
     file: ../../secrets/redis/redis_password
+  redis_acl:
+    file: ../../secrets/redis/users.acl
   opensearch_password:
     file: ../../secrets/opensearch/opensearch_password
   minio_access_key:
@@ -734,12 +682,15 @@ configs:
   postgres_pgvector_bootstrap_sh:
     name: postgres_pgvector_bootstrap_sh-${CONFIG_VERSION:-0}
     file: ./configs/postgres/pgvector-bootstrap.sh
+  postgres_cert_watch_sh:
+    name: postgres_cert_watch_sh-${CONFIG_VERSION:-0}
+    file: ./configs/postgres/cert-watch.sh
   supavisor_apps_pooler_exs:
     name: supavisor_apps_pooler_exs-${CONFIG_VERSION:-0}
     file: ./configs/supavisor/apps_pooler.exs
-  infinity_conf:
-    name: infinity_conf-${CONFIG_VERSION:-0}
-    file: ./configs/infinity/infinity_conf.toml
+  supavisor_apps_runtime_exs:
+    name: supavisor_apps_runtime_exs-${CONFIG_VERSION:-0}
+    file: ./configs/supavisor/runtime.exs
   supabase_db_realtime_sql:
     name: supabase_db_realtime_sql-${CONFIG_VERSION:-0}
     file: ./configs/supabase/docker/volumes/db/realtime.sql
@@ -763,7 +714,7 @@ configs:
     file: ./configs/supabase/docker/volumes/db/pooler.sql
   supabase_db_hba_conf:
     name: supabase_db_hba_conf-${CONFIG_VERSION:-0}
-    file: ./configs/supabase/pg_hba.conf
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/main/configs/supabase/pg_hba.conf
   supabase_db_custom_overrides_conf:
     name: supabase_db_custom_overrides_conf-${CONFIG_VERSION:-0}
-    file: ./configs/supabase/postgresql-custom-overrides.conf
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/main/configs/supabase/postgresql-custom-overrides.conf

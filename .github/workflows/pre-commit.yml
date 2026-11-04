@@ -60,6 +60,15 @@ jobs:
           echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gitleaks-bin/gitleaks" version
 
+      - name: Install checksum-pinned dotenv-linter
+        run: |
+          mkdir -p "$RUNNER_TEMP/dotenv-linter-bin"
+          curl --fail --location --max-time 60             https://github.com/dotenv-linter/dotenv-linter/releases/download/v4.0.0/dotenv-linter-linux-x86_64.tar.gz             -o "$RUNNER_TEMP/dotenv-linter.tar.gz"
+          echo "9e2f1f6eb88a71ac15ef209f78f5a68644db82f132d2677112b4f80ec2bd2127  $RUNNER_TEMP/dotenv-linter.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/dotenv-linter.tar.gz" -C "$RUNNER_TEMP/dotenv-linter-bin" dotenv-linter
+          echo "$RUNNER_TEMP/dotenv-linter-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/dotenv-linter-bin/dotenv-linter" --version
+
       - name: Validate scan range and hook configuration
         run: |
           test -n "$SCAN_BASE"
@@ -67,11 +76,14 @@ jobs:
           uv tool run --from pre-commit==4.5.1 pre-commit validate-config
 
       - name: Test quota failure boundaries
-        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 --with pyyaml==6.0.3 pytest -q tests/test_secret_scan_guard.py tests/test_secret_scan_ci.py tests/test_local_secret_hooks.py tests/test_secret_scan_credentials.py
+        run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 --with pyyaml==6.0.3 pytest -q tests/test_secret_scan_guard.py tests/test_secret_scan_ci.py tests/test_local_secret_hooks.py tests/test_secret_scan_credentials.py tests/test_check_private_indicators.py
+
+      - name: Scan the whole tracked tree for generic private indicators
+        run: uv run --python 3.12 --script scripts/check_private_indicators.py scan-tree
 
       - name: Run remaining repository hooks on changed files
         run: |
-          for hook in check-no-local-paths end-of-file-fixer trailing-whitespace check-added-large-files check-json detect-private-key mixed-line-ending dotenv-linter; do
+          for hook in check-no-local-paths end-of-file-fixer trailing-whitespace check-added-large-files check-json detect-private-key mixed-line-ending dotenv-linter env-contract; do
             uv tool run --from pre-commit==4.5.1 pre-commit run "$hook" --from-ref "$SCAN_BASE" --to-ref HEAD --show-diff-on-failure
           done
 

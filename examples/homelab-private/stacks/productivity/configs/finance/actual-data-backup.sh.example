@@ -1,0 +1,19 @@
+#!/bin/sh
+# Template for ${HOMELAB_PRIVATE_DIR}/stacks/productivity/configs/finance/actual-data-backup.sh (docs/homelab-private.md).
+# Runs once in the dormant `actual-data-backup` service: /source is the Actual data volume (read-only),
+# /backups the durable backup volume, /restore a scratch volume for the restore probe.
+# Contract: archive /source, restore the archive into /restore, compare checksums, exit non-zero on any mismatch.
+set -eu
+umask 077
+backup_id="actual-data-$(date -u +%Y%m%dT%H%M%SZ)"
+final="/backups/actual-data/$backup_id"
+stage="/backups/actual-data/.$backup_id.partial"
+restore_dir="/restore/$backup_id"
+manifest() { (cd "$1" && find . -type f -exec sha256sum '{}' ';' | LC_ALL=C sort); }
+trap 'rm -rf "$stage" "$restore_dir"' EXIT HUP INT TERM
+mkdir -p "$stage" "$restore_dir"
+cp -a /source/. "$stage/"
+cp -a "$stage/." "$restore_dir/"
+[ "$(manifest /source)" = "$(manifest "$restore_dir")" ] || { echo 'restore_probe=failed' >&2; exit 1; }
+mv "$stage" "$final"
+echo "backup=$backup_id verified=true"

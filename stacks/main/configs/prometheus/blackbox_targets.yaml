@@ -9,3 +9,120 @@
   labels:
     probe: monitoring_prometheus_task
     monitor_group: monitoring_path
+
+- targets:
+  - storage.googleapis.com:443
+  labels:
+    probe: critical_storage_googleapis_com
+    service: storage.googleapis.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - www.googleapis.com:443
+  labels:
+    probe: critical_www_googleapis_com
+    service: www.googleapis.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - github.com:443
+  labels:
+    probe: critical_github_com
+    service: github.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - raw.githubusercontent.com:443
+  labels:
+    probe: critical_raw_githubusercontent_com
+    service: raw.githubusercontent.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - pypi.org:443
+  labels:
+    probe: critical_pypi_org
+    service: pypi.org
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - files.pythonhosted.org:443
+  labels:
+    probe: critical_files_pythonhosted_org
+    service: files.pythonhosted.org
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - registry.npmjs.org:443
+  labels:
+    probe: critical_registry_npmjs_org
+    service: registry.npmjs.org
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - huggingface.co:443
+  labels:
+    probe: critical_huggingface_co
+    service: huggingface.co
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - ghcr.io:443
+  labels:
+    probe: critical_ghcr_io
+    service: ghcr.io
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - registry-1.docker.io:443
+  labels:
+    probe: critical_registry_1_docker_io
+    service: registry-1.docker.io
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - api.anthropic.com:443
+  labels:
+    probe: critical_api_anthropic_com
+    service: api.anthropic.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - login.tailscale.com:443
+  labels:
+    probe: critical_login_tailscale_com
+    service: login.tailscale.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect
+
+- targets:
+  - api.gitguardian.com:443
+  labels:
+    probe: critical_api_gitguardian_com
+    service: api.gitguardian.com
+    monitor_group: critical_external_dns
+    expected_status: tls
+    module: tls_connect

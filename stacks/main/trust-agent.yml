@@ -1,0 +1,148 @@
+version: "3.9"
+
+networks:
+  trust-internal:
+    external: true
+
+services:
+  trust-agent:
+    image: ${TRUST_AGENT_IMAGE?err}
+    networks:
+      - trust-internal
+    # Keep TLS hostname; this isolated network cannot reliably reach MagicDNS.
+    extra_hosts:
+      - "litellm.${LOCAL_DOMAIN?err}:${LITELLM_GATEWAY_HOST_IP?err}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - OPENBAO_ADDR=${OPENBAO_ADDR?err}
+      - OPENBAO_JWT_ROLE=trust-agent
+      - ADMIN_ROLES_RAW=trust-agent-admin
+      - KEYCLOAK_URL=https://idp.${LOCAL_DOMAIN?err}
+      - KEYCLOAK_REALM=cluster-services
+      - KEYCLOAK_CLIENT_ID=trust-agent
+      - KEYCLOAK_CLIENT_SECRET_FILE=/run/secrets/trust_agent_oidc_secret
+      - CLUSTER_UTILS_KEYCLOAK_ADMIN_AUTH=client_credentials
+      - CLUSTER_UTILS_KEYCLOAK_ADMIN_CLIENT_ID=trust-agent-keycloak-provisioner
+      - CLUSTER_UTILS_KEYCLOAK_ADMIN_CLIENT_SECRET_FILE=/run/secrets/trust_agent_keycloak_provisioner_client_secret
+      - LITELLM_BASE_URL=https://litellm.${LOCAL_DOMAIN?err}
+      - LITELLM_API_KEY_FILE=/run/secrets/trust_agent_litellm_key
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY?err}
+      - CLUSTER_UTILS_MCP_URL=https://mcp.${LOCAL_DOMAIN?err}
+      - FIREFLY_BASE_URL=https://fireflyiii.${LOCAL_DOMAIN?err}/api/v1
+      - FIREFLY_PAT_FILE=/run/secrets/trust_agent_firefly_accounting_api_token
+    secrets:
+      - source: trust_agent_oidc_secret
+        target: trust_agent_oidc_secret
+      - source: trust_agent_keycloak_provisioner_client_secret
+        target: trust_agent_keycloak_provisioner_client_secret
+      - source: trust_agent_litellm_key
+        target: trust_agent_litellm_key
+      - source: trust_agent_firefly_accounting_api_token
+        target: trust_agent_firefly_accounting_api_token
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+      labels:
+        - "traefik.enable=true"
+        # Public routes (health + agent card — no auth)
+        - "traefik.http.routers.trust-agent-public.rule=Host(`trust-agent.${LOCAL_DOMAIN?err}`) && (Path(`/health`) || Path(`/.well-known/agent-card.json`))"
+        - "traefik.http.routers.trust-agent-public.entrypoints=websecure"
+        - "traefik.http.routers.trust-agent-public.tls=true"
+        - "traefik.http.routers.trust-agent-public.tls.certresolver=le-dns"
+        - "traefik.http.routers.trust-agent-public.priority=100"
+        - "traefik.http.routers.trust-agent-public.service=trust-agent"
+        # A2A API routes (no forwardAuth — app handles its own auth)
+        - "traefik.http.routers.trust-agent-api.rule=Host(`trust-agent.${LOCAL_DOMAIN?err}`) && PathPrefix(`/a2a/`)"
+        - "traefik.http.routers.trust-agent-api.entrypoints=websecure"
+        - "traefik.http.routers.trust-agent-api.tls=true"
+        - "traefik.http.routers.trust-agent-api.tls.certresolver=le-dns"
+        - "traefik.http.routers.trust-agent-api.priority=75"
+        - "traefik.http.routers.trust-agent-api.service=trust-agent"
+        # Browser routes (oauth2-proxy forwardAuth for human users)
+        - "traefik.http.routers.trust-agent.rule=Host(`trust-agent.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.trust-agent.entrypoints=websecure"
+        - "traefik.http.routers.trust-agent.tls=true"
+        - "traefik.http.routers.trust-agent.tls.certresolver=le-dns"
+        - "traefik.http.routers.trust-agent.middlewares=oauth2-proxy-forward-auth@swarm"
+        - "traefik.http.routers.trust-agent.priority=50"
+        - "traefik.http.services.trust-agent.loadbalancer.server.port=8000"
+        - "traefik.swarm.network=trust-internal"
+
+  cluster-utils-mcp:
+    image: main-cluster-utils-mcp:latest
+    build:
+      context: ../../
+      dockerfile: cluster-utils/Dockerfile.mcp
+    networks:
+      - trust-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',8080),timeout=5); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_STANDARD}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.cluster-utils-mcp.rule=Host(`mcp.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.cluster-utils-mcp.entrypoints=websecure"
+        - "traefik.http.routers.cluster-utils-mcp.tls=true"
+        - "traefik.http.routers.cluster-utils-mcp.tls.certresolver=le-dns"
+        - "traefik.http.routers.cluster-utils-mcp.middlewares=oauth2-proxy-forward-auth@swarm"
+        - "traefik.http.services.cluster-utils-mcp.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=trust-internal"
+
+secrets:
+  trust_agent_oidc_secret:
+    name: trust_agent_oidc_secret-${CONFIG_VERSION:-0}
+    file: ../../secrets/trust-agent/oidc_client_secret
+  trust_agent_keycloak_provisioner_client_secret:
+    name: trust_agent_keycloak_provisioner_client_secret-${CONFIG_VERSION:-0}
+    file: ../../secrets/trust-agent/keycloak_provisioner_client_secret
+  trust_agent_litellm_key:
+    name: trust_agent_litellm_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/trust-agent/api_key
+  trust_agent_firefly_accounting_api_token:
+    name: trust_agent_firefly_accounting_api_token-${CONFIG_VERSION:-0}
+    file: ../../secrets/fireflyiii/accounting_api_token

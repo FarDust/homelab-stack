@@ -11,6 +11,8 @@ networks:
     external: true
   prometheus:
     external: true
+  trust-internal:
+    external: true
   certs-dumper:
     driver: overlay
     internal: true
@@ -109,6 +111,7 @@ services:
     networks:
     - traefik
     - traefik-public
+    - trust-internal
     configs:
     - source: traefik_conf
       target: /etc/traefik/configs/static.yml
@@ -193,7 +196,16 @@ services:
       - traefik.http.routers.sablier.entrypoints=web
       - traefik.http.routers.sablier.service=sablier
       - traefik.http.services.sablier.loadbalancer.server.port=10000
-      - traefik.http.routers.sablier.middlewares=authelia@swarm
+      - traefik.http.routers.sablier.middlewares=sablier-oauth2-errors@swarm,sablier-oauth2-forward-auth@swarm
+      # Keycloak via shared oauth2-proxy forwardAuth; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.status=401
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.service=oauth2-proxy
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}
+      - traefik.http.middlewares.sablier-oauth2-errors.errors.statusRewrites.401=302
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.trustForwardHeader=true
+      - traefik.http.middlewares.sablier-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email
       - traefik.http.routers.sablier.tls=true
       - traefik.http.routers.sablier.tls.certresolver=le-dns
       - traefik.swarm.network=traefik-public
@@ -257,7 +269,8 @@ services:
       X_AUTHELIA_CONFIG: /etc/authelia/configuration.yml
     deploy:
       mode: replicated
-      replicas: 3
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: any
       labels:
@@ -289,7 +302,8 @@ services:
     - source: authelia_db_password
     deploy:
       mode: replicated
-      replicas: 1
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: any
       placement:
@@ -314,7 +328,8 @@ services:
       REDIS_PASSWORD_FILE: /run/secrets/authelia_redis_password
     deploy:
       mode: replicated
-      replicas: 1
+      # Retired 2026-10-13; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+      replicas: 0
       restart_policy:
         condition: any
       placement:
@@ -324,7 +339,7 @@ services:
       labels:
       - traefik.enable=false
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     healthcheck:
       test:
       - CMD-SHELL
@@ -348,10 +363,14 @@ services:
       target: /etc/prometheus/alert.rules
     - source: prometheus_blackbox_targets
       target: /etc/prometheus/targets/blackbox_targets.yaml
+    - source: prometheus_ingress_blackbox_targets
+      target: /etc/prometheus/targets/ingress_blackbox_targets.yaml
     - source: prometheus_mtu_blackbox_targets
       target: /etc/prometheus/targets/mtu_blackbox_targets.yaml
     - source: prometheus_volcano_target
       target: /etc/prometheus/targets/volcano_target.yaml
+    - source: prometheus_nvidia_targets
+      target: /etc/prometheus/targets/nvidia_targets.yml
     command:
     - --config.file=/etc/prometheus/prometheus.yml
     - --storage.tsdb.path=/prometheus
@@ -393,19 +412,17 @@ services:
         failure_action: pause
         max_failure_ratio: 0.3
   grafana:
-    image: grafana/grafana:12.4.0
-    depends_on:
-    - prometheus
-    healthcheck:
-      test:
-      - CMD-SHELL
-      - wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1
-      interval: 1m30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    volumes:
-    - grafana_data:/var/lib/grafana
+    image: grafana/grafana:12.4.0@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20
+    # healthcheck:
+    #   test:
+    #   - CMD-SHELL
+    #   - wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1
+    #   interval: 1m30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 40s
+    # volumes:
+    # - grafana_data:/var/lib/grafana
     configs:
     - source: grafana_datasources
       target: /etc/grafana/provisioning/datasources/datasource.yml
@@ -437,8 +454,27 @@ services:
       target: /etc/grafana/provisioning/dashboards/custom/volcano_scheduler_queue.json
     - source: grafana_dashboard_k3s_status
       target: /etc/grafana/provisioning/dashboards/custom/k3s_status_dashboard.json
+    - source: grafana_dashboard_cluster_operations_overview
+      target: /etc/grafana/provisioning/dashboards/custom/cluster-operations-overview.json
+    - source: grafana_dashboard_ingress_reliability
+      target: /etc/grafana/provisioning/dashboards/custom/ingress-reliability.json
+    - source: grafana_dashboard_swarm_workload_pressure
+      target: /etc/grafana/provisioning/dashboards/custom/swarm-workload-pressure.json
+    - source: grafana_dashboard_swarm_service_detail
+      target: /etc/grafana/provisioning/dashboards/custom/swarm-service-detail.json
+    - source: grafana_dashboard_gpu_history
+      target: /etc/grafana/provisioning/dashboards/custom/gpu_history.json
+    - source: grafana_dashboard_observability_pipeline_health
+      target: /etc/grafana/provisioning/dashboards/custom/observability-pipeline-health.json
+    - source: grafana_alerting_behavioral_rules
+      target: /etc/grafana/provisioning/alerting/behavioral_rules.yml
+    - source: grafana_alerting_contact_points
+      target: /etc/grafana/provisioning/alerting/contact_points.yml
+    - source: grafana_alerting_notification_policies
+      target: /etc/grafana/provisioning/alerting/notification_policies.yml
     secrets:
     - source: google_oauth_secret
+    - source: grafana_keycloak_oidc_secret
     - source: grafana_admin_password
     - source: sendgrid_smtp_password
     - source: grafana_database_password
@@ -457,6 +493,27 @@ services:
     - GF_AUTH_GOOGLE_CLIENT_SECRET__FILE=/run/secrets/google_oauth_secret
     - GF_AUTH_GOOGLE_ALLOWED_DOMAINS=gmail.com
     - GF_AUTH_GOOGLE_ALLOW_SIGN_UP=false
+    # Keycloak (realm sigilcore) native login, additive to Google and the local admin account;
+    # as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+    - GF_AUTH_GENERIC_OAUTH_ENABLED=true
+    - GF_AUTH_GENERIC_OAUTH_NAME=Keycloak
+    - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
+    - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET__FILE=/run/secrets/grafana_keycloak_oidc_secret
+    - GF_AUTH_GENERIC_OAUTH_SCOPES=openid email profile
+    - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/auth
+    - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
+    - GF_AUTH_GENERIC_OAUTH_API_URL=https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/userinfo
+    - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
+    - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true
+    - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username
+    - GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email
+    - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
+    - GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH=groups
+    - "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'admin') && 'Admin' || contains(groups[*], 'mlflow-admin') && 'Viewer'"
+    - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=true
+    # Link a Keycloak login to an existing Grafana account (created earlier through Google) by e-mail;
+    # trade-off accepted in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+    - GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true
     - GF_RENDERING_SERVER_URL=http://renderer:8081/render
     - GF_RENDERING_CALLBACK_URL=https://grafana.${DOMAIN_NAME}/
     - GF_DATABASE_TYPE=postgres
@@ -471,6 +528,7 @@ services:
     - GF_DATABASE_MAX_IDLE_CONN=2
     - GF_DATABASE_CONN_MAX_LIFETIME=3600
     - GRAFANA_LOKI_URL=${GRAFANA_LOKI_URL}
+    - NEXTDNS_PROFILE_ID=${NEXTDNS_PROFILE?err}
     env_file:
     - ./configs/grafana/config.monitoring
     networks:
@@ -478,19 +536,19 @@ services:
       traefik-public:
       prometheus:
     deploy:
-      update_config:
-        parallelism: 1
-        order: start-first
-        delay: 30s
-        monitor: 60s
-        failure_action: rollback
-        max_failure_ratio: 0.2
-      rollback_config:
-        parallelism: 1
-        order: start-first
-        delay: 30s
-        monitor: 60s
-        failure_action: pause
+      # update_config:
+      #   parallelism: 1
+      #   order: stop-first
+      #   delay: 30s
+      #   monitor: 60s
+      #   failure_action: pause
+      #   max_failure_ratio: 0.2
+      # rollback_config:
+      #   parallelism: 1
+      #   order: stop-first
+      #   delay: 30s
+      #   monitor: 60s
+      #   failure_action: pause
       mode: replicated
       replicas: 1
       labels:
@@ -504,7 +562,6 @@ services:
       - traefik.http.routers.grafana-web.rule=Host(`grafana.${DOMAIN_NAME}`)
       - traefik.http.routers.grafana-web.service=grafana-web@swarm
       - traefik.http.routers.grafana-web.entrypoints=websecure
-      - traefik.http.routers.grafana-web.middlewares=authelia@swarm
       - traefik.http.routers.grafana-web.tls=true
       - traefik.http.routers.grafana-web.tls.certresolver=le-dns
       - traefik.http.routers.grafana-web.priority=50
@@ -516,11 +573,15 @@ services:
       placement:
         constraints:
         - node.platform.os == linux
+        - node.platform.arch != arm64
+        - node.labels.node.ephemeral != true
         max_replicas_per_node: 2
         preferences:
         - spread: node.hostname
-      restart_policy:
-        condition: none
+      # restart_policy:
+      #   condition: on-failure
+      #   delay: 5s
+      #   max_attempts: 3
   agent:
     image: portainer/agent:latest
     volumes:
@@ -540,7 +601,7 @@ services:
     image: portainer/portainer-ce:latest
     command: -H tcp://tasks.agent:9001 --tlsskipverify --admin-password-file /run/secrets/portainer_admin_password
     volumes:
-    - portainer_data:/data
+    - portainer_local:/data
     secrets:
     - source: portainer_admin_password
     networks:
@@ -594,9 +655,15 @@ services:
       - --crt-ext=.pem
       - --key-ext=.pem
       - --clean=false
+      - --post-hook
+      - /usr/local/bin/traefik-certs-post-hook.sh
+    configs:
+      - source: traefik_certs_post_hook_sh
+        target: /usr/local/bin/traefik-certs-post-hook.sh
+        mode: 0555
     volumes:
       - traefik-certificates:/letsencrypt:ro
-      - lego-certs:/lego:rw
+      - tls-certs:/lego:rw
     networks:
       - certs-dumper
     deploy:
@@ -608,27 +675,24 @@ services:
         condition: any
         delay: 5m
 volumes:
-  portainer_data:
-    driver: rclone
-    driver_opts:
-      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/portainer/data
-      allow_other: 'true'
-      vfs_cache_mode: full
+  # Local disk on the Swarm leader; BoltDB on the rclone FUSE volume corrupted, as decided in docs/adr/portainer_local_storage_adr.md
+  portainer_local: {}
   authelia-configs: {}
   authelia-data: {}
   authelia-redis-config: {}
   traefik-certificates: null
-  lego-certs:
-    driver: rclone
+  tls-certs:
+    driver: local
     driver_opts:
-      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs
-      allow_other: 'true'
-      vfs_cache_mode: full
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,rw,soft,timeo=60
+      device: ":/srv/tls-certs/certs"
   root-certificates: {}
   prometheus_data: {}
   grafana_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/grafana/data
       allow_other: 'true'
       vfs_cache_mode: full
@@ -637,6 +701,9 @@ volumes:
       file_perms: '0755'
       dir_perms: '0755'
 configs:
+  traefik_certs_post_hook_sh:
+    name: traefik_certs_post_hook_sh-${CONFIG_VERSION:-0}
+    file: ./configs/traefik/certs-post-hook.sh
   traefik_conf:
     name: traefik_conf-${CONFIG_VERSION:-0}
     file: ./configs/traefik/static_conf.yml
@@ -650,50 +717,80 @@ configs:
     name: authelia_postgres_init-${CONFIG_VERSION:-0}
     file: ./configs/authelia/postgres_init.sql
   grafana_datasources:
-    name: grafana_datasources-${CONFIG_VERSION:-0}
+    name: grafana_datasources-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/datasources/datasource.yml
   grafana_dashboards:
-    name: grafana_dashboards-${CONFIG_VERSION:-0}
+    name: grafana_dashboards-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboard.yml
   grafana_dashboard_docker:
-    name: grafana_dashboard_docker-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_docker-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/docker.json
   grafana_dashboard_traefik:
-    name: grafana_dashboard_traefik-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_traefik-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/traefik_rev4.json
   grafana_dashboard_nextdns:
-    name: grafana_dashboard_nextdns-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_nextdns-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/nextdns.json
   grafana_dashboard_docker_swarm:
-    name: grafana_dashboard_docker_swarm-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_docker_swarm-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/docker_swarm_dashboard.json
   grafana_dashboard_loki_connection:
-    name: grafana_dashboard_loki_connection-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_loki_connection-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/loki_connection.json
   grafana_dashboard_system_anomalies:
-    name: grafana_dashboard_system_anomalies-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_system_anomalies-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/system_anomalies_dashboard.json
   grafana_dashboard_watchtower:
-    name: grafana_dashboard_watchtower-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_watchtower-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/watchtower_dashboard.json
   grafana_dashboard_docker_health_telegraf:
-    name: grafana_dashboard_docker_health_telegraf-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_docker_health_telegraf-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/docker_health_telegraf.json
   grafana_dashboard_cluster_connection_performance:
-    name: grafana_dashboard_cluster_connection_performance-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_cluster_connection_performance-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/cluster_connection_performance.json
   grafana_dashboard_postgres_k3s_datastore:
-    name: grafana_dashboard_postgres_k3s_datastore-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_postgres_k3s_datastore-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/postgres_k3s_datastore.json
   grafana_dashboard_volcano_scheduler_internal:
-    name: grafana_dashboard_volcano_scheduler_internal-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_volcano_scheduler_internal-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/volcano_scheduler_internal.json
   grafana_dashboard_volcano_scheduler_queue:
-    name: grafana_dashboard_volcano_scheduler_queue-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_volcano_scheduler_queue-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/volcano_scheduler_queue.json
   grafana_dashboard_k3s_status:
-    name: grafana_dashboard_k3s_status-${CONFIG_VERSION:-0}
+    name: grafana_dashboard_k3s_status-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/provisioning/dashboards/custom/k3s_status_dashboard.json
+  grafana_dashboard_cluster_operations_overview:
+    name: grafana_dashboard_cluster_operations_overview-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/cluster-operations-overview.json
+  grafana_dashboard_ingress_reliability:
+    name: grafana_dashboard_ingress_reliability-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/ingress-reliability.json
+  grafana_dashboard_swarm_workload_pressure:
+    name: grafana_dashboard_swarm_workload_pressure-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/swarm-workload-pressure.json
+  grafana_dashboard_swarm_service_detail:
+    name: grafana_dashboard_swarm_service_detail-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/swarm-service-detail.json
+  grafana_dashboard_gpu_history:
+    name: grafana_dashboard_gpu_history-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${GRAFANA_GPU_HISTORY_FILE:-./configs/grafana/provisioning/dashboards/gpu_history.example.json}
+  grafana_dashboard_observability_pipeline_health:
+    name: grafana_dashboard_observability_pipeline_health-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/observability-pipeline-health.json
+  grafana_alerting_behavioral_rules:
+    name: grafana_alerting_behavioral_rules-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/alerting/behavioral_rules.yml
+  grafana_alerting_contact_points:
+    name: grafana_alerting_contact_points-${CONFIG_VERSION:-0}
+    file: ../../secrets/grafana/contact_points.yml
+  grafana_alerting_notification_policies:
+    name: grafana_alerting_notification_policies-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/alerting/notification_policies.yml
+  prometheus_nvidia_targets:
+    name: prometheus_nvidia_targets-${CONFIG_VERSION:-0}
+    file: ${NVIDIA_GPU_TARGETS_FILE:-./configs/prometheus/nvidia_targets.example.yml}
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/prometheus.yml
@@ -706,6 +803,9 @@ configs:
   prometheus_blackbox_targets:
     name: prometheus_blackbox_targets-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/blackbox_targets.yaml
+  prometheus_ingress_blackbox_targets:
+    name: prometheus_ingress_blackbox_targets-${CONFIG_VERSION:-0}
+    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout (docs/homelab-private.md)}/stacks/main/configs/prometheus/ingress_blackbox_targets.yaml
   prometheus_volcano_target:
     name: prometheus_volcano_target-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/volcano_target.yaml
@@ -743,6 +843,8 @@ secrets:
     file: ../../secrets/grafana/postgres_password
   google_oauth_secret:
     file: ../../secrets/google/google_oauth_secret
+  grafana_keycloak_oidc_secret:
+    file: ../../secrets/grafana/oidc_client_secret
   sendgrid_smtp_password:
     file: ../../secrets/sendgrid/smtp_password
   cloudflare_dns_api_token:

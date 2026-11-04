@@ -10,14 +10,29 @@ services:
     networks:
       - traefik
     volumes:
-      - loki-data:/var/lib/loki
+      # Primary store on a host directory. Swarm does not create missing bind sources, so the task fails to start
+      # when the directory or the marker file is absent (an empty node can never host Loki by accident). Create the
+      # marker only after seeding or restoring; as decided in docs/adr/loki_local_primary_backup_adr.md
+      - type: bind
+        source: /var/lib/docker/loki-store
+        target: /var/lib/loki
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/docker/loki-store/.loki-store-initialized
+        target: /run/loki-store-initialized
+        read_only: true
+        bind:
+          create_host_path: false
     configs:
       - source: loki_config
         target: /etc/loki/loki.yml
       - source: loki_rules_traefik
         target: /etc/loki/rules/traefik-router-conflict.yml
     environment:
-      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-168h}
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-2160h}
+    # flush_on_shutdown writes the in-memory chunks to the local store; as decided in docs/adr/loki_local_primary_backup_adr.md
+    stop_grace_period: 2m
     deploy:
       mode: replicated
       replicas: 1
@@ -29,6 +44,9 @@ services:
       placement:
         constraints:
           - node.labels.swarm.leader != true
+          # The primary store is node-local: stay on a storage-manager node (never the ephemeral node) so
+          # ephemeral-rebalance skips the service; see docs/adr/loki_pinned_placement_adr.md
+          - node.labels.storage.manager == true
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.loki.rule=Host(`loki.${LOCAL_DOMAIN?err}`) && !PathPrefix(`/otlp`)"
@@ -50,41 +68,128 @@ services:
         - "traefik.http.services.loki.loadbalancer.server.port=3100"
         - "traefik.swarm.network=traefik"
 
-  grafana-loki-token-refresh:
-    image: python:3.12-alpine
-    command:
-      - python
-      - /scripts/grafana_loki_token_refresh.py
+  # Warm copy of the Loki store on the manager for failover (RPO of minutes); as decided in docs/adr/loki_local_primary_backup_adr.md
+  loki-replica:
+    image: rclone/rclone:1.75.2
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        [ -r /run/secrets/loki_replica_pass ] || { echo "loki-replica: secret loki_replica_pass missing" >&2; exit 1; }
+        [ -d /data ] || { echo "loki-replica: /data missing" >&2; exit 1; }
+        RCLONE_PASS=$$(cat /run/secrets/loki_replica_pass)
+        export RCLONE_PASS
+        # RCLONE_USER / RCLONE_PASS are the --user / --pass flags of serve webdav; they stay out of argv and the service spec.
+        exec nice -n 19 rclone serve webdav /data --addr :8080 --vfs-cache-mode off --dir-cache-time 2m --no-checksum
     networks:
       - traefik
-    extra_hosts:
-      - "idp.${LOCAL_DOMAIN?err}:${TRAEFIK_VIP?err}"
-      - "grafana.${DOMAIN_NAME?err}:${TRAEFIK_VIP?err}"
-    configs:
-      - source: grafana_loki_token_refresh
-        target: /scripts/grafana_loki_token_refresh.py
-        mode: 0555
+    volumes:
+      - type: bind
+        source: /var/lib/docker/loki-store
+        target: /data
+        bind:
+          create_host_path: false
+    secrets:
+      - source: loki_replica_pass
+        target: loki_replica_pass
+        mode: 0400
     environment:
-      GRAFANA_URL: https://grafana.${DOMAIN_NAME?err}
-      GRAFANA_DATASOURCE_UID: ${GRAFANA_LOKI_DATASOURCE_UID:-P8E80F9AEF21F6940}
-      GRAFANA_API_TOKEN: ${MCP_ADMIN_GRAFANA_API_KEY?err}
-      KEYCLOAK_TOKEN_URL: https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
-      KEYCLOAK_CLIENT_ID: ${SIGILCORE_LOKI_API_CLIENT_ID?err}
-      KEYCLOAK_CLIENT_SECRET: ${SIGILCORE_LOKI_API_CLIENT_SECRET?err}
-      REFRESH_SAFETY_SECONDS: ${GRAFANA_LOKI_TOKEN_REFRESH_SAFETY_SECONDS:-60}
-      MIN_REFRESH_SECONDS: ${GRAFANA_LOKI_TOKEN_REFRESH_MIN_SECONDS:-60}
-      PYTHONUNBUFFERED: "1"
+      RCLONE_USER: loki
+      GOMEMLIMIT: 150MiB
+      TZ: ${TIMEZONE:-UTC}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8080"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     deploy:
       mode: replicated
       replicas: 1
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 192M
+        reservations:
+          cpus: "0.02"
+          memory: 32M
+      restart_policy:
+        condition: any
+        delay: 30s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      placement:
+        constraints:
+          # The manager side of the pair; Loki itself is pinned to the other storage node (swarm.leader != true).
+          - node.labels.swarm.leader == true
+          - node.labels.storage.manager == true
+
+  # Copies new immutable Loki files to the replica (every 5 min) and, write-only, to GCS backup-store/ (every 30 min)
+  loki-sync:
+    image: rclone/rclone:1.75.2
+    entrypoint: ["/bin/sh", "/scripts/loki-sync.sh"]
+    command: ["serve"]
+    networks:
+      - traefik
+    volumes:
+      - type: bind
+        source: /var/lib/docker/loki-store
+        target: /source
+        read_only: true
+        bind:
+          create_host_path: false
+      - /var/lib/node_exporter/textfile_collector:/metrics
+    configs:
+      - source: loki_sync_script
+        target: /scripts/loki-sync.sh
+        mode: 0555
+    secrets:
+      - source: loki_gcs_sa_key
+        target: loki_gcs_sa_key
+        mode: 0444
+      - source: loki_replica_pass
+        target: loki_replica_pass
+        mode: 0400
+    environment:
+      LOKI_SYNC_REPLICA_URL: http://loki-replica:8080
+      LOKI_SYNC_REPLICA_USER: loki
+      LOKI_SYNC_GCS_BUCKET: ${ARTIFACTS_GCS_BUCKET?err}
+      LOKI_SYNC_GCS_PATH: ${ARTIFACTS_GCS_BUCKET?err}/loki/cluster/backup-store
+      LOKI_SYNC_SCHEDULE_REPLICA: ${LOKI_SYNC_SCHEDULE_REPLICA:-*/5 * * * *}
+      LOKI_SYNC_SCHEDULE_REPLICA_FULL: ${LOKI_SYNC_SCHEDULE_REPLICA_FULL:-15 3 * * *}
+      LOKI_SYNC_SCHEDULE_PRUNE: ${LOKI_SYNC_SCHEDULE_PRUNE:-30 4 * * *}
+      LOKI_SYNC_SCHEDULE_GCS: ${LOKI_SYNC_SCHEDULE_GCS:-7,37 * * * *}
+      LOKI_SYNC_SCHEDULE_GCS_FULL: ${LOKI_SYNC_SCHEDULE_GCS_FULL:-45 3 * * *}
+      LOKI_SYNC_SCHEDULE_CHECK: ${LOKI_SYNC_SCHEDULE_CHECK:-0 5 * * *}
+      LOKI_SYNC_PSI_MAX_AVG60: ${LOKI_SYNC_PSI_MAX_AVG60:-40}
+      # Longer than the 30 minute GCS copy interval so the check never counts files that are simply not yet due
+      LOKI_SYNC_CHECK_MIN_AGE: ${LOKI_SYNC_CHECK_MIN_AGE:-45m}
+      TZ: ${TIMEZONE:-UTC}
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
       restart_policy:
         condition: on-failure
         delay: 10s
         max_attempts: 3
         window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
       placement:
         constraints:
+          # Same placement as loki: next to /var/lib/docker/loki-store.
           - node.labels.swarm.leader != true
+          - node.labels.storage.manager == true
 
   alertmanager:
     image: prom/alertmanager:v0.31.0
@@ -98,6 +203,9 @@ services:
     configs:
       - source: alertmanager_config
         target: /etc/alertmanager/alertmanager.yml
+    secrets:
+      - source: grafana_routine_n8n_webhook_url
+        target: grafana_routine_n8n_webhook_url
     deploy:
       mode: replicated
       replicas: 1
@@ -111,7 +219,7 @@ services:
           - node.labels.swarm.leader != true
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.140.0
+    image: otel/opentelemetry-collector-contrib:0.140.0@sha256:ffc818ee108d0b934fd14207fd87ff247c9b64f344ed349d0b66c166c18a2312
     command:
       - --config=/etc/otel-collector/otel-collector.yml
     networks:
@@ -142,7 +250,7 @@ services:
           memory: 128M
       placement:
         constraints:
-          - node.labels.swarm.leader != true
+          - node.role == manager
           - node.labels.node.ephemeral != true
       labels:
         - "traefik.enable=true"
@@ -168,14 +276,10 @@ services:
     configs:
       - source: vector_config
         target: /etc/vector/vector.yml
-    secrets:
-      - source: gcp_sa
-        target: gcp_sa
-    environment:
-      GCS_SYNC_STORAGE_BUCKET: ${GCS_SYNC_STORAGE_BUCKET?err}
+    security_opt:
+      - no-new-privileges:true
     deploy:
-      mode: replicated
-      replicas: 0
+      mode: global
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -188,16 +292,16 @@ services:
         reservations:
           cpus: "0.05"
           memory: 64M
-      placement:
-        constraints:
-          - node.labels.swarm.leader == true
-          - node.labels.node.ephemeral != true
 
 networks:
   traefik:
     external: true
 
 volumes:
+  # WAL and caches only (replayable); an empty volume is harmless
+  loki-state:
+    driver: local
+  # Legacy filesystem store, kept untouched until sign-off; still mounted by loki-backup
   loki-data:
     driver: local
   vector-data:
@@ -209,6 +313,9 @@ configs:
   loki_config:
     name: loki_config-${CONFIG_VERSION:-0}
     file: ./configs/logging/loki.yml
+  loki_sync_script:
+    name: loki_sync_script-${CONFIG_VERSION:-0}
+    file: ./configs/logging/loki-sync.sh
   loki_rules_traefik:
     name: loki_rules_traefik-${CONFIG_VERSION:-0}
     file: ./configs/logging/rules/traefik-router-conflict.yml
@@ -221,11 +328,17 @@ configs:
   otel_collector_config:
     name: otel_collector_config-${CONFIG_VERSION:-0}
     file: ./configs/logging/otel-collector.yml
-  grafana_loki_token_refresh:
-    name: grafana_loki_token_refresh-${CONFIG_VERSION:-0}
-    file: ./configs/logging/grafana_loki_token_refresh.py
 
 secrets:
+  loki_gcs_sa_key:
+    external: true
+    name: loki_gcs_sa_key
+  loki_replica_pass:
+    external: true
+    name: loki_replica_pass_2
   gcp_sa:
     name: gcp_sa-${CONFIG_VERSION:-0}
     file: ../../secrets/google/gcloud.json
+  grafana_routine_n8n_webhook_url:
+    external: true
+    name: main-traefik_grafana_routine_n8n_webhook_url

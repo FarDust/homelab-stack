@@ -1,0 +1,29 @@
+# Ingress control-plane probes. Copy to ${HOMELAB_PRIVATE_DIR}/stacks/main/configs/prometheus/ingress_blackbox_targets.yaml
+# and replace example.com with the deployment domain (docs/homelab-private.md).
+
+- targets:
+  - https://grafana.example.com/api/health
+  labels:
+    probe: ingress_grafana_health
+    service: grafana
+    monitor_group: ingress_control_plane
+    expected_status: "200"
+    module: http_2xx
+
+- targets:
+  - mcp-grafana.local.example.com:443
+  labels:
+    probe: ingress_mcp_grafana_tcp
+    service: mcp-grafana
+    monitor_group: ingress_control_plane
+    expected_status: tcp
+    module: tcp_connect
+
+- targets:
+  - https://trust-agent.local.example.com/
+  labels:
+    probe: ingress_trust_agent_auth_boundary
+    service: trust-agent
+    monitor_group: ingress_control_plane
+    expected_status: "401"
+    module: http_status_401

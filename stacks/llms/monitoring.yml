@@ -52,7 +52,7 @@ services:
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
       SMTP_CONNECTION_URL: ${SMTP_CONNECTION_URL:-}
     deploy:
-      replicas: 3
+      replicas: ${LANGFUSE_WORKER_REPLICAS:-3}
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -88,7 +88,7 @@ services:
       AUTH_GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET?err}
       AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: "true"
     deploy:
-      replicas: 2
+      replicas: ${LANGFUSE_WEB_REPLICAS:-2}
       restart_policy:
         condition: any
         delay: 1m

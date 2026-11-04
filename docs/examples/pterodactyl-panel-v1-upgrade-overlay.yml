@@ -1,0 +1,25 @@
+# Review overlay only: the current gaming.yml does not reproduce the live
+# service. Do not deploy this file alone or blindly merge it with that stack.
+# Compare the redacted live service receipt and preserve every other field.
+services:
+  panel:
+    image: ghcr.io/pterodactyl/panel:v1.15.2@sha256:cd7cda1727f110cee375ed52a95adfe73065548576715e7b92f8c899558271e3
+    secrets:
+      - source: pterodactyl-panel-dotenv-baseline-20261103
+        target: /app/var/.env
+        uid: "0"
+        gid: "101"
+        mode: 0440
+    deploy:
+      placement:
+        constraints:
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+secrets:
+  pterodactyl-panel-dotenv-baseline-20261103:
+    external: true
+
+# The current official entrypoint runs migrate --seed on startup. This has
+# been tested against an isolated restored database with the preserved key.
+# The existing live panel has 0 running tasks; it was not changed by this file.
+# Rehearse rollback using the recorded DB + dotenv backup before production.

@@ -15,13 +15,13 @@ rule_files:
   # - "first.rules"
   # - "second.rules"
 
-# alert
-# alerting:
-#   alertmanagers:
-#   - scheme: http
-#     static_configs:
-#     - targets:
-#       - "alertmanager:9093"
+# Alert delivery stays independent of Grafana so Grafana outages can still notify.
+alerting:
+  alertmanagers:
+    - scheme: http
+      static_configs:
+        - targets:
+            - "alertmanager:9093"
 
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
@@ -83,12 +83,16 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/blackbox_targets.yaml
+          - /etc/prometheus/targets/ingress_blackbox_targets.yaml
         refresh_interval: 1m
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
       - source_labels: [__param_target]
         target_label: instance
+      - source_labels: [module]
+        regex: "(.+)"
+        target_label: __param_module
       - target_label: __address__
         replacement: blackbox-exporter:9115
 
@@ -182,6 +186,14 @@ scrape_configs:
         regex: controllers
         action: keep
 
+  - job_name: "rclone-vfs"
+    scrape_interval: 30s
+    dns_sd_configs:
+      - names:
+          - "tasks.rclone-metrics-proxy"
+        type: "A"
+        port: 5572
+
   - job_name: "mtu-network-exporter"
     scrape_interval: 30s
     dns_sd_configs:
@@ -210,3 +222,31 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: tasks.mtu-blackbox:9115
+
+  - job_name: "gpu-idle-lab-otel"
+    scrape_interval: 15s
+    scrape_timeout: 5s
+    honor_timestamps: true
+    track_timestamps_staleness: true
+    dns_sd_configs:
+      - names:
+          - "tasks.otel-collector"
+        type: "A"
+        port: 8889
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "gpu_idle_lab_phase_duration_seconds|gpu_idle_lab_phase_finished_timestamp_seconds|gpu_idle_lab_phase_work_completed|gpu_idle_lab_phase_work_per_second"
+        action: keep
+      - regex: "run_id|experiment_id|worker_id|pid|process_pid|trace_id|span_id|path|file_path|artifact|hash|exported_job|otel_scope_name|otel_scope_version|service_name"
+        action: labeldrop
+
+  # Optional NVIDIA exporter targets are supplied by deployment configuration.
+  - job_name: nvidia-gpu
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    scheme: https
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/nvidia_targets.yml]
+        refresh_interval: 1m
+    tls_config:
+      insecure_skip_verify: false

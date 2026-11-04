@@ -5,54 +5,6 @@ networks:
  traefik:
    external: true
 services:
-  pgadmin4:
-    image: dpage/pgadmin4
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=${MAINTAINER_EMAIL:?err}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:?err}
-    networks:
-      - traefik-public
-      - traefik
-    volumes:
-      - pgadmin_data:/pgadmin
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
-      restart_policy:
-        condition: any
-        delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_STANDARD}
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-        monitor: ${UPDATE_MONITOR_STANDARD}
-        max_failure_ratio: 0.3
-        order: start-first
-      rollback_config:
-        parallelism: 1
-        delay: 5s
-        failure_action: pause
-        monitor: ${ROLLBACK_MONITOR_STANDARD}
-        max_failure_ratio: 0.3
-        order: start-first
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.pgadmin4-http.entrypoints=web"
-        - "traefik.http.routers.pgadmin4-http.rule=Host(`pgadmin.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.pgadmin4.entrypoints=websecure"
-        - "traefik.http.routers.pgadmin4.rule=Host(`pgadmin.${LOCAL_DOMAIN}`)"
-        - "traefik.http.routers.pgadmin4-http.middlewares=pgadmin4-https@swarm"
-        - "traefik.http.middlewares.pgadmin4-https.redirectscheme.scheme=https"
-        - "traefik.http.routers.pgadmin4.tls=true"
-        - "traefik.http.routers.pgadmin4.tls.certresolver=le-dns"
-        - "traefik.http.services.pgadmin4.loadbalancer.server.port=80"
-        - "traefik.swarm.network=traefik-public"
-
   mongo-express:
     image: mongo-express:latest
     networks:
@@ -104,7 +56,16 @@ services:
         - "traefik.http.routers.mongo-express.entrypoints=websecure"
         - "traefik.http.routers.mongo-express.tls=true"
         - "traefik.http.routers.mongo-express.tls.certresolver=le-dns"
-        - "traefik.http.routers.mongo-express.middlewares=authelia@swarm"
+        - "traefik.http.routers.mongo-express.middlewares=mongo-express-oauth2-errors@swarm,mongo-express-oauth2-forward-auth@swarm"
+        # Keycloak via shared oauth2-proxy forwardAuth; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+        - "traefik.http.middlewares.mongo-express-oauth2-errors.errors.status=401"
+        - "traefik.http.middlewares.mongo-express-oauth2-errors.errors.service=oauth2-proxy"
+        - "traefik.http.middlewares.mongo-express-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}"
+        - "traefik.http.middlewares.mongo-express-oauth2-errors.errors.statusRewrites.401=302"
+        - "traefik.http.middlewares.mongo-express-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth"
+        - "traefik.http.middlewares.mongo-express-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method"
+        - "traefik.http.middlewares.mongo-express-oauth2-forward-auth.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.mongo-express-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email"
         - "traefik.http.services.mongo-express.loadbalancer.server.port=8081"
         - "traefik.http.routers.mongo-express-http.rule=Host(`mongo-express.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.mongo-express-http.entrypoints=web"
@@ -161,7 +122,6 @@ services:
         - "traefik.swarm.network=traefik-public"
 
 volumes:
-  pgadmin_data: {}
   opensearch_dashboards_data: {}
 
 secrets:

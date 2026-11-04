@@ -75,6 +75,7 @@ part of rollback.
 Verify the actual running digest, expanded node identity, limits, logs and subsequent
 cycles beyond the update window, not merely a transient replica count. Controller process
 health and backend/backup health are separate claims. The deployment and read-only Ollama
-findings are recorded in the [public rollout receipt](../reports/rclone_fixer_rust_rollout_20261011.md).
+findings are recorded in the operator's private rollout receipt, which is kept out of this
+public repository as decided in docs/adr/private_indicator_guard_adr.md.
 Private raw evidence and infrastructure identifiers remain in the operator's untracked
 canonical report, rather than being copied into this public record.

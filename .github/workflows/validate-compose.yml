@@ -69,6 +69,9 @@ jobs:
       - name: 🐳 docker compose config
         run: |
           set -euo pipefail
+          # .env.example is a shell script (docs/adr/env_contract_adr.md): render with placeholder
+          # secret files.
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           docker compose -f "${{ matrix.file }}" config --quiet
 

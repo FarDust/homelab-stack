@@ -20,6 +20,7 @@ jobs:
       - name: 🔍 ragflow command flags
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/retrieval/documents.yml config)
 
@@ -32,6 +33,7 @@ jobs:
       - name: 🔍 MCP environment variables rendered
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/retrieval/documents.yml config)
 
@@ -46,6 +48,7 @@ jobs:
       - name: 🔍 Backend connection vars rendered
         run: |
           set -euo pipefail
+          scripts/ci-placeholder-secrets.sh
           set -a; source .env.example; set +a
           rendered=$(docker compose -f stacks/retrieval/documents.yml config)
 

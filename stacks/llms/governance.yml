@@ -1,6 +1,6 @@
 services:
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:0.40.7
     deploy:
       replicas: 1
       placement:
@@ -22,16 +22,20 @@ services:
         - traefik.http.services.ollama.loadbalancer.healthcheck.path=/api/tags
         - traefik.http.services.ollama.loadbalancer.healthcheck.interval=10s
         - traefik.http.services.ollama.loadbalancer.healthcheck.timeout=2s
+        - traefik.swarm.lbswarm=true
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_CONTEXT_LENGTH=64000
+      - OLLAMA_CONTEXT_LENGTH=128000
+      - OLLAMA_MAX_LOADED_MODELS=2
       - NVIDIA_VISIBLE_DEVICES=all
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q4_0
     networks:
       - traefik
   ollama-low-end:
-    image: ollama/ollama
+    image: ollama/ollama:0.20.5
     deploy:
       replicas: 1
       placement:
@@ -50,7 +54,7 @@ services:
       labels:
         - traefik.enable=true
         - traefik.http.routers.ollama-low-end.entrypoints=websecure
-        - traefik.http.routers.ollama-low-end.rule=Host(`ollama.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.ollama-low-end.rule=Host(`ollama-low-end.${LOCAL_DOMAIN}`)
         - traefik.http.routers.ollama-low-end.tls=true
         - traefik.http.routers.ollama-low-end.tls.certresolver=le-dns
         - traefik.http.routers.ollama-low-end.priority=50
@@ -58,15 +62,21 @@ services:
         - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.path=/api/tags
         - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.interval=10s
         - traefik.http.services.ollama-low-end.loadbalancer.healthcheck.timeout=2s
+        - traefik.swarm.lbswarm=true
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_NUM_THREAD=2
       - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_CONTEXT_LENGTH=16384
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q4_0
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - traefik
   ollama-fallback:
+    # Not working as expected
     image: nginx:1.29-alpine
     networks:
       - traefik
@@ -74,7 +84,7 @@ services:
       - source: ollama_fallback_nginx
         target: /etc/nginx/conf.d/default.conf
     deploy:
-      replicas: 1
+      replicas: 0
       placement:
         constraints:
           - node.platform.os == linux
@@ -98,6 +108,72 @@ services:
         - traefik.http.routers.ollama-fallback.tls.certresolver=le-dns
         - traefik.http.routers.ollama-fallback.priority=1
         - traefik.http.services.ollama-fallback.loadbalancer.server.port=8080
+  vllm-gemma4:
+    image: vllm/vllm-openai:gemma4-cu130
+    command:
+      - --model
+      - nvidia/Gemma-4-31B-IT-NVFP4
+      - --served-model-name
+      - gemma-4-31b-it-nvfp4
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --max-model-len
+      - "4096"
+      - --gpu-memory-utilization
+      - "0.92"
+      - --dtype
+      - auto
+      - --trust-remote-code
+      - --cpu-offload-gb
+      - "12"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+    networks:
+      - traefik
+    deploy:
+      replicas: 0
+      placement:
+        constraints:
+          - node.labels.gpu == true
+          - node.labels.gpu.model == rtx5090
+      resources:
+        limits:
+          memory: 48G
+        reservations:
+          memory: 4G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: ${RESTART_WINDOW_COMPLEX:-300s}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_COMPLEX}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_COMPLEX}
+      labels:
+        - sablier.enable=true
+        - sablier.group=vllm-inference
+        - traefik.enable=true
+        - traefik.http.routers.vllm-gemma4.entrypoints=websecure
+        - traefik.http.routers.vllm-gemma4.rule=Host(`vllm-gemma4.${LOCAL_DOMAIN}`)
+        - traefik.http.routers.vllm-gemma4.tls=true
+        - traefik.http.routers.vllm-gemma4.tls.certresolver=le-dns
+        - traefik.http.routers.vllm-gemma4.middlewares=load-vllm@file
+        - traefik.http.services.vllm-gemma4.loadbalancer.server.port=8000
+        - traefik.http.services.vllm-gemma4.loadbalancer.healthcheck.path=/health
+        - traefik.http.services.vllm-gemma4.loadbalancer.healthcheck.interval=30s
+        - traefik.http.services.vllm-gemma4.loadbalancer.healthcheck.timeout=5s
+        - traefik.swarm.network=traefik
+        - traefik.swarm.lbswarm=true
   anythingllm:
     image: mintplexlabs/anythingllm
     networks:
@@ -168,14 +244,27 @@ services:
         - traefik.http.routers.anythingllm.tls.certresolver=le-dns
         - traefik.http.services.anythingllm.loadbalancer.server.port=3001
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    image: ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    entrypoint:
+      - /bin/sh
+      - -c
     command:
-      - --config
-      - /app/config/config.yaml
+      - |
+        export MCP_GATEWAY_OIDC_CLIENT_SECRET="$$(cat /run/secrets/litellm_mcp_gateway_oidc_client_secret)"
+        exec docker/prod_entrypoint.sh --config /app/config/config.yaml
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/readiness')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
     networks:
       - traefik
+      - traefik-public
     environment:
       - PORT=4000
+      - CHATGPT_TOKEN_DIR=/var/lib/litellm/chatgpt
+      - SEARXNG_API_BASE=http://searxng:8080
       - OPENAI_API_KEY=${OPENAI_API_KEY?err}
       - GITHUB_API_KEY=${LITELLM_GITHUB_TOKEN?err}
       - OPENROUTER_API_KEY=${LITELLM_OPENROUTER_API_KEY?err}
@@ -186,30 +275,49 @@ services:
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD?err}
       - OLLAMA_API_BASE=https://ollama.${LOCAL_DOMAIN?err}
+      - OLLAMA_LOWEND_API_BASE=https://ollama-low-end.${LOCAL_DOMAIN?err}
+      - VLLM_GEMMA4_API_BASE=https://vllm-gemma4.${LOCAL_DOMAIN?err}/v1
+      - MCP_CLUSTER_UTILS_URL=https://mcp.${LOCAL_DOMAIN?err}/mcp
+      - MCP_GATEWAY_OIDC_TOKEN_URL=https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
+      - MCP_GRAFANA_URL=https://mcp-grafana.${LOCAL_DOMAIN?err}/mcp
+      - MCP_NOTION_URL=https://mcp-notion.${LOCAL_DOMAIN?err}/mcp
+      - MCP_PLAYWRIGHT_URL=https://mcp-playwright.${LOCAL_DOMAIN?err}/mcp
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_INIT_PROJECT_SECRET_KEY:-}
       - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
+      - MCP_GATEWAY_OIDC_CLIENT_ID=${MCP_GATEWAY_OIDC_CLIENT_ID:-litellm-mcp-gateway}
+    volumes:
+      - litellm_chatgpt_auth:/var/lib/litellm/chatgpt
     configs:
       - source: litellm_config
         target: /app/config/config.yaml
+      - source: litellm_ollama_unload_hook
+        target: /app/config/ollama_unload_hook.py
     secrets:
       - source: vertex_ai_credentials
         target: vertex_ai_credentials
+      - source: litellm_mcp_gateway_oidc_client_secret
+        target: litellm_mcp_gateway_oidc_client_secret
     deploy:
-      replicas: 3
+      # Single proxy avoids Prisma/Redis connection pressure and in-flight AI call loss.
+      replicas: 1
       resources:
         limits:
           cpus: '1'
           memory: 2G
       placement:
-        preferences:
-          - spread: node.id
-        max_replicas_per_node: 2
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+          - node.labels.storage.manager == true
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
       restart_policy:
         condition: any
         delay: 30s
         max_attempts: 8640
-        window: 12h
+        window: 1h
       labels:
         - traefik.enable=true
         - traefik.http.routers.litellm.entrypoints=websecure
@@ -218,16 +326,16 @@ services:
         - traefik.http.routers.litellm.tls.certresolver=le-dns
         - traefik.http.services.litellm.loadbalancer.server.port=4000
         - traefik.http.services.litellm.loadbalancer.healthcheck.path=/health/readiness
-        - traefik.http.services.litellm.loadbalancer.healthcheck.interval=10s
-        - traefik.http.services.litellm.loadbalancer.healthcheck.timeout=2s
+        - traefik.http.services.litellm.loadbalancer.healthcheck.interval=5s
+        - traefik.http.services.litellm.loadbalancer.healthcheck.timeout=1s
   open-webui:
-    image: ghcr.io/open-webui/open-webui:v0.8.8
+    image: ghcr.io/open-webui/open-webui:v0.11.0
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 12
+      start_period: 600s
     networks:
       - traefik
       - llms-internal
@@ -252,8 +360,6 @@ services:
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - OLLAMA_BASE_URL=https://ollama.${LOCAL_DOMAIN}
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
-      - USE_CUDA_DOCKER=true
-      - NVIDIA_VISIBLE_DEVICES=all
       - ENABLE_WEBSOCKET_SUPPORT=true
       - WEBSOCKET_MANAGER=redis
       - WEBSOCKET_REDIS_URL=${OPEN_WEB_UI_WEBSOCKETS_REDIS_URL?err}
@@ -261,25 +367,25 @@ services:
     volumes:
       - open_webui_data:/app/backend/data
     deploy:
-      replicas: 1
+      replicas: ${OPEN_WEBUI_REPLICAS:-2}
       resources:
         limits:
           cpus: '4'
           memory: 8G
       placement:
         constraints:
-        - node.labels.gpu == true
+          - node.labels.load.tier == heavy
         preferences:
           - spread: node.id
-        max_replicas_per_node: 2
+        max_replicas_per_node: 1
       restart_policy:
         condition: any
         delay: 5s
-        max_attempts: 8640
-        window: 12h
+        max_attempts: 0
+        window: 1h
       update_config:
         order: stop-first
-        failure_action: rollback
+        failure_action: pause
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
       rollback_config:
@@ -325,34 +431,46 @@ services:
 networks:
   traefik:
     external: true
+  traefik-public:
+    external: true
   llms-internal:
     driver: overlay
     internal: true
     attachable: true
 volumes:
+  litellm_chatgpt_auth:
+    driver: local
   ollama_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/ollama/data"
       allow_other: "true"
       vfs_cache_mode: full
+      vfs_cache_max_size: 64G
+      vfs_cache_max_age: 168h
   anythingllm_storage:
     driver: local
   localai_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/localai/data"
       allow_other: "true"
       vfs_cache_mode: full
   open_webui_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/open_web_ui/data"
       allow_other: "true"
       vfs_cache_mode: full
+  vllm_cache:
+    driver: local
   open_terminal_persistent:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/open_terminal/persistent"
       allow_other: "true"
       vfs_cache_mode: full
@@ -360,6 +478,9 @@ configs:
   litellm_config:
     name: litellm_config-${CONFIG_VERSION:-0}
     file: ./configs/litellm/config.yaml
+  litellm_ollama_unload_hook:
+    name: litellm_ollama_unload_hook-${CONFIG_VERSION:-0}
+    file: ./configs/litellm/ollama_unload_hook.py
   ollama_fallback_nginx:
     name: ollama_fallback_nginx-${CONFIG_VERSION:-0}
     file: ./configs/ollama/fallback-nginx.conf
@@ -370,6 +491,9 @@ secrets:
   vertex_ai_credentials:
     name: vertex_ai_credentials-${CONFIG_VERSION:-0}
     file: ../../secrets/google/vertex_ai/credentials.json
+  litellm_mcp_gateway_oidc_client_secret:
+    name: litellm_mcp_gateway_oidc_client_secret-${CONFIG_VERSION:-0}
+    file: ../../secrets/litellm/mcp_gateway_oidc_client_secret
   open_terminal_api_key:
     name: open_terminal_api_key-${CONFIG_VERSION:-0}
     file: ../../secrets/open_terminal/api_key

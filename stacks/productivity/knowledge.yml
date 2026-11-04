@@ -1,0 +1,180 @@
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  knowledge-internal:
+    driver: overlay
+    attachable: true
+
+services:
+  obsidian:
+    image: lscr.io/linuxserver/obsidian:latest
+    networks:
+      - traefik-public
+      - knowledge-internal
+    environment:
+      - PUID=1000
+      - PGID=100
+      - TZ=${USER_TIMEZONE:-UTC}
+    volumes:
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 1073741824
+      - obsidian_config:/config
+      - obsidian_vault:/config/workspace
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_COMPLEX}
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+        # Main route — Keycloak via oauth2-proxy forwardAuth
+        - "traefik.http.routers.obsidian.rule=Host(`obsidian.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.obsidian.entrypoints=websecure"
+        - "traefik.http.routers.obsidian.tls=true"
+        - "traefik.http.routers.obsidian.tls.certresolver=le-dns"
+        - "traefik.http.routers.obsidian.service=obsidian"
+        - "traefik.http.routers.obsidian.priority=10"
+        - "traefik.http.routers.obsidian.middlewares=obsidian-oauth2-errors@swarm,obsidian-oauth2-forward-auth@swarm"
+        # Rewrite oauth2-proxy 401 → browser-followable 302 redirect
+        - "traefik.http.middlewares.obsidian-oauth2-errors.errors.status=401"
+        - "traefik.http.middlewares.obsidian-oauth2-errors.errors.service=oauth2-proxy"
+        - "traefik.http.middlewares.obsidian-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}"
+        - "traefik.http.middlewares.obsidian-oauth2-errors.errors.statusRewrites.401=302"
+        # forwardAuth to shared oauth2-proxy (backed by Keycloak OIDC)
+        - "traefik.http.middlewares.obsidian-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth"
+        - "traefik.http.middlewares.obsidian-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method"
+        - "traefik.http.middlewares.obsidian-oauth2-forward-auth.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.obsidian-oauth2-forward-auth.forwardAuth.authResponseHeaders=Authorization,X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Access-Token"
+        # Backend port (KasmVNC HTTP)
+        - "traefik.http.services.obsidian.loadbalancer.server.port=3000"
+        # HTTP → HTTPS redirect
+        - "traefik.http.routers.obsidian-http.rule=Host(`obsidian.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.obsidian-http.entrypoints=web"
+        - "traefik.http.routers.obsidian-http.middlewares=obsidian-https@swarm"
+        - "traefik.http.middlewares.obsidian-https.redirectscheme.scheme=https"
+
+  livesync-couchdb:
+    image: couchdb:3.5.0
+    networks:
+      - traefik-public
+      - knowledge-internal
+    secrets:
+      - source: obsidian_livesync_couchdb_password
+        target: obsidian_livesync_couchdb_password
+    configs:
+      - source: obsidian_livesync_couchdb_local_ini
+        target: /run/configs/obsidian-livesync.ini
+    environment:
+      - COUCHDB_USER=${OBSIDIAN_LIVESYNC_COUCHDB_USER:-obsidian_livesync}
+      - TZ=${USER_TIMEZONE:-UTC}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        export COUCHDB_PASSWORD="$$(cat /run/secrets/obsidian_livesync_couchdb_password)"
+        cat /run/configs/obsidian-livesync.ini >> /opt/couchdb/etc/local.d/docker.ini
+        exec /docker-entrypoint.sh /opt/couchdb/bin/couchdb
+    volumes:
+      - obsidian_livesync_couchdb_data:/opt/couchdb/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.swarm.leader == true
+          - node.labels.node.ephemeral != true
+      restart_policy:
+        condition: on-failure
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: ${RESTART_MAX_ATTEMPTS}
+        window: ${RESTART_WINDOW_COMPLEX}
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=traefik-public"
+        - "traefik.swarm.lbswarm=true"
+        - "traefik.http.routers.obsidian-livesync.rule=Host(`obsidian-livesync.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.obsidian-livesync.entrypoints=websecure"
+        - "traefik.http.routers.obsidian-livesync.tls=true"
+        - "traefik.http.routers.obsidian-livesync.tls.certresolver=le-dns"
+        - "traefik.http.routers.obsidian-livesync.service=obsidian-livesync"
+        - "traefik.http.routers.obsidian-livesync.middlewares=obsidian-livesync-cors@swarm"
+        - "traefik.http.services.obsidian-livesync.loadbalancer.server.port=5984"
+        - "traefik.http.middlewares.obsidian-livesync-cors.headers.accessControlAllowMethods=GET,PUT,POST,HEAD,DELETE"
+        - "traefik.http.middlewares.obsidian-livesync-cors.headers.accessControlAllowHeaders=accept,authorization,content-type,origin,referer"
+        - "traefik.http.middlewares.obsidian-livesync-cors.headers.accessControlAllowOriginList=app://obsidian.md,capacitor://localhost,http://localhost"
+        - "traefik.http.middlewares.obsidian-livesync-cors.headers.accessControlMaxAge=3600"
+        - "traefik.http.middlewares.obsidian-livesync-cors.headers.addVaryHeader=true"
+        - "traefik.http.middlewares.obsidian-livesync-cors.headers.accessControlAllowCredentials=true"
+        - "traefik.http.routers.obsidian-livesync-http.rule=Host(`obsidian-livesync.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.obsidian-livesync-http.entrypoints=web"
+        - "traefik.http.routers.obsidian-livesync-http.middlewares=obsidian-livesync-https@swarm"
+        - "traefik.http.middlewares.obsidian-livesync-https.redirectscheme.scheme=https"
+
+volumes:
+  obsidian_config:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/obsidian/config"
+      allow_other: "true"
+      vfs_cache_mode: full
+      poll_interval: 5
+  obsidian_livesync_couchdb_data:
+  obsidian_vault:
+    driver: rclone
+    driver_opts:
+      allow_non_empty: 'true'
+      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/obsidian/vault"
+      allow_other: "true"
+      vfs_cache_mode: full
+      poll_interval: 5
+
+secrets:
+  obsidian_livesync_couchdb_password:
+    name: obsidian_livesync_couchdb_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/obsidian_livesync/couchdb_password
+
+configs:
+  obsidian_livesync_couchdb_local_ini:
+    name: obsidian_livesync_couchdb_local_ini-${CONFIG_VERSION:-0}
+    file: ./configs/couchdb/obsidian-livesync.ini

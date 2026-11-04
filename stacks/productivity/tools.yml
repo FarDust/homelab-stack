@@ -45,7 +45,16 @@ services:
         - "traefik.http.routers.stirlingpdf.tls=true"
         - "traefik.http.routers.stirlingpdf.tls.certresolver=le-dns"
         - "traefik.http.services.stirlingpdf.loadbalancer.server.port=8080"
-        - "traefik.http.routers.stirlingpdf.middlewares=authelia@swarm,load-productivity@file"
+        - "traefik.http.routers.stirlingpdf.middlewares=stirlingpdf-oauth2-errors@swarm,stirlingpdf-oauth2-forward-auth@swarm,load-productivity@file"
+        # Keycloak via shared oauth2-proxy forwardAuth; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+        - "traefik.http.middlewares.stirlingpdf-oauth2-errors.errors.status=401"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-errors.errors.service=oauth2-proxy"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-errors.errors.statusRewrites.401=302"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-forward-auth.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.stirlingpdf-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email"
         - "traefik.http.routers.stirlingpdf-http.rule=Host(`pdf.${LOCAL_DOMAIN}`)"
         - "traefik.http.routers.stirlingpdf-http.entrypoints=web"
         - "traefik.http.routers.stirlingpdf-http.middlewares=stirlingpdf-https@swarm"
@@ -53,55 +62,24 @@ services:
         - "traefik.swarm.network=traefik-public"
         - "traefik.swarm.lbswarm=true"
 
-  redis-searxng:
-    image: valkey/valkey:8-alpine
-    networks:
-      - productivity-internal
-    environment:
-      - TZ=${USER_TIMEZONE:-UTC}
-    secrets:
-      - searxng_redis_password
-    entrypoint: >
-      sh -c '
-        REDIS_PASSWORD=$$(cat /run/secrets/searxng_redis_password)
-        exec valkey-server --requirepass "$$REDIS_PASSWORD" --save 60 1 --loglevel warning
-      '
-    volumes:
-      - redis_searxng_data:/data
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-        - node.role == manager
-        - node.labels.swarm.leader == true
-      restart_policy:
-        condition: on-failure
-      labels:
-        - "sablier.enable=true"
-        - "sablier.group=productivity"
-
   searxng:
     image: searxng/searxng:latest
     networks:
       - traefik-public
-      - productivity-internal
     environment:
       - SEARXNG_BASE_URL=https://search.${LOCAL_DOMAIN?err}/
       - SEARXNG_LIMITER=false
       - SEARXNG_IMAGE_PROXY=true
+      - SEARXNG_PORT=8080
+      - SEARXNG_BIND_ADDRESS=0.0.0.0
       - TZ=${USER_TIMEZONE:-UTC}
     secrets:
-      - searxng_redis_password
       - searxng_secret
     entrypoint: >
       sh -c '
         export SEARXNG_SECRET=$$(cat /run/secrets/searxng_secret)
-        export SEARXNG_REDIS_URL="redis://:$$(cat /run/secrets/searxng_redis_password)@redis-searxng:6379/0"
         exec /usr/local/searxng/entrypoint.sh
       '
-    volumes:
-      - searxng_config:/etc/searxng:rw
     configs:
       - source: searxng_limiter
         target: /etc/searxng/limiter.toml
@@ -116,12 +94,15 @@ services:
       restart_policy:
         condition: on-failure
       labels:
+        - "sablier.enable=true"
+        - "sablier.group=searxng"
         - "traefik.enable=true"
-        # API router without auth for /search endpoint (higher priority)
+        # API router without auth for /search endpoint (higher priority), but still wakes SearXNG.
         - "traefik.http.routers.searxng-api.rule=Host(`search.${LOCAL_DOMAIN}`) && PathPrefix(`/search`)"
         - "traefik.http.routers.searxng-api.entrypoints=websecure"
         - "traefik.http.routers.searxng-api.tls=true"
         - "traefik.http.routers.searxng-api.tls.certresolver=le-dns"
+        - "traefik.http.routers.searxng-api.middlewares=load-searxng@file"
         - "traefik.http.routers.searxng-api.priority=100"
         - "traefik.http.routers.searxng-api.service=searxng-api"
         # Main router with auth for web interface
@@ -129,7 +110,16 @@ services:
         - "traefik.http.routers.searxng-web.entrypoints=websecure"
         - "traefik.http.routers.searxng-web.tls=true"
         - "traefik.http.routers.searxng-web.tls.certresolver=le-dns"
-        - "traefik.http.routers.searxng-web.middlewares=authelia@swarm"
+        - "traefik.http.routers.searxng-web.middlewares=searxng-web-oauth2-errors@swarm,searxng-web-oauth2-forward-auth@swarm,load-searxng@file"
+        # Keycloak via shared oauth2-proxy forwardAuth; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+        - "traefik.http.middlewares.searxng-web-oauth2-errors.errors.status=401"
+        - "traefik.http.middlewares.searxng-web-oauth2-errors.errors.service=oauth2-proxy"
+        - "traefik.http.middlewares.searxng-web-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}"
+        - "traefik.http.middlewares.searxng-web-oauth2-errors.errors.statusRewrites.401=302"
+        - "traefik.http.middlewares.searxng-web-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth"
+        - "traefik.http.middlewares.searxng-web-oauth2-forward-auth.forwardAuth.authRequestHeaders=Authorization,Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method"
+        - "traefik.http.middlewares.searxng-web-oauth2-forward-auth.forwardAuth.trustForwardHeader=true"
+        - "traefik.http.middlewares.searxng-web-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email"
         - "traefik.http.routers.searxng-web.priority=50"
         - "traefik.http.routers.searxng-web.service=searxng-web"
         # Load balancer services
@@ -149,25 +139,18 @@ volumes:
   stirlingpdf_customfiles:
   stirlingpdf_logs:
   stirlingpdf_pipeline:
-  searxng_config:
-    driver: rclone
-    driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/searxng/config"
-      allow_other: "true"
-      vfs_cache_mode: full
-      poll_interval: 5
-  redis_searxng_data:
 
 secrets:
-  searxng_redis_password:
-    file: ./secrets/searxng_redis_password
   searxng_secret:
     file: ./secrets/searxng_secret
 
 configs:
   stirlingpdf_custom_settings:
+    name: stirlingpdf_custom_settings-${CONFIG_VERSION:-0}
     file: ./configs/stirlingpdf/custom_settings.yml
   searxng_limiter:
+    name: searxng_limiter-${CONFIG_VERSION:-0}
     file: ./configs/searxng/limiter.toml
   searxng_settings:
+    name: searxng_settings-${CONFIG_VERSION:-0}
     file: ./configs/searxng/settings.yml
