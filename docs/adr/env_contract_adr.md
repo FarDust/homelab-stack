@@ -88,7 +88,9 @@ deployer's `PATH`. The contract carries `PATH` with `in_example: false` so the c
 
 ## Secret source recommendation (configuration management)
 
-Status: recommended, not yet implemented. The contract above names every variable and the file pattern behind each secret; this
+Status: recommended, not yet implemented. This section refines the earlier Alternatives bullets: it supersedes the OpenBao
+bullet (OpenBao is now the chosen direction, with a tiered bootstrap instead of seeding from the plaintext tree) and keeps the SOPS
+and Infisical verdicts. The contract above names every variable and the file pattern behind each secret; this
 section decides where the secret values should come from, so that the plaintext `secrets/` directory stops being the system of record.
 
 ### Context
@@ -122,7 +124,8 @@ Contract additions (all checked statically, still names and patterns only):
   `check` the same way `secret_file` is.
 - `tier`: `0` for secrets the secret store itself needs in order to start and be reached (the OpenBao storage and unseal material, the
   identity provider client that the Trust Agent authenticates through, the Trust Agent's own credentials), `1` for everything else.
-  `check` fails if a tier-1 variable is listed as a dependency of a tier-0 service.
+  `check` fails if a tier-0 service's stack lists a tier-1 variable in `used_by` (the existing stack-to-variable scan defines the
+  dependency, so no new schema is needed).
 
 ### The bootstrap problem (chicken and egg)
 
@@ -137,7 +140,10 @@ something is.
 - OpenBao: needs unseal material and a storage backend. This is the smallest and best-understood bootstrap surface, and it is already
   paid for.
 
-Resolution: define a tier-0 set and keep it deliberately small and boring.
+Resolution (a reduction, not an elimination): define a tier-0 set and keep it deliberately small and boring. Tier-0 stays
+plaintext on the deploy host; the gain is that it shrinks from the whole tree to a handful of named files. The identity provider that
+the Trust Agent authenticates through is a Swarm service, so its own secrets are tier 0 too, and the cold-start order must start it
+before any tier-1 fetch.
 
 1. Tier-0 secrets stay as files read at deploy time (as today), but are limited to the store's own storage credential, the seal
    configuration and the Trust Agent bootstrap credential. Their names are listed in the contract with `tier: 0`.
@@ -155,10 +161,11 @@ A host-side step before `docker stack deploy` (a `cluster-utils` command, not a 
 deploy-scoped role that can read only the paths the contract lists for the stacks being deployed, and writes them to a tmpfs-backed
 `secrets/` directory with owner-only permissions. Everything downstream is unchanged: `.env` still sources `cat secrets/<dir>/<file>`,
 Swarm `secrets:` still point at `file:`, and `env_contract.py check-live` still compares names only. Consequences of the materialiser:
-plaintext exists only in memory-backed storage for the duration of a deploy, the OpenBao audit log records which role read which path, and a
+plaintext on the host exists only in memory-backed storage for the duration of a deploy (Swarm still keeps deployed secrets in its
+encrypted Raft store, as today), the OpenBao audit log records which role read which path, and a
 failed fetch aborts the deploy with the variable name instead of rendering an empty value.
 
-### Alternatives considered for this decision
+### Alternatives weighed against the decision
 
 - SOPS plus age as the primary store: rejected as the source of truth because of the single on-host key, permanent public ciphertext, no
   per-reader authorization, and no audit; retained only as an optional encrypted container for the tier-0 bundle, outside the repository.
@@ -180,7 +187,7 @@ failed fetch aborts the deploy with the variable name instead of rendering an em
 
 ### Staged migration
 
-1. Contract only (done). Add `secret_path` and `tier` fields and validate them; no behaviour change.
+1. Contract fields (not yet implemented; the contract itself is already in place). Add `secret_path` and `tier` fields and validate them; no behaviour change.
 2. Inventory and classify: assign tiers, find tier-1 secrets that the store transitively needs and demote them to tier 0 or break the cycle.
 3. Import: the Trust Agent creates each tier-1 secret in OpenBao from the existing file, create-once; a fingerprint comparison proves the
    stored value equals the file value without printing it. Files stay in place.
@@ -191,12 +198,13 @@ failed fetch aborts the deploy with the variable name instead of rendering an em
 6. Tier-0 hardening: move unseal custody offline, optionally configure auto-unseal, and run the cold-start drill from offline material.
 7. Retire: remove the remaining plaintext tier-1 files, bump the contract version, and record the rotation procedure.
 
-Each stage is reversible until step 7 because the original files remain the fallback.
+Stages 1 to 4 change nothing at runtime. Stage 5 is reversible per stack by re-materialising the files from OpenBao; stage 7 removes
+the original files as the fallback.
 
 ### Verification
 
-- Stage 1: `scripts/env_contract.py check` fails on a secret variable without `secret_path` or with an invalid `tier`, covered by new
-  tests in `tests/test_env_contract.py` (missing field, tier-1 dependency of a tier-0 service).
+- Stage 1: `scripts/env_contract.py check` fails on a secret variable without `secret_path` or with an invalid `tier`, to be covered by new
+  tests in `tests/test_env_contract.py` when stage 1 is implemented (missing field, tier-1 dependency of a tier-0 service).
 - Stages 3 and 4: the import and shadow-read report only names and match/mismatch results; a test with a sentinel value proves no value
   is printed. A forced mismatch and a forced OpenBao outage must each abort the dry run with a named, nonzero failure.
 - Stage 5: after each cutover, the service health check passes, the audit log shows a read by the deploy role on the expected path only,
