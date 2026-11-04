@@ -435,7 +435,7 @@ test_destructive_repair_uses_exclusive_lock() {
   : > "$DOCKER_LOG"
   clean_state_file() {
     printf '%s\n' clean >> "$EVENT_LOG"
-    sleep 1
+    sleep 5
     return 0
   }
   probe_driver() { return 1; }
