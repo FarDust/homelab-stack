@@ -107,18 +107,16 @@ variables:
   example: ''
 - name: BROWSER_LAB_NEKO_ADMIN_PASSWORD
   kind: secret-file
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: true
   description: 'Neko admin password (Generate: openssl rand -hex 16)'
   secret_file: unassigned/browser_lab_neko_admin_password
 - name: BROWSER_LAB_NEKO_SCREEN
   kind: literal
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: false
   default: 1920x1080@30
@@ -126,9 +124,8 @@ variables:
   example: 1920x1080@30
 - name: BROWSER_LAB_NEKO_USER_PASSWORD
   kind: secret-file
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: true
   description: 'Neko user password (Generate: openssl rand -hex 16)'
@@ -143,27 +140,24 @@ variables:
   example: 0.0.0.0
 - name: BROWSER_LAB_TURN_HOST
   kind: literal
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: true
   description: Hostname clients use to reach the TURN server
   example: turn.example.internal
 - name: BROWSER_LAB_TURN_PASSWORD
   kind: secret-file
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: true
   description: 'TURN credential (Generate: openssl rand -hex 16)'
   secret_file: browser-lab/turn_password
 - name: BROWSER_LAB_TURN_PORT
   kind: literal
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: false
   default: '3478'
@@ -179,9 +173,8 @@ variables:
   example: example.internal
 - name: BROWSER_LAB_TURN_USER
   kind: literal
-  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  owner: productivity/browser-lab
   used_by:
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   required: false
   default: neko
@@ -288,9 +281,8 @@ variables:
   example: your_cluster_utils__postgres_user
 - name: COMFYUI_DATABASE_URL
   kind: literal
-  owner: vision/.tmp_service_deploy_comfy-gpu
+  owner: vision/generation
   used_by:
-  - vision/.tmp_service_deploy_comfy-gpu
   - vision/generation
   required: false
   default: sqlite:////stable-diffusion/user/comfyui.db
@@ -306,18 +298,14 @@ variables:
   example: your_compose_vault_path
 - name: CONFIG_VERSION
   kind: literal
-  owner: main/.tmp_service_deploy_rq-worker
+  owner: apps/supabase
   used_by:
   - apps/supabase
   - devtools/notebooks
   - hobby/iot
-  - llms/.tmp_service_deploy_hermes
-  - llms/.tmp_service_deploy_open-terminal
-  - llms/.tmp_service_deploy_vllm-gemma4
   - llms/agents
   - llms/governance
   - llms/mcp
-  - main/.tmp_service_deploy_rq-worker
   - main/bridges
   - main/identity
   - main/identity-gateway
@@ -340,7 +328,7 @@ variables:
   - security/network
   required: false
   default: '0'
-  description: config version setting for main/.tmp_service_deploy_rq-worker.
+  description: config version setting shared across stacks.
   example: '1'
 - name: CRAWL_CONCURRENT_REQUESTS
   kind: literal
@@ -612,20 +600,15 @@ variables:
   owner: main/maintenance
   used_by:
   - devtools/notebooks
-  - llms/.tmp_service_deploy_hermes
-  - llms/.tmp_service_deploy_open-terminal
-  - llms/.tmp_service_deploy_vllm-gemma4
   - llms/agents
   - llms/governance
   - main/maintenance
   - main/storage
   - main/traefik
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/browser-lab
   - productivity/finance
   - productivity/knowledge
   - retrieval/documents
-  - vision/.tmp_service_deploy_comfy-gpu
   - vision/generation
   required: true
   description: Google Cloud Storage bucket name for rclone backups/sync
@@ -729,9 +712,8 @@ variables:
   example: https://loki.local.yourdomain.com
 - name: HERMES_CONFIG_FORCE_REFRESH
   kind: literal
-  owner: llms/.tmp_service_deploy_hermes
+  owner: llms/agents
   used_by:
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   required: false
   default: '0'
@@ -739,9 +721,8 @@ variables:
   example: 'false'
 - name: HERMES_DEFAULT_MODEL
   kind: literal
-  owner: llms/.tmp_service_deploy_hermes
+  owner: llms/agents
   used_by:
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   required: false
   default: gemini-2.5-flash
@@ -749,18 +730,16 @@ variables:
   example: anthropic/claude-3-5-haiku
 - name: HERMES_TELEGRAM_ALLOWED_USERS
   kind: literal
-  owner: llms/.tmp_service_deploy_hermes
+  owner: llms/agents
   used_by:
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   required: true
   description: Comma-separated Telegram usernames allowed to use Hermes bot
   example: user1,user2
 - name: HERMES_TERMINAL_ENV
   kind: literal
-  owner: llms/.tmp_service_deploy_hermes
+  owner: llms/agents
   used_by:
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   required: false
   default: local
@@ -1466,9 +1445,8 @@ variables:
   example: your_openrouter_api_key
 - name: LLMS_AGENTS_NODE_HOSTNAME
   kind: literal
-  owner: llms/.tmp_service_deploy_hermes
+  owner: llms/agents
   used_by:
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   required: true
   description: Node hostname for hermes, honcho, openhands (e.g. frost-fang or manager-primary)
@@ -1489,7 +1467,6 @@ variables:
   - hobby/iot
   - hobby/science
   - hobby/streaming
-  - llms/.tmp_service_deploy_vllm-gemma4
   - llms/agents
   - llms/governance
   - llms/mcp
@@ -1509,7 +1486,6 @@ variables:
   - main/uptime
   - ml/orchestration
   - ml/registry
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/automations
   - productivity/browser-lab
   - productivity/finance
@@ -1520,7 +1496,6 @@ variables:
   - retrieval/web
   - security/dns
   - security/network
-  - vision/.tmp_service_deploy_comfy-gpu
   - vision/generation
   required: true
   description: Subdomain for local services (configure in Cloudflare)
@@ -2284,9 +2259,8 @@ variables:
   secret_file: github/opendevin_github_token
 - name: OPENDEVIN_LITELLM_API_KEY
   kind: secret-file
-  owner: llms/.tmp_service_deploy_hermes
+  owner: llms/agents
   used_by:
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   required: true
   description: LiteLLM API key used by OpenHands/OpenDevin agent
@@ -3082,8 +3056,6 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
-  - llms/.tmp_service_deploy_hermes
-  - llms/.tmp_service_deploy_open-terminal
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3105,8 +3077,6 @@ variables:
   used_by:
   - admin/dashboards
   - compute/execution
-  - llms/.tmp_service_deploy_hermes
-  - llms/.tmp_service_deploy_open-terminal
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3135,7 +3105,6 @@ variables:
   kind: literal
   owner: main/storage
   used_by:
-  - llms/.tmp_service_deploy_vllm-gemma4
   - llms/governance
   - main/storage
   - productivity/finance
@@ -3150,8 +3119,6 @@ variables:
   used_by:
   - admin/dashboards
   - compute/execution
-  - llms/.tmp_service_deploy_hermes
-  - llms/.tmp_service_deploy_open-terminal
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3178,7 +3145,6 @@ variables:
   kind: literal
   owner: main/storage
   used_by:
-  - llms/.tmp_service_deploy_vllm-gemma4
   - llms/governance
   - main/storage
   required: true
@@ -3192,7 +3158,6 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3805,7 +3770,6 @@ variables:
   kind: literal
   owner: main/storage
   used_by:
-  - llms/.tmp_service_deploy_vllm-gemma4
   - llms/governance
   - main/storage
   required: true
@@ -3819,7 +3783,6 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
-  - llms/.tmp_service_deploy_hermes
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3840,7 +3803,6 @@ variables:
   used_by:
   - hobby/streaming
   - main/traefik
-  - productivity/.tmp_service_deploy_browser-neko-brave
   - productivity/automations
   - productivity/browser-lab
   - productivity/finance

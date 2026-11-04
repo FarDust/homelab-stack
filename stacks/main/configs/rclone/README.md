@@ -1,10 +1,19 @@
-# Rclone fixer (`check.sh`)
+# Legacy rclone fixer (`check.sh`)
 
-The **rclone-fixer** service runs [`check.sh`](./check.sh) on a schedule. It keeps the rclone volume plugin healthy (probe + optional disable/enable) and can **reconcile stale plugin mount directories** when Docker’s volume metadata and the plugin’s on-disk state disagree.
+The current **rclone-fixer** service runs the Rust controller, not `check.sh`. See the
+[rollout and rollback ADR](../../../../docs/adr/rclone_fixer_rust_rollout_adr.md).
+
+This directory retains `check.sh`, `check.test.sh`, the unused `rclone-fix-script`
+config declaration and their CI coverage as rollback assets. They are not mounted or
+executed by the current Rust service. Use them only through an approved rollback and
+keep one recovery controller per daemon. The sections below describe the legacy script.
+
+The legacy script probes the rclone volume plugin and can optionally disable/enable it
+or reconcile stale mount directories when Docker metadata and plugin state disagree.
 
 Compose: [`maintenance.yml`](../../maintenance.yml) → service `rclone-fixer` (stack `main-maintenance`).
 
-## Docker Swarm behaviour
+## Legacy Docker Swarm behaviour
 
 ### Deployment model
 
@@ -43,7 +52,7 @@ So workers do not need `docker service inspect`; they only need containers/tasks
 
 [`ephemeral-rebalance.sh`](../maintenance/ephemeral-rebalance.sh) **does** use `docker service` / `docker node` and is pinned to the **swarm leader** in compose. That is intentional; it is not the same execution model as rclone-fixer.
 
-## Configuration (environment)
+## Legacy configuration (environment)
 
 | Variable | Default | Role |
 |----------|---------|------|
@@ -52,19 +61,21 @@ So workers do not need `docker service inspect`; they only need containers/tasks
 | `RCLONE_FIX_LOG_LEVEL` | `INFO` | `DEBUG` \| `INFO` \| `WARN` \| `ERROR` |
 | `RCLONE_PLUGIN_NAME` | `rclone` | Plugin name for inspect/probe |
 | `RCLONE_STALE_REPAIR_ENABLED` | `true` | Enable stale propagated-mount reconciliation |
-| `RCLONE_STALE_PLUGIN_BASE` | `/host-plugins` | Host bind in the task: plugin root (see `maintenance.yml`) |
+| `RCLONE_STALE_PLUGIN_BASE` | `/host-plugins` | Legacy plugin-root bind described below |
 | `STATE_FILE` | `/state/docker-plugin.state` | Rclone plugin state file (cache mount in compose) |
 | `RCLONE_PROBE_TYPE` | `local` | Probe volume option `type` (interpreted on host by the plugin) |
 | `RCLONE_PROBE_PATH` | `/tmp` | Probe volume option `path` |
 
-## Compose volume mounts (reference)
+## Legacy Compose volume mounts (reference)
 
-From `maintenance.yml` for `rclone-fixer`:
+Historical mounts for `check.sh`, not the current Rust service declaration:
 
 - `/var/run/docker.sock` — local engine API
-- `/var/lib/docker-plugins/rclone/cache/` → `/state/` — plugin cache / state
+- `/var/lib/docker-plugins/rclone/cache/` → `/state/` — writable legacy plugin cache / state
 - `/var/lib/docker/plugins` → `/host-plugins` — plugin install tree (for propagated-mount path)
 
 ## Tests
 
 [`check.test.sh`](./check.test.sh) covers `create_volume_from_spec` (shell safety and argv building). CI: `.github/workflows/check-main-maintenance.yml`.
+
+These tests preserve the rollback implementation; they do not validate the Rust binary.
