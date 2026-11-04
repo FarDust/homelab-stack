@@ -11,6 +11,8 @@ networks:
     external: true
   prometheus:
     external: true
+  trust-internal:
+    external: true
   certs-dumper:
     driver: overlay
     internal: true
@@ -109,6 +111,7 @@ services:
     networks:
     - traefik
     - traefik-public
+    - trust-internal
     configs:
     - source: traefik_conf
       target: /etc/traefik/configs/static.yml
@@ -336,7 +339,7 @@ services:
       labels:
       - traefik.enable=false
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     healthcheck:
       test:
       - CMD-SHELL
@@ -364,6 +367,8 @@ services:
       target: /etc/prometheus/targets/mtu_blackbox_targets.yaml
     - source: prometheus_volcano_target
       target: /etc/prometheus/targets/volcano_target.yaml
+    - source: prometheus_nvidia_targets
+      target: /etc/prometheus/targets/nvidia_targets.yml
     command:
     - --config.file=/etc/prometheus/prometheus.yml
     - --storage.tsdb.path=/prometheus
@@ -405,19 +410,17 @@ services:
         failure_action: pause
         max_failure_ratio: 0.3
   grafana:
-    image: grafana/grafana:12.4.0
-    depends_on:
-    - prometheus
-    healthcheck:
-      test:
-      - CMD-SHELL
-      - wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1
-      interval: 1m30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    volumes:
-    - grafana_data:/var/lib/grafana
+    image: grafana/grafana:12.4.0@sha256:b0ae311af06228bcfd4a620504b653db80f5b91e94dc3dc2a5b7dab202bcde20
+    # healthcheck:
+    #   test:
+    #   - CMD-SHELL
+    #   - wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1
+    #   interval: 1m30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 40s
+    # volumes:
+    # - grafana_data:/var/lib/grafana
     configs:
     - source: grafana_datasources
       target: /etc/grafana/provisioning/datasources/datasource.yml
@@ -455,6 +458,18 @@ services:
       target: /etc/grafana/provisioning/dashboards/custom/ingress-reliability.json
     - source: grafana_dashboard_swarm_workload_pressure
       target: /etc/grafana/provisioning/dashboards/custom/swarm-workload-pressure.json
+    - source: grafana_dashboard_swarm_service_detail
+      target: /etc/grafana/provisioning/dashboards/custom/swarm-service-detail.json
+    - source: grafana_dashboard_gpu_history
+      target: /etc/grafana/provisioning/dashboards/custom/gpu_history.json
+    - source: grafana_dashboard_observability_pipeline_health
+      target: /etc/grafana/provisioning/dashboards/custom/observability-pipeline-health.json
+    - source: grafana_alerting_behavioral_rules
+      target: /etc/grafana/provisioning/alerting/behavioral_rules.yml
+    - source: grafana_alerting_contact_points
+      target: /etc/grafana/provisioning/alerting/contact_points.yml
+    - source: grafana_alerting_notification_policies
+      target: /etc/grafana/provisioning/alerting/notification_policies.yml
     secrets:
     - source: google_oauth_secret
     - source: grafana_keycloak_oidc_secret
@@ -519,19 +534,19 @@ services:
       traefik-public:
       prometheus:
     deploy:
-      update_config:
-        parallelism: 1
-        order: start-first
-        delay: 30s
-        monitor: 60s
-        failure_action: rollback
-        max_failure_ratio: 0.2
-      rollback_config:
-        parallelism: 1
-        order: start-first
-        delay: 30s
-        monitor: 60s
-        failure_action: pause
+      # update_config:
+      #   parallelism: 1
+      #   order: stop-first
+      #   delay: 30s
+      #   monitor: 60s
+      #   failure_action: pause
+      #   max_failure_ratio: 0.2
+      # rollback_config:
+      #   parallelism: 1
+      #   order: stop-first
+      #   delay: 30s
+      #   monitor: 60s
+      #   failure_action: pause
       mode: replicated
       replicas: 1
       labels:
@@ -556,11 +571,15 @@ services:
       placement:
         constraints:
         - node.platform.os == linux
+        - node.platform.arch != arm64
+        - node.labels.node.ephemeral != true
         max_replicas_per_node: 2
         preferences:
         - spread: node.hostname
-      restart_policy:
-        condition: none
+      # restart_policy:
+      #   condition: on-failure
+      #   delay: 5s
+      #   max_attempts: 3
   agent:
     image: portainer/agent:latest
     volumes:
@@ -634,9 +653,15 @@ services:
       - --crt-ext=.pem
       - --key-ext=.pem
       - --clean=false
+      - --post-hook
+      - /usr/local/bin/traefik-certs-post-hook.sh
+    configs:
+      - source: traefik_certs_post_hook_sh
+        target: /usr/local/bin/traefik-certs-post-hook.sh
+        mode: 0555
     volumes:
       - traefik-certificates:/letsencrypt:ro
-      - lego-certs:/lego:rw
+      - tls-certs:/lego:rw
     networks:
       - certs-dumper
     deploy:
@@ -654,17 +679,18 @@ volumes:
   authelia-data: {}
   authelia-redis-config: {}
   traefik-certificates: null
-  lego-certs:
-    driver: rclone
+  tls-certs:
+    driver: local
     driver_opts:
-      remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs
-      allow_other: 'true'
-      vfs_cache_mode: full
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,rw,soft,timeo=60
+      device: ":/srv/tls-certs/certs"
   root-certificates: {}
   prometheus_data: {}
   grafana_data:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: gcs:${GCS_SYNC_STORAGE_BUCKET?err}/grafana/data
       allow_other: 'true'
       vfs_cache_mode: full
@@ -673,6 +699,9 @@ volumes:
       file_perms: '0755'
       dir_perms: '0755'
 configs:
+  traefik_certs_post_hook_sh:
+    name: traefik_certs_post_hook_sh-${CONFIG_VERSION:-0}
+    file: ./configs/traefik/certs-post-hook.sh
   traefik_conf:
     name: traefik_conf-${CONFIG_VERSION:-0}
     file: ./configs/traefik/static_conf.yml
@@ -739,6 +768,27 @@ configs:
   grafana_dashboard_swarm_workload_pressure:
     name: grafana_dashboard_swarm_workload_pressure-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
     file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/swarm-workload-pressure.json
+  grafana_dashboard_swarm_service_detail:
+    name: grafana_dashboard_swarm_service_detail-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/swarm-service-detail.json
+  grafana_dashboard_gpu_history:
+    name: grafana_dashboard_gpu_history-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ${GRAFANA_GPU_HISTORY_FILE:-./configs/grafana/provisioning/dashboards/gpu_history.example.json}
+  grafana_dashboard_observability_pipeline_health:
+    name: grafana_dashboard_observability_pipeline_health-${GRAFANA_CONFIG_VERSION:?GRAFANA_CONFIG_VERSION must be set}
+    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/observability-pipeline-health.json
+  grafana_alerting_behavioral_rules:
+    name: grafana_alerting_behavioral_rules-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/alerting/behavioral_rules.yml
+  grafana_alerting_contact_points:
+    name: grafana_alerting_contact_points-${CONFIG_VERSION:-0}
+    file: ../../secrets/grafana/contact_points.yml
+  grafana_alerting_notification_policies:
+    name: grafana_alerting_notification_policies-${CONFIG_VERSION:-0}
+    file: ./configs/grafana/provisioning/alerting/notification_policies.yml
+  prometheus_nvidia_targets:
+    name: prometheus_nvidia_targets-${CONFIG_VERSION:-0}
+    file: ${NVIDIA_GPU_TARGETS_FILE:-./configs/prometheus/nvidia_targets.example.yml}
   prometheus_config:
     name: prometheus_config-${CONFIG_VERSION:-0}
     file: ./configs/prometheus/prometheus.yml

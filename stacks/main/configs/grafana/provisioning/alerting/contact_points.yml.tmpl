@@ -1,0 +1,13 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: grafana-routine-n8n
+    receivers:
+      - uid: grafana_routine_n8n
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          url: __GRAFANA_ROUTINE_N8N_WEBHOOK_URL__
+          httpMethod: POST
+          maxAlerts: '10'
