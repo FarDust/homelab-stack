@@ -13,9 +13,12 @@ services:
       - source: postgres_pgvector_bootstrap_sh
         target: /usr/local/bin/postgres-pgvector-bootstrap.sh
         mode: 0555
+      - source: postgres_cert_watch_sh
+        target: /usr/local/bin/postgres-cert-watch.sh
+        mode: 0555
     volumes:
       - postgres_data:/var/lib/postgresql/
-      - postgres_certs:/lego/certs:ro
+      - tls-certs-postgres:/lego:ro
     secrets:
       - source: postgres_db_password
     entrypoint:
@@ -25,8 +28,8 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASS_FILE=/run/secrets/postgres_db_password
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
-      - SSL_CERT_FILE=/lego/certs/fullchain.pem
-      - SSL_KEY_FILE=/lego/certs/privkey.pem
+      - SSL_CERT_FILE=/ssl_certificates/fullchain.pem
+      - SSL_KEY_FILE=/ssl_certificates/privkey.pem
       - SHARED_PRELOAD_LIBRARIES=pg_cron,pg_stat_statements
       - |
         EXTRA_CONF=pg_stat_statements.track=all
@@ -37,8 +40,8 @@ services:
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_STANDARD}
+        max_attempts: 0
+        window: 120s
       update_config:
         order: stop-first
         failure_action: rollback
@@ -63,6 +66,7 @@ services:
         - "traefik.tcp.routers.postgres.tls.certresolver=le-dns"
         - "traefik.tcp.services.postgres.loadbalancer.server.port=5432"
         - "traefik.swarm.network=traefik"
+        - "traefik.swarm.lbswarm=true"
         - com.centurylinklabs.watchtower.enable=false
 
   supavisor-apps:
@@ -90,7 +94,7 @@ services:
       - "ERL_AFLAGS=-proto_dist inet_tcp -kernel inet_default_connect_options [{keepalive,true}] inet_default_listen_options [{keepalive,true}]"
       - PROXY_PORT_SESSION=5432
       - PROXY_PORT_TRANSACTION=6543
-      - DB_POOL_SIZE=5
+      - DB_POOL_SIZE=10
       - MAX_CONNECTIONS=1000
       - NUM_ACCEPTORS=100
       - NAMED_PREPARED_STATEMENTS_ENABLED=true
@@ -105,7 +109,7 @@ services:
     command:
       - /bin/sh
       - -c
-      - /app/bin/migrate && /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
+      - /app/bin/supavisor eval "$$(cat /etc/pooler/pooler.exs)" && /app/bin/server
     healthcheck:
       test:
         - CMD
@@ -123,10 +127,10 @@ services:
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_STANDARD}
+        max_attempts: 0
+        window: 120s
       update_config:
-        order: start-first
+        order: stop-first
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
@@ -201,7 +205,7 @@ services:
       - redis_password
       - redis_acl
     volumes:
-      - redis-data:/data
+      - redis-data:/bitnami/redis/data
     networks:
       - traefik
     environment:
@@ -214,10 +218,10 @@ services:
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: ${RESTART_MAX_ATTEMPTS}
-        window: ${RESTART_WINDOW_CACHE}
+        max_attempts: 0
+        window: 60s
       update_config:
-        order: start-first
+        order: stop-first
         failure_action: rollback
         monitor: ${UPDATE_MONITOR_CACHE}
         max_failure_ratio: 0.3
@@ -238,6 +242,7 @@ services:
         - "traefik.tcp.routers.redis.tls.certresolver=le-dns"
         - "traefik.tcp.services.redis.loadbalancer.server.port=6379"
         - "traefik.swarm.network=traefik"
+        - "traefik.swarm.lbswarm=true"
 
   opensearch:
     image: opensearchproject/opensearch:2.19.1
@@ -403,7 +408,7 @@ services:
     volumes:
       - supabase-db-data:/var/lib/postgresql/data
       - supabase-db-config:/etc/postgresql-custom
-      - supabase-db-certs:/lego/certs:ro
+      - tls-certs-supabase-db:/lego/certs:ro
     configs:
       - source: supabase_db_realtime_sql
         target: /docker-entrypoint-initdb.d/migrations/99-realtime.sql
@@ -460,6 +465,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 20s
     deploy:
       replicas: 1
       restart_policy:
@@ -589,20 +595,17 @@ services:
 volumes:
   # DB data volumes cannot be synced, could cause issues with data integrity
   postgres_data: {}
-  postgres_certs:
-    driver: rclone
+  tls-certs-postgres:
+    driver: local
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/postgres.${LOCAL_DOMAIN?err}"
-      allow_other: "true"
-      vfs_cache_mode: full
-      uid: "101"
-      gid: "103"
-      file_perms: "600"
-      dir_perms: "700"
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,ro,soft,timeo=60
+      device: ":/srv/tls-certs/certs/postgres.${LOCAL_DOMAIN}"
   influx: {}
   influx_certs:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/influx.${LOCAL_DOMAIN?err}"
       allow_other: "true"
       vfs_cache_mode: full
@@ -625,24 +628,22 @@ volumes:
   supabase-db-config:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/supabase/db/config"
       allow_other: "true"
       vfs_cache_mode: full
-  supabase-db-certs:
-    driver: rclone
+  tls-certs-supabase-db:
+    driver: local
     driver_opts:
-      remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/lego/certs/supabase-db.${LOCAL_DOMAIN?err}"
-      allow_other: "true"
-      vfs_cache_mode: full
-      uid: "101"
-      gid: "102"
-      file_perms: "600"
-      dir_perms: "700"
+      type: nfs
+      o: addr=${TAILSCALE_HOSTNAME},nfsvers=4,ro,soft,timeo=60
+      device: ":/srv/tls-certs/certs/supabase-db.${LOCAL_DOMAIN}"
   clickhouse-olap-data:
     driver: local
   clickhouse-logs:
     driver: rclone
     driver_opts:
+      allow_non_empty: 'true'
       remote: "gcs:${GCS_SYNC_STORAGE_BUCKET?err}/clickhouse/logs"
       allow_other: "true"
       vfs_cache_mode: full
@@ -681,9 +682,15 @@ configs:
   postgres_pgvector_bootstrap_sh:
     name: postgres_pgvector_bootstrap_sh-${CONFIG_VERSION:-0}
     file: ./configs/postgres/pgvector-bootstrap.sh
+  postgres_cert_watch_sh:
+    name: postgres_cert_watch_sh-${CONFIG_VERSION:-0}
+    file: ./configs/postgres/cert-watch.sh
   supavisor_apps_pooler_exs:
     name: supavisor_apps_pooler_exs-${CONFIG_VERSION:-0}
     file: ./configs/supavisor/apps_pooler.exs
+  supavisor_apps_runtime_exs:
+    name: supavisor_apps_runtime_exs-${CONFIG_VERSION:-0}
+    file: ./configs/supavisor/runtime.exs
   supabase_db_realtime_sql:
     name: supabase_db_realtime_sql-${CONFIG_VERSION:-0}
     file: ./configs/supabase/docker/volumes/db/realtime.sql
