@@ -431,10 +431,10 @@ volumes:
 configs:
   actual-data-backup-script:
     name: actual-data-backup-script-${CONFIG_VERSION:-0}
-    file: ${FINANCE_BACKUP_SCRIPTS_DIR?err}/actual-data-backup.sh
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/productivity/configs/finance/actual-data-backup.sh
   firefly-upload-backup-script:
     name: firefly-upload-backup-script-${CONFIG_VERSION:-0}
-    file: ${FINANCE_BACKUP_SCRIPTS_DIR?err}/firefly-upload-backup.sh
+    file: ${HOMELAB_PRIVATE_DIR?err}/stacks/productivity/configs/finance/firefly-upload-backup.sh
 
 networks:
   traefik:
