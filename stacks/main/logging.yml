@@ -203,6 +203,9 @@ services:
     configs:
       - source: alertmanager_config
         target: /etc/alertmanager/alertmanager.yml
+    secrets:
+      - source: grafana_routine_n8n_webhook_url
+        target: grafana_routine_n8n_webhook_url
     deploy:
       mode: replicated
       replicas: 1
@@ -216,7 +219,7 @@ services:
           - node.labels.swarm.leader != true
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.140.0
+    image: otel/opentelemetry-collector-contrib:0.140.0@sha256:ffc818ee108d0b934fd14207fd87ff247c9b64f344ed349d0b66c166c18a2312
     command:
       - --config=/etc/otel-collector/otel-collector.yml
     networks:
@@ -247,7 +250,7 @@ services:
           memory: 128M
       placement:
         constraints:
-          - node.labels.swarm.leader != true
+          - node.role == manager
           - node.labels.node.ephemeral != true
       labels:
         - "traefik.enable=true"
@@ -273,14 +276,10 @@ services:
     configs:
       - source: vector_config
         target: /etc/vector/vector.yml
-    secrets:
-      - source: gcp_sa
-        target: gcp_sa
-    environment:
-      GCS_SYNC_STORAGE_BUCKET: ${GCS_SYNC_STORAGE_BUCKET?err}
+    security_opt:
+      - no-new-privileges:true
     deploy:
-      mode: replicated
-      replicas: 0
+      mode: global
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -293,10 +292,6 @@ services:
         reservations:
           cpus: "0.05"
           memory: 64M
-      placement:
-        constraints:
-          - node.labels.swarm.leader == true
-          - node.labels.node.ephemeral != true
 
 networks:
   traefik:
@@ -344,3 +339,6 @@ secrets:
   gcp_sa:
     name: gcp_sa-${CONFIG_VERSION:-0}
     file: ../../secrets/google/gcloud.json
+  grafana_routine_n8n_webhook_url:
+    external: true
+    name: main-traefik_grafana_routine_n8n_webhook_url
