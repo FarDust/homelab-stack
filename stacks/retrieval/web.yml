@@ -72,7 +72,7 @@ services:
         - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.interval=10s"
         - "traefik.http.services.firecrawl-api.loadbalancer.healthcheck.timeout=3s"
       mode: replicated
-      replicas: 3
+      replicas: ${FIRECRAWL_API_REPLICAS:-3}
       restart_policy:
         condition: any
         delay: 30s
@@ -90,7 +90,7 @@ services:
     command: [ "pnpm", "run", "workers" ]
     deploy:
       mode: replicated
-      replicas: 5
+      replicas: ${FIRECRAWL_WORKER_REPLICAS:-5}
       restart_policy:
         condition: any
         delay: 30s
