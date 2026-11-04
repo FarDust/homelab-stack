@@ -38,6 +38,16 @@ repos:
             language: system
             pass_filenames: false
             stages: [pre-commit]
+    # Rejects private deployment indicators and forbidden paths in what a commit adds. As decided in
+    # docs/adr/private_indicator_guard_adr.md
+    - repo: local
+      hooks:
+          - id: check-private-indicators
+            name: check-private-indicators
+            entry: uv run --script scripts/check_private_indicators.py
+            language: system
+            pass_filenames: false
+            stages: [pre-commit]
     - repo: https://github.com/gitleaks/gitleaks
       rev: v8.30.1
       hooks:
