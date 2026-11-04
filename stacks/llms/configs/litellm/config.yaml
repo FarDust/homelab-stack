@@ -1260,6 +1260,17 @@ model_list:
       parameter_size: "26B"
       quantization_level: "Q4_K_M"
 
+  # Transcription keeps language autodetection; see docs/adr/cluster_stt_adr.md.
+  - model_name: openchamber-stt
+    litellm_params:
+      model: openai/whisper-large-v3-turbo-q5_0
+      api_base: http://llms-speech-gpu_whisper:8080/v1
+      api_key: "no-key-required"
+      timeout: 120
+    model_info:
+      mode: audio_transcription
+      owned_by: whisper.cpp
+
   # vLLM Models (on-demand via Sablier — cold start ~2-3 min)
   - model_name: gemma-4-31b-it
     litellm_params:

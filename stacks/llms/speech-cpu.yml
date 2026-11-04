@@ -1,0 +1,65 @@
+x-release: "0.1.0"
+services:
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp@sha256:8608a75b23588b920e0617eed2446b118765e2cb7ed49fb24f6c406a435be9fb
+    entrypoint: ["whisper-server"]
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --model
+      - /models/ggml-large-v3-turbo-q5_0.bin
+      - --language
+      - auto
+      - --no-gpu
+      - --threads
+      - "2"
+      - --inference-path
+      - /v1/audio/transcriptions
+    user: "1000:1000"
+    working_dir: /tmp
+    volumes:
+      - type: volume
+        source: whisper_models
+        target: /models
+        read_only: true
+    networks: [traefik]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--max-time", "3", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    deploy:
+      replicas: ${STT_CPU_REPLICAS:-0}
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.platform.arch == x86_64
+          - node.labels.load.tier == heavy
+          - node.labels.node.ephemeral != true
+          - node.labels.AVX != false
+      resources:
+        limits:
+          cpus: "2"
+          memory: 3G
+        reservations:
+          memory: 1536M
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 2
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=false
+        - org.opencontainers.image.version=0.1.0
+volumes:
+  whisper_models:
+    external: true
+    name: speech_whisper_models
+networks:
+  traefik:
+    external: true
