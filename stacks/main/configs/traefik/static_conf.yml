@@ -66,3 +66,22 @@ http:
             showDetails: true
             theme: shuffle
             refreshFrequency: 8s
+    load-searxng:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier-app:10000
+          sessionDuration: 3m
+          group: searxng
+          dynamic:
+            displayName: SearXNG 🔎
+            showDetails: true
+            theme: shuffle
+            refreshFrequency: 5s
+    load-vllm:
+      plugin:
+        sablier:
+          sablierUrl: http://sablier-app:10000
+          sessionDuration: 15m
+          group: vllm-inference
+          blocking:
+            timeout: 15m
