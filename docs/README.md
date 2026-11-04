@@ -25,7 +25,7 @@
 ## Configuration and secrets
 
 - [Private deployment directory](homelab-private.md): `HOMELAB_PRIVATE_DIR`, the files each stack expects there, and the templates in `examples/homelab-private/`.
-- [Environment-variable contract](adr/env_contract_adr.md): typed contract in `config/env-contract.yaml`, `scripts/env_contract.py` (tests in `tests/test_env_contract.py`), the layered shell-script `.env`, and why encrypted-secrets tooling was deferred.
+- [Environment-variable contract](adr/env_contract_adr.md): typed contract in `config/env-contract.yaml`, `scripts/env_contract.py` (tests in `tests/test_env_contract.py`), the layered shell-script `.env`, and the secret-source recommendation (OpenBao via the Trust Agent, SOPS and Infisical compared).
 
 ## Observability and identity
 
