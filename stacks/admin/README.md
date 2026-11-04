@@ -4,7 +4,7 @@ This stack contains administrative interfaces and dashboards for managing storag
 
 ## Scope (what belongs in `stacks/admin/`)
 
-- **Belongs here:** **Browser-based admin UIs** for data and search systems whose engines are deployed by the core storage compose file [`storage.yml`](../main/storage.yml): PostgreSQL admin, Mongo web UI, OpenSearch Dashboards, and similar.
+- **Belongs here:** **Browser-based admin UIs** for data and search systems whose engines are deployed by the core storage compose file [`storage.yml`](../main/storage.yml): Mongo web UI, OpenSearch Dashboards, and similar.
 - **Add a service here** when it is an **operator dashboard** for a datastore or search engine you already run from that storage stack, not the engine service itself.
 
 ## Architecture Philosophy
@@ -16,7 +16,6 @@ This stack contains administrative interfaces and dashboards for managing storag
 ## Services
 
 ### Database Administration
-- **pgAdmin** (`pgadmin.${LOCAL_DOMAIN}`): Web interface for PostgreSQL administration
 - **Mongo Express** (`mongo-express.${LOCAL_DOMAIN}`): Web interface for MongoDB administration (with basic auth enabled)
 
 ### Search & Analytics
@@ -51,7 +50,6 @@ docker service ls | grep admin-dashboards
 ## Dependencies
 
 This stack depends on storage services from the `main-storage` stack:
-- PostgreSQL (for PGAdmin)
 - MongoDB (for Mongo Express)
 - OpenSearch (for OpenSearch Dashboards)
 
