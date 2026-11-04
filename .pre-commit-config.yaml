@@ -29,7 +29,7 @@ repos:
             files: '\.env*'
             exclude: '\.env\.template$'
             types: [text]
-            args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey']
+            args: ['check', '--ignore-checks', 'LeadingCharacter,UnorderedKey,ValueWithoutQuotes,SubstitutionKey,LowercaseKey']
     - repo: local
       hooks:
           - id: ggshield-quota-guard
@@ -47,6 +47,16 @@ repos:
             entry: uv run --script scripts/check_private_indicators.py
             language: system
             pass_filenames: false
+            stages: [pre-commit]
+    # Keeps config/env-contract.yaml, the stacks and .env.example in step. As decided in docs/adr/env_contract_adr.md
+    - repo: local
+      hooks:
+          - id: env-contract
+            name: env-contract
+            entry: uv run --script scripts/env_contract.py check
+            language: system
+            pass_filenames: false
+            files: '^(stacks/[^/]+/[^/]+\.ya?ml|config/env-contract\.yaml|\.env\.example|scripts/env_contract\.py)$'
             stages: [pre-commit]
     - repo: https://github.com/gitleaks/gitleaks
       rev: v8.30.1

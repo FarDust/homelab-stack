@@ -1,0 +1,3880 @@
+# Typed contract for the environment variables the compose stacks interpolate. Names, kinds, owners and file-name
+# patterns only: no values. Validated by scripts/env_contract.py; see docs/adr/env_contract_adr.md.
+version: 1
+variables:
+- name: AGENTA_DB_URL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: agenta db url; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_agenta_db_url
+- name: ANYTHINGLLM_JWT_SECRET
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: anythingllm jwt secret setting for llms/governance.
+  example: your_anythingllm_jwt_secret
+- name: ANYTHINGLLM_OPENAI_API_KEY
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: Can be same as OPENAI_API_KEY
+  example: your_anythingllm_openai_api_key
+- name: ARTIFACTS_GCS_BUCKET
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  - main/maintenance
+  required: true
+  description: Shared artifact bucket (loki/cluster/backup prefix holds Loki archives)
+  example: your_shared_artifacts_bucket
+- name: AUTHELIA_DUO_API_HOSTNAME
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: From Duo Security Admin Panel
+  example: api-xxxxxxxx.duosecurity.com
+- name: AUTHELIA_PREFIX
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: Subdomain prefix for Authelia
+  example: auth
+- name: AUTHELIA_SMTP_FROM
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: Email address for Authelia notifications
+  example: auth@yourdomain.com
+- name: BEEAI_ADMIN_PASSWORD
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - clusters/llms
+  required: true
+  description: beeai admin password; read by clusters/llms, not by a stack.
+  example: your_beeai_admin_password
+- name: BEEAI_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: beeai db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: beeai/db_password
+- name: BEEAI_DB_URL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: beeai db url; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_beeai_db_url
+- name: BEEAI_ENCRYPTION_KEY
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - clusters/llms
+  required: true
+  description: beeai encryption key; read by clusters/llms, not by a stack.
+  secret_file: beeai/encryption_key
+- name: BLOCK_MEDIA
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: ''
+  description: block media setting for compute/execution.
+  example: ''
+- name: BROWSER_LAB_NEKO_ADMIN_PASSWORD
+  kind: secret-file
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: true
+  description: 'Neko admin password (Generate: openssl rand -hex 16)'
+  secret_file: unassigned/browser_lab_neko_admin_password
+- name: BROWSER_LAB_NEKO_SCREEN
+  kind: literal
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: false
+  default: 1920x1080@30
+  description: Neko desktop resolution
+  example: 1920x1080@30
+- name: BROWSER_LAB_NEKO_USER_PASSWORD
+  kind: secret-file
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: true
+  description: 'Neko user password (Generate: openssl rand -hex 16)'
+  secret_file: unassigned/browser_lab_neko_user_password
+- name: BROWSER_LAB_TURN_EXTERNAL_IP
+  kind: computed
+  owner: productivity/browser-lab
+  used_by:
+  - productivity/browser-lab
+  required: true
+  description: Public/external IP of the TURN server node
+  example: 0.0.0.0
+- name: BROWSER_LAB_TURN_HOST
+  kind: literal
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: true
+  description: Hostname clients use to reach the TURN server
+  example: turn.example.internal
+- name: BROWSER_LAB_TURN_PASSWORD
+  kind: secret-file
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: true
+  description: 'TURN credential (Generate: openssl rand -hex 16)'
+  secret_file: browser-lab/turn_password
+- name: BROWSER_LAB_TURN_PORT
+  kind: literal
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: false
+  default: '3478'
+  description: 'TURN listening port (default: 3478)'
+  example: '3478'
+- name: BROWSER_LAB_TURN_REALM
+  kind: literal
+  owner: productivity/browser-lab
+  used_by:
+  - productivity/browser-lab
+  required: true
+  description: TURN realm (usually your internal domain)
+  example: example.internal
+- name: BROWSER_LAB_TURN_USER
+  kind: literal
+  owner: productivity/.tmp_service_deploy_browser-neko-brave
+  used_by:
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  required: false
+  default: neko
+  description: TURN username for coturn
+  example: neko
+- name: CIDR_BLOCK
+  kind: literal
+  owner: security/dns
+  used_by:
+  - security/dns
+  required: false
+  default: 192.168.0.0/24
+  description: Example subnet - replace with your private subnet
+  example: 10.10.0.0/24
+- name: CLICKHOUSE_CLUSTER_ENABLED
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'false'
+  description: Enable ClickHouse cluster mode (Keeper-based)
+  example: 'false'
+- name: CLICKHOUSE_DB
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: false
+  default: clickhouse
+  description: ClickHouse default database name
+  example: default
+- name: CLICKHOUSE_PASSWORD
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - llms/monitoring
+  - main/storage
+  required: true
+  description: 'ClickHouse default user password (Generate: openssl rand -hex 32)'
+  secret_file: clickhouse/clickhouse_password
+- name: CLICKHOUSE_USER
+  kind: literal
+  owner: main/storage
+  used_by:
+  - llms/monitoring
+  - main/storage
+  required: false
+  default: clickhouse
+  description: ClickHouse default user
+  example: default
+- name: CLOUDFLARE_N8N_TUNNEL_TOKEN
+  kind: secret-file
+  owner: security/vendor
+  used_by:
+  - security/vendor
+  required: true
+  description: Cloudflare Tunnel token for n8n ingress (from Cloudflare Zero Trust dashboard)
+  secret_file: cloudflare/n8n_tunnel_token
+- name: CLUSTER_UTILS__POSTGRES_DB
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: cluster utils  postgres db; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_cluster_utils__postgres_db
+- name: CLUSTER_UTILS__POSTGRES_HOST
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: cluster utils  postgres host; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_cluster_utils__postgres_host
+- name: CLUSTER_UTILS__POSTGRES_PASSWORD
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: cluster utils  postgres password; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_cluster_utils__postgres_password
+- name: CLUSTER_UTILS__POSTGRES_PORT
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: cluster utils  postgres port; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_cluster_utils__postgres_port
+- name: CLUSTER_UTILS__POSTGRES_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: cluster utils  postgres user; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_cluster_utils__postgres_user
+- name: COMFYUI_DATABASE_URL
+  kind: literal
+  owner: vision/.tmp_service_deploy_comfy-gpu
+  used_by:
+  - vision/.tmp_service_deploy_comfy-gpu
+  - vision/generation
+  required: false
+  default: sqlite:////stable-diffusion/user/comfyui.db
+  description: ComfyUI PostgreSQL URL
+  example: postgresql://comfyui:your_comfyui_db_password@postgres:5432/comfyui
+- name: COMPOSE_VAULT_PATH
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: true
+  description: compose vault path setting for main/maintenance.
+  example: your_compose_vault_path
+- name: CONFIG_VERSION
+  kind: literal
+  owner: main/.tmp_service_deploy_rq-worker
+  used_by:
+  - apps/supabase
+  - devtools/notebooks
+  - hobby/iot
+  - llms/.tmp_service_deploy_hermes
+  - llms/.tmp_service_deploy_open-terminal
+  - llms/.tmp_service_deploy_vllm-gemma4
+  - llms/agents
+  - llms/governance
+  - llms/mcp
+  - main/.tmp_service_deploy_rq-worker
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/logging
+  - main/maintenance
+  - main/messaging
+  - main/monitoring
+  - main/mtu
+  - main/rustfs
+  - main/storage
+  - main/traefik
+  - main/trust-agent
+  - main/uptime
+  - productivity/automations
+  - productivity/finance
+  - productivity/knowledge
+  - productivity/static-journey
+  - productivity/tools
+  - retrieval/documents
+  - security/network
+  required: false
+  default: '0'
+  description: config version setting for main/.tmp_service_deploy_rq-worker.
+  example: '1'
+- name: CRAWL_CONCURRENT_REQUESTS
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: '10'
+  description: Maximum concurrent HTTP requests for RAGflow crawling
+  example: '10'
+- name: CROWSEC_ENROLL_KEY
+  kind: literal
+  owner: main/security
+  used_by:
+  - main/security
+  required: true
+  description: CrowdSec enrollment key from https://app.crowdsec.net
+  example: your_crowdsec_enroll_key
+- name: DOMAIN_NAME
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - hobby/gaming
+  - main/traefik
+  - main/uptime
+  - security/dns
+  required: true
+  description: Your actual domain name registered with Cloudflare
+  example: yourdomain.com
+- name: EMAIL_FROM_ADDRESS
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: ''
+  description: From address for automated email notifications
+  example: notify@yourdomain.com
+- name: EPHEMERAL_REBALANCE_APPLY
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: 'false'
+  description: ephemeral rebalance apply setting for main/maintenance.
+  example: 'false'
+  exported: false
+- name: EPHEMERAL_REBALANCE_DOCKER_GID
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '998'
+  description: ephemeral rebalance docker gid setting for main/maintenance.
+  example: '998'
+- name: EPHEMERAL_REBALANCE_IMAGE
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: true
+  description: ephemeral rebalance image setting for main/maintenance.
+  example: <registry>/<project>/<repository>/ephemeral-rebalance@sha256:<digest>
+  exported: false
+- name: EPHEMERAL_REBALANCE_PROMETHEUS_URL
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: http://tasks.prometheus:9090
+  description: ephemeral rebalance prometheus url setting for main/maintenance.
+  example: http://tasks.prometheus:9090
+- name: FIRECRAWL_API_REPLICAS
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: '3'
+  description: firecrawl api replicas setting for retrieval/web.
+  example: '3'
+- name: FIRECRAWL_BULL_AUTH_KEY
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: true
+  description: firecrawl bull auth key setting for retrieval/web.
+  secret_file: firecrawl/bull_auth_key
+- name: FIRECRAWL_MODEL_EMBEDDING_NAME
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: true
+  description: firecrawl model embedding name setting for retrieval/web.
+  example: your_firecrawl_model_embedding_name
+- name: FIRECRAWL_MODEL_NAME
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: true
+  description: firecrawl model name setting for retrieval/web.
+  example: your_firecrawl_model_name
+- name: FIRECRAWL_OPENAI_API_KEY
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: true
+  description: firecrawl openai api key setting for retrieval/web.
+  secret_file: firecrawl/litellm_api_key
+- name: FIRECRAWL_OPENAI_BASE_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: true
+  description: firecrawl openai base url setting for retrieval/web.
+  example: your_firecrawl_openai_base_url
+- name: FIRECRAWL_REDIS_DB
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: firecrawl redis db; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_firecrawl_redis_db
+- name: FIRECRAWL_REDIS_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: redis://redis:6379
+  description: firecrawl redis url setting for retrieval/web.
+  example: redis://redis:6379
+- name: FIRECRAWL_SEARXNG_ENDPOINT
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: true
+  description: firecrawl searxng endpoint setting for retrieval/web.
+  example: your_firecrawl_searxng_endpoint
+- name: FIRECRAWL_WORKER_REPLICAS
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: '5'
+  description: firecrawl worker replicas setting for retrieval/web.
+  example: '5'
+- name: FLARESOLVERR_CAPTCHA_SOLVER
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: none
+  description: Captcha solver for FlareSolverr (none/hcaptcha-solver/etc.)
+  example: none
+- name: FLARESOLVERR_LOG_HTML
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: 'false'
+  description: Enable HTML logging in FlareSolverr
+  example: 'false'
+- name: FLARESOLVERR_LOG_LEVEL
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: info
+  description: FlareSolverr log level
+  example: info
+- name: FLARESOLVERR_URL
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: http://flaresolverr:8191
+  description: FlareSolverr endpoint for RAGflow Cloudflare bypass
+  example: http://flaresolverr:8191/v1
+- name: GATEWAY
+  kind: literal
+  owner: security/dns
+  used_by:
+  - security/dns
+  required: false
+  default: 192.168.0.1
+  description: Example gateway - first IP in your subnet
+  example: 10.10.0.1
+- name: GATUS_DATABASE_URL
+  kind: literal
+  owner: main/uptime
+  used_by:
+  - main/uptime
+  required: true
+  description: PostgreSQL connection string for Gatus status storage
+  example: postgres://gatus:your_gatus_password@postgres:5432/gatus
+- name: GATUS_DB_HOST
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: gatus db host; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_gatus_db_host
+- name: GATUS_DB_NAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: gatus db name; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_gatus_db_name
+- name: GATUS_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: gatus db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: gatus/db_password
+- name: GATUS_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: gatus db password encoded; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_gatus_db_password_encoded
+- name: GATUS_DB_PORT
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: gatus db port; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_gatus_db_port
+- name: GATUS_DB_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: gatus db user; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_gatus_db_user
+- name: GCS_SYNC_STORAGE_BUCKET
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - devtools/notebooks
+  - llms/.tmp_service_deploy_hermes
+  - llms/.tmp_service_deploy_open-terminal
+  - llms/.tmp_service_deploy_vllm-gemma4
+  - llms/agents
+  - llms/governance
+  - main/maintenance
+  - main/storage
+  - main/traefik
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/browser-lab
+  - productivity/finance
+  - productivity/knowledge
+  - retrieval/documents
+  - vision/.tmp_service_deploy_comfy-gpu
+  - vision/generation
+  required: true
+  description: Google Cloud Storage bucket name for rclone backups/sync
+  example: your-gcs-bucket-name
+- name: GF_DATABASE_HOST
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - clusters/main
+  required: true
+  description: PostgreSQL host:port for Grafana
+  example: postgres:5432
+- name: GF_POSTGRES_DB
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: false
+  default: postgres
+  description: PostgreSQL database name for Grafana backend storage
+  example: grafana
+- name: GF_POSTGRES_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - clusters/main
+  required: true
+  description: gf postgres user; read by clusters/main, not by a stack.
+  example: your_gf_postgres_user
+- name: GITGUARDIAN_API_KEY
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: Get from GitGuardian dashboard
+  example: your_gitguardian_api_key
+- name: GOOGLE_CLIENT_ID
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - llms/governance
+  - llms/monitoring
+  - main/traefik
+  required: true
+  description: Google OAuth Client ID for Grafana auth
+  example: your_google_client_id
+- name: GOOGLE_CLIENT_SECRET
+  kind: secret-file
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  - llms/monitoring
+  required: true
+  description: Google OAuth client secret (from Google Cloud Console)
+  secret_file: google/google_oauth_secret
+- name: GOOGLE_PROJECT_ID
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: google project id setting for apps/supabase.
+  example: your_google_project_id
+- name: GOOGLE_PROJECT_NUMBER
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: google project number setting for apps/supabase.
+  example: your_google_project_number
+- name: GRAFANA_CONFIG_VERSION
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: grafana config version setting for main/traefik.
+  example: '1'
+- name: GRAFANA_GPU_HISTORY_FILE
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: false
+  default: ./configs/grafana/provisioning/dashboards/gpu_history.example.json
+  description: grafana gpu history file setting for main/traefik.
+  example: ./configs/grafana/provisioning/dashboards/gpu_history.example.json
+  exported: false
+- name: GRAFANA_LOKI_URL
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: Loki URL used by Grafana datasource and vector/otel forwarder
+  example: https://loki.local.yourdomain.com
+- name: HERMES_CONFIG_FORCE_REFRESH
+  kind: literal
+  owner: llms/.tmp_service_deploy_hermes
+  used_by:
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  required: false
+  default: '0'
+  description: Force refresh of Hermes config on startup
+  example: 'false'
+- name: HERMES_DEFAULT_MODEL
+  kind: literal
+  owner: llms/.tmp_service_deploy_hermes
+  used_by:
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  required: false
+  default: gemini-2.5-flash
+  description: Default LLM model for Hermes
+  example: anthropic/claude-3-5-haiku
+- name: HERMES_TELEGRAM_ALLOWED_USERS
+  kind: literal
+  owner: llms/.tmp_service_deploy_hermes
+  used_by:
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  required: true
+  description: Comma-separated Telegram usernames allowed to use Hermes bot
+  example: user1,user2
+- name: HERMES_TERMINAL_ENV
+  kind: literal
+  owner: llms/.tmp_service_deploy_hermes
+  used_by:
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  required: false
+  default: local
+  description: Environment label for Hermes terminal display
+  example: production
+- name: HOMELAB_PRIVATE_DIR
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  - productivity/finance
+  required: true
+  description: homelab private dir setting for main/storage.
+  example: /path/to/private-deployment-repo
+- name: HONCHO_DERIVER_MODEL
+  kind: literal
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: false
+  default: gpt-5-mini
+  description: Model used by Honcho for derivation
+  example: anthropic/claude-3-5-haiku
+- name: HONCHO_LOG_LEVEL
+  kind: literal
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: false
+  default: INFO
+  description: Log level for Honcho service
+  example: INFO
+- name: HONCHO_REDIS_DB
+  kind: literal
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: false
+  default: '9'
+  description: Redis DB index for Honcho
+  example: '1'
+- name: HONCHO_SUMMARY_MODEL
+  kind: literal
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: false
+  default: gpt-5-mini
+  description: Model used by Honcho for summarization
+  example: anthropic/claude-3-5-sonnet
+- name: HOST
+  kind: literal
+  owner: main/security
+  used_by:
+  - main/security
+  required: true
+  description: Hostname of the current Swarm node (used for CrowdSec enrollment naming)
+  example: ${HOSTNAME:-homelab-node}
+- name: HOST_DOCKER_GW
+  kind: literal
+  owner: security/network
+  used_by:
+  - security/network
+  required: true
+  description: Docker bridge gateway IP (typically 172.17.0.1) for host-level network access
+  example: 172.17.0.1
+- name: HOST_IP
+  kind: literal
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: true
+  description: host ip setting for llms/agents.
+  example: your_host_ip
+- name: INFLUXDB_PASSWORD
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: Password for InfluxDB admin
+  example: your_influxdb_password
+- name: INFLUXDB_USERNAME
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: Username for InfluxDB admin
+  example: your_influxdb_username
+- name: INOTIFY_MAX_USER_INSTANCES
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '1024'
+  description: Maximum inotify instances per user (sysctl value)
+  example: '8192'
+- name: INOTIFY_RECONCILE_INTERVAL
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '300'
+  description: Interval (seconds) for inotify reconciliation loop
+  example: '60'
+- name: INTERNAL_PORT
+  kind: literal
+  owner: main/logging
+  used_by:
+  - devtools/lineage
+  - llms/monitoring
+  - main/logging
+  - main/traefik
+  required: false
+  default: '5578'
+  description: Internal TCP entrypoint port (host-internal, e.g. for Postgres TLS proxy)
+  example: '5578'
+- name: JELLYFIN_PublishedServerUrl
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: https://jellyfin.${LOCAL_DOMAIN}
+  description: jellyfin publishedserverurl setting for hobby/streaming.
+  example: https://jellyfin.${LOCAL_DOMAIN}
+- name: JELLYSEERR_LOG_LEVEL
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: info
+  description: Log level for Jellyseerr
+  example: info
+- name: JELLYSEERR_PORT
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: '5055'
+  description: Internal port for Jellyseerr
+  example: '5055'
+- name: JOURNEY_ASSET_DIR
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: journey asset dir; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_journey_asset_dir
+- name: JOURNEY_CSS_FILENAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: journey css filename; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_journey_css_filename
+- name: JOURNEY_HOSTNAME
+  kind: literal
+  owner: productivity/static-journey
+  used_by:
+  - productivity/static-journey
+  required: true
+  description: journey hostname setting for productivity/static-journey.
+  example: your_journey_hostname
+- name: JOURNEY_IMAGE
+  kind: literal
+  owner: productivity/static-journey
+  used_by:
+  - productivity/static-journey
+  required: true
+  description: journey image setting for productivity/static-journey.
+  example: your_journey_image
+- name: JOURNEY_JS_FILENAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: journey js filename; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_journey_js_filename
+- name: JOURNEY_PHOTO_ONE_FILENAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: journey photo one filename; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_journey_photo_one_filename
+- name: JOURNEY_PHOTO_TWO_FILENAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: journey photo two filename; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_journey_photo_two_filename
+- name: JOURNEY_VERSION
+  kind: literal
+  owner: productivity/static-journey
+  used_by:
+  - productivity/static-journey
+  required: true
+  description: journey version setting for productivity/static-journey.
+  example: your_journey_version
+- name: JUPYTER_TOKEN
+  kind: literal
+  owner: devtools/notebooks
+  used_by:
+  - devtools/notebooks
+  required: true
+  description: Set a secure token for Jupyter access
+  example: your_jupyter_token
+- name: K3S_SUPAVISOR_PORT
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: Published host port for the K3S Supavisor pooler
+  example: '5433'
+- name: K8S_DB_PASSWORD
+  kind: secret-file
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: 'Password for the K8S/K3S database user (Generate: openssl rand -hex 32)'
+  secret_file: k8s/db_password
+- name: KEYCLOAK_ADMIN_PASSWORD
+  kind: secret-file
+  owner: main/identity
+  used_by:
+  - main/identity
+  required: true
+  description: 'Keycloak bootstrap admin password (Generate: openssl rand -hex 32)'
+  secret_file: keycloak/admin_password
+- name: KEYCLOAK_DB_PASSWORD
+  kind: secret-file
+  owner: main/identity
+  used_by:
+  - main/identity
+  required: true
+  description: 'Password for the Keycloak PostgreSQL user (Generate: openssl rand -hex 32)'
+  secret_file: keycloak/postgres_password
+- name: KEYCLOAK_IMAGE
+  kind: literal
+  owner: main/identity
+  used_by:
+  - main/identity
+  required: true
+  description: keycloak image setting for main/identity.
+  example: <registry>/<project>/<repository>/keycloak-optimized@sha256:<digest>
+  exported: false
+- name: KEYCLOAK_LOKI_API_CLIENT_ID
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: keycloak loki api client id; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_keycloak_loki_api_client_id
+- name: KEYCLOAK_LOKI_API_CLIENT_SECRET
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: keycloak loki api client secret; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: keycloak/loki_api_client_secret
+- name: KEYCLOAK_REALM
+  kind: literal
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: Name of the main Keycloak realm
+  example: your_realm_name
+- name: KEYCLOAK_SIGILCORE_REALM
+  kind: literal
+  owner: main/identity-gateway
+  used_by:
+  - llms/governance
+  - main/identity-gateway
+  - main/traefik
+  - ml/registry
+  - productivity/finance
+  required: true
+  description: Name of the Sigilcore Keycloak realm
+  example: your_sigilcore_realm_name
+- name: LANGFUSE_CLICKHOUSE_MIGRATION_URL
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: ClickHouse native URL for Langfuse migrations
+  example: clickhouse://clickhouse:9000
+- name: LANGFUSE_CLICKHOUSE_URL
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: ClickHouse HTTP URL for Langfuse
+  example: http://clickhouse:8123
+- name: LANGFUSE_DATABASE_URL
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: Langfuse primary PostgreSQL URL
+  example: postgresql://langfuse:your_langfuse_db_password@postgres:5432/langfuse
+- name: LANGFUSE_DB_NAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: langfuse db name; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_langfuse_db_name
+- name: LANGFUSE_DB_PASSWORD
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: 'Password for Langfuse PostgreSQL user (Generate: openssl rand -hex 32)'
+  secret_file: langfuse/db_password
+- name: LANGFUSE_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: langfuse db password encoded; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_langfuse_db_password_encoded
+- name: LANGFUSE_DB_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: langfuse db user; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_langfuse_db_user
+- name: LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'true'
+  description: Enable experimental Langfuse features
+  example: 'false'
+- name: LANGFUSE_ENCRYPTION_KEY
+  kind: secret-file
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: '256-bit AES key in hex (Generate: openssl rand -hex 32)'
+  secret_file: langfuse/encryption_key
+- name: LANGFUSE_HOST
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: false
+  default: https://cloud.langfuse.com
+  description: Public URL of the Langfuse instance
+  example: https://langfuse.local.yourdomain.com
+- name: LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: ''
+  description: ClickHouse write interval for ingestion (ms)
+  example: '5000'
+- name: LANGFUSE_INGESTION_QUEUE_DELAY_MS
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: ''
+  description: Ingestion queue processing delay (ms)
+  example: '1000'
+- name: LANGFUSE_INIT_PROJECT_ID
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: litellm
+  description: 'Initial project UUID (Generate: uuidgen)'
+  example: your_langfuse_project_id
+- name: LANGFUSE_INIT_PROJECT_NAME
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: litellm
+  description: Initial project name
+  example: default
+- name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+  kind: secret-file
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  - llms/monitoring
+  required: true
+  description: Initial project public key
+  secret_file: langfuse/project_public_key
+- name: LANGFUSE_INIT_PROJECT_SECRET_KEY
+  kind: secret-file
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  - llms/monitoring
+  required: true
+  description: 'Initial project secret key (Generate: openssl rand -hex 32)'
+  secret_file: langfuse/project_secret_key
+- name: LANGFUSE_INIT_USER_NAME
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: darkledger
+  description: Initial Langfuse admin user name
+  example: admin
+- name: LANGFUSE_INIT_USER_PASSWORD
+  kind: secret-file
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: Initial Langfuse admin password
+  secret_file: langfuse/init_user_password
+- name: LANGFUSE_MINIO_ACCESS_KEY
+  kind: secret-file
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: MinIO/S3 access key for Langfuse blob storage
+  secret_file: minio/minio_access_key
+- name: LANGFUSE_MINIO_SECRET_KEY
+  kind: secret-file
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: MinIO/S3 secret key for Langfuse blob storage
+  secret_file: minio/minio_secret_key
+- name: LANGFUSE_NEXTAUTH_SECRET
+  kind: secret-file
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: 'NextAuth.js secret (Generate: openssl rand -base64 32)'
+  secret_file: langfuse/nextauth_secret
+- name: LANGFUSE_S3_BATCH_EXPORT_BUCKET
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: langfuse
+  description: S3 bucket for Langfuse batch exports
+  example: langfuse-exports
+- name: LANGFUSE_S3_BATCH_EXPORT_ENABLED
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'false'
+  description: Enable S3 batch export in Langfuse
+  example: 'true'
+- name: LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'true'
+  description: Use path-style S3 URLs (required for MinIO)
+  example: 'true'
+- name: LANGFUSE_S3_BATCH_EXPORT_PREFIX
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: exports/
+  description: S3 key prefix for Langfuse batch exports
+  example: batch/
+- name: LANGFUSE_S3_BATCH_EXPORT_REGION
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: auto
+  description: S3 region for batch exports
+  example: us-east-1
+- name: LANGFUSE_S3_EVENT_UPLOAD_BUCKET
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: langfuse
+  description: S3 bucket for Langfuse event uploads
+  example: langfuse-events
+- name: LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'true'
+  description: Use path-style S3 URLs for event uploads
+  example: 'true'
+- name: LANGFUSE_S3_EVENT_UPLOAD_PREFIX
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: events/
+  description: S3 key prefix for event uploads
+  example: events/
+- name: LANGFUSE_S3_EVENT_UPLOAD_REGION
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: auto
+  description: S3 region for event uploads
+  example: us-east-1
+- name: LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: langfuse
+  description: S3 bucket for Langfuse media uploads
+  example: langfuse-media
+- name: LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'true'
+  description: Use path-style S3 URLs for media uploads
+  example: 'true'
+- name: LANGFUSE_S3_MEDIA_UPLOAD_PREFIX
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: media/
+  description: S3 key prefix for media uploads
+  example: media/
+- name: LANGFUSE_S3_MEDIA_UPLOAD_REGION
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: auto
+  description: S3 region for media uploads
+  example: us-east-1
+- name: LANGFUSE_SALT
+  kind: secret-file
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: true
+  description: 'Password hash salt (Generate: openssl rand -base64 32)'
+  secret_file: langfuse/salt
+- name: LANGFUSE_USE_AZURE_BLOB
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'false'
+  description: Use Azure Blob Storage instead of S3
+  example: 'false'
+- name: LANGFUSE_WEB_REPLICAS
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: '2'
+  description: langfuse web replicas setting for llms/monitoring.
+  example: '2'
+- name: LANGFUSE_WORKER_REPLICAS
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: '3'
+  description: langfuse worker replicas setting for llms/monitoring.
+  example: '3'
+- name: LITELLM_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: litellm db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: litellm/db_password
+- name: LITELLM_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: litellm db password encoded; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_litellm_db_password_encoded
+- name: LITELLM_DB_URL
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: LiteLLM PostgreSQL connection URL
+  example: postgresql://litellm:your_litellm_db_password@postgres:5432/litellm
+- name: LITELLM_DB_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: litellm db user; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_litellm_db_user
+- name: LITELLM_GATEWAY_HOST_IP
+  kind: literal
+  owner: main/trust-agent
+  used_by:
+  - main/trust-agent
+  required: true
+  description: Address the Trust Agent resolves litellm.${LOCAL_DOMAIN} to (required, no default)
+  example: your_litellm_gateway_host_ip
+- name: LITELLM_GITHUB_TOKEN
+  kind: computed
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: GitHub token for LiteLLM model config fetching
+  example: your_github_token
+- name: LITELLM_MASTER_KEY
+  kind: literal
+  owner: main/trust-agent
+  used_by:
+  - llms/governance
+  - main/trust-agent
+  required: true
+  description: litellm master key setting for main/trust-agent.
+  example: your_litellm_master_key
+- name: LITELLM_OPENROUTER_API_KEY
+  kind: computed
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: OpenRouter API key for LiteLLM
+  example: your_openrouter_api_key
+- name: LLMS_AGENTS_NODE_HOSTNAME
+  kind: literal
+  owner: llms/.tmp_service_deploy_hermes
+  used_by:
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  required: true
+  description: Node hostname for hermes, honcho, openhands (e.g. frost-fang or manager-primary)
+  example: manager-primary
+  exported: false
+- name: LOCAL_DOMAIN
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - admin/dashboards
+  - apps/supabase
+  - apps/web
+  - compute/execution
+  - devtools/lineage
+  - devtools/notebooks
+  - devtools/ontology
+  - hobby/gaming
+  - hobby/iot
+  - hobby/science
+  - hobby/streaming
+  - llms/.tmp_service_deploy_vllm-gemma4
+  - llms/agents
+  - llms/governance
+  - llms/mcp
+  - llms/monitoring
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/logging
+  - main/maintenance
+  - main/messaging
+  - main/monitoring
+  - main/mtu
+  - main/security
+  - main/storage
+  - main/traefik
+  - main/trust-agent
+  - main/uptime
+  - ml/orchestration
+  - ml/registry
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/automations
+  - productivity/browser-lab
+  - productivity/finance
+  - productivity/knowledge
+  - productivity/tools
+  - retrieval/analytics
+  - retrieval/documents
+  - retrieval/web
+  - security/dns
+  - security/network
+  - vision/.tmp_service_deploy_comfy-gpu
+  - vision/generation
+  required: true
+  description: Subdomain for local services (configure in Cloudflare)
+  example: local.yourdomain.com
+- name: LOGFLARE_NODE_PORT
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: '4000'
+  description: logflare node port setting for apps/supabase.
+  example: '4000'
+- name: LOGFLARE_PRIVATE_ACCESS_TOKEN
+  kind: secret-file
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: 'Logflare private access token for Supabase analytics (Generate: openssl rand -hex 32)'
+  secret_file: supabase/self_hosted/logflare_private_access_token
+- name: LOGFLARE_PUBLIC_ACCESS_TOKEN
+  kind: secret-file
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: 'Logflare public access token for Supabase analytics (Generate: openssl rand -hex 32)'
+  secret_file: supabase/self_hosted/logflare_public_access_token
+- name: LOGGING_LEVEL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: logging level setting for retrieval/web.
+  example: ''
+- name: LOKI_RETENTION_PERIOD
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 2160h
+  description: Log retention period in Loki (2160h = 90 days, about 26 GiB)
+  example: 2160h
+- name: LOKI_SYNC_CHECK_MIN_AGE
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 45m
+  description: loki sync check min age setting for main/logging.
+  example: 45m
+- name: LOKI_SYNC_PSI_MAX_AVG60
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: '40'
+  description: loki sync psi max avg60 setting for main/logging.
+  example: '40'
+- name: LOKI_SYNC_SCHEDULE_CHECK
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 0 5 * * *
+  description: loki sync schedule check setting for main/logging.
+  example: 0 5 * * *
+- name: LOKI_SYNC_SCHEDULE_GCS
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 7,37 * * * *
+  description: loki sync schedule gcs setting for main/logging.
+  example: 7,37 * * * *
+- name: LOKI_SYNC_SCHEDULE_GCS_FULL
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 45 3 * * *
+  description: loki sync schedule gcs full setting for main/logging.
+  example: 45 3 * * *
+- name: LOKI_SYNC_SCHEDULE_PRUNE
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 30 4 * * *
+  description: loki sync schedule prune setting for main/logging.
+  example: 30 4 * * *
+- name: LOKI_SYNC_SCHEDULE_REPLICA
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: '*/5 * * * *'
+  description: loki sync schedule replica setting for main/logging.
+  example: '*/5 * * * *'
+- name: LOKI_SYNC_SCHEDULE_REPLICA_FULL
+  kind: literal
+  owner: main/logging
+  used_by:
+  - main/logging
+  required: false
+  default: 15 3 * * *
+  description: loki sync schedule replica full setting for main/logging.
+  example: 15 3 * * *
+- name: MAINTAINER_EMAIL
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - hobby/gaming
+  - llms/monitoring
+  - main/traefik
+  - productivity/finance
+  required: true
+  description: maintainer email setting for main/traefik.
+  example: ${MAINTAINER_EMAIL:-admin@example.com}
+- name: MAXTOKENNUM
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: false
+  default: ''
+  description: Maximum token count for Open WebUI completions
+  secret_file: unassigned/maxtokennum
+- name: MCP_ADMIN_GRAFANA_API_KEY
+  kind: literal
+  owner: llms/mcp
+  used_by:
+  - llms/mcp
+  required: true
+  description: Grafana API key for MCP admin access (generated after deploy)
+  example: your_grafana_api_key
+- name: MCP_GATEWAY_OIDC_CLIENT_ID
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: false
+  default: litellm-mcp-gateway
+  description: mcp gateway oidc client id setting for llms/governance.
+  example: litellm-mcp-gateway
+- name: MCP_NOTION_API_TOKEN
+  kind: literal
+  owner: llms/mcp
+  used_by:
+  - llms/mcp
+  required: true
+  description: mcp notion api token setting for llms/mcp.
+  example: your_mcp_notion_api_token
+- name: MCP_NOTION_VERSION
+  kind: literal
+  owner: llms/mcp
+  used_by:
+  - llms/mcp
+  required: true
+  description: mcp notion version setting for llms/mcp.
+  example: your_mcp_notion_version
+- name: MF_METADATA_DB_HOST
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: true
+  description: PostgreSQL host for Metaflow metadata service
+  example: postgres
+- name: MF_METADATA_DB_NAME
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: metaflow
+  description: PostgreSQL database name for Metaflow
+  example: metaflow
+- name: MF_METADATA_DB_PASSWORD
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: true
+  description: 'PostgreSQL password for Metaflow (Generate: openssl rand -hex 32)'
+  example: your_metaflow_db_password
+- name: MF_METADATA_DB_PORT
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: '5432'
+  description: PostgreSQL port for Metaflow
+  example: '5432'
+- name: MF_METADATA_DB_TIMEOUT
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: '120'
+  description: Database connection timeout (seconds) for Metaflow
+  example: '60'
+- name: MF_METADATA_DB_USER
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: true
+  description: PostgreSQL user for Metaflow
+  example: metaflow
+- name: MF_METADATA_HOST
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: 0.0.0.0
+  description: Metaflow metadata service bind host
+  example: 0.0.0.0
+- name: MF_METADATA_PORT
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: '8080'
+  description: Metaflow metadata service port
+  example: '8080'
+- name: MF_MIGRATION_PORT
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: '8082'
+  description: Metaflow migration service port
+  example: '8082'
+- name: MF_UI_METADATA_PORT
+  kind: literal
+  owner: ml/orchestration
+  used_by:
+  - ml/orchestration
+  required: false
+  default: '8083'
+  description: Metaflow UI metadata service port
+  example: '3000'
+- name: MLFLOW_API_CLIENT_ID
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow api client id; read by unreferenced-in-tracked-files, not by a stack.
+  example: mlflow-api
+- name: MLFLOW_API_CLIENT_SECRET
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow api client secret; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: keycloak/mlflow_api_client_secret
+- name: MLFLOW_BACKEND_STORE_URI
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow backend store uri; read by unreferenced-in-tracked-files, not by a stack.
+  example: postgresql://mlflow:your_mlflow_db_password@postgres:5432/mlflow?sslmode=require
+- name: MLFLOW_DB_NAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow db name; read by unreferenced-in-tracked-files, not by a stack.
+  example: mlflow
+- name: MLFLOW_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: mlflow/db_password
+- name: MLFLOW_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow db password encoded; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_mlflow_db_password_encoded
+- name: MLFLOW_DB_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mlflow db user; read by unreferenced-in-tracked-files, not by a stack.
+  example: mlflow
+- name: MLFLOW_DEFAULT_ARTIFACT_ROOT
+  kind: literal
+  owner: ml/registry
+  used_by:
+  - ml/registry
+  required: true
+  description: mlflow default artifact root setting for ml/registry.
+  example: file:/mlflow/artifacts
+- name: MLFLOW_MINIO_ACCESS_KEY
+  kind: secret-file
+  owner: ml/registry
+  used_by:
+  - ml/registry
+  required: false
+  default: ''
+  description: mlflow minio access key setting for ml/registry.
+  secret_file: unassigned/mlflow_minio_access_key
+- name: MLFLOW_MINIO_SECRET_KEY
+  kind: secret-file
+  owner: ml/registry
+  used_by:
+  - ml/registry
+  required: false
+  default: ''
+  description: mlflow minio secret key setting for ml/registry.
+  secret_file: unassigned/mlflow_minio_secret_key
+- name: MLFLOW_OIDC_IMAGE
+  kind: literal
+  owner: ml/registry
+  used_by:
+  - ml/registry
+  required: true
+  description: mlflow oidc image setting for ml/registry.
+  example: <registry>/<project>/<repository>/mlflow-oidc@sha256:<digest>
+  exported: false
+- name: MLFLOW_S3_ENDPOINT_URL
+  kind: literal
+  owner: ml/registry
+  used_by:
+  - ml/registry
+  required: false
+  default: ''
+  description: mlflow s3 endpoint url setting for ml/registry.
+  example: https://minio-api.local.yourdomain.com
+- name: MONGODB_ROOT_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mongodb root password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: mongodb/mongodb_root_password
+- name: MONGODB_ROOT_PASSWORD_ENCODED
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: mongodb root password encoded; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: mongodb/mongodb_root_password
+- name: MONGODB_ROOT_USERNAME
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: false
+  default: admin
+  description: MongoDB root username
+  example: root
+- name: MONGODB_URL
+  kind: literal
+  owner: admin/dashboards
+  used_by:
+  - admin/dashboards
+  required: true
+  description: Full MongoDB connection URL
+  example: mongodb://root:your_mongo_password@mongo:27017/
+- name: MTU_COUNT
+  kind: literal
+  owner: main/mtu
+  used_by:
+  - main/mtu
+  required: false
+  default: '1'
+  description: Number of probe packets per target
+  example: '3'
+- name: MTU_INTERVAL
+  kind: literal
+  owner: main/mtu
+  used_by:
+  - main/mtu
+  required: false
+  default: 30s
+  description: Interval between MTU probe rounds
+  example: 60s
+- name: MTU_PAYLOAD_SIZE
+  kind: literal
+  owner: main/mtu
+  used_by:
+  - main/mtu
+  required: false
+  default: '1772'
+  description: ICMP payload size for MTU probe packets
+  example: '1400'
+- name: MTU_TASKS_DNS
+  kind: literal
+  owner: main/mtu
+  used_by:
+  - main/mtu
+  required: false
+  default: tasks.mtu-probe
+  description: DNS server used in MTU probe DNS tasks
+  example: 8.8.8.8:53
+- name: MTU_TIMEOUT
+  kind: literal
+  owner: main/mtu
+  used_by:
+  - main/mtu
+  required: false
+  default: 1s
+  description: Timeout per MTU probe packet
+  example: 10s
+- name: MYSQL_PASSWORD
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: Password for MySQL user
+  example: your_mysql_password
+- name: MYSQL_ROOT_PASSWORD
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: Password for MySQL root user
+  example: your_mysql_root_password
+- name: N8N_DB_POSTGRESDB_DATABASE
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: PostgreSQL database name for n8n
+  example: n8n
+- name: N8N_DB_POSTGRESDB_HOST
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: PostgreSQL host for n8n
+  example: postgres
+- name: N8N_DB_POSTGRESDB_PORT
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: PostgreSQL port for n8n
+  example: '5432'
+- name: N8N_DB_POSTGRESDB_SCHEMA
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: PostgreSQL schema for n8n
+  example: public
+- name: N8N_DB_POSTGRESDB_SSL_ENABLED
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: 'true'
+  description: Enable SSL for n8n PostgreSQL connection
+  example: 'false'
+- name: N8N_DB_POSTGRESDB_USER
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: PostgreSQL user for n8n
+  example: n8n
+- name: N8N_ENCRYPTION_KEY
+  kind: secret-file
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: 'n8n data encryption key (Generate: openssl rand -hex 32)'
+  secret_file: n8n/encryption_key
+- name: N8N_EXTERNAL_STORAGE_S3_BUCKET_NAME
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: n8n
+  description: S3 bucket name for n8n external file storage
+  example: n8n-storage
+- name: N8N_EXTERNAL_STORAGE_S3_HOST
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: true
+  description: n8n external storage s3 host setting for productivity/automations.
+  example: your_n8n_external_storage_s3_host
+- name: N8N_PROXY_HOPS
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: '1'
+  description: Number of trusted reverse proxy hops in front of n8n
+  example: '1'
+- name: N8N_QUEUE_BULL_REDIS_DB
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: '6'
+  description: Redis DB index for n8n queue
+  example: '0'
+- name: N8N_QUEUE_BULL_REDIS_HOST
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: queue
+  description: Redis host for n8n queue (Bull)
+  example: redis
+- name: N8N_QUEUE_BULL_REDIS_PORT
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: '6379'
+  description: Redis port for n8n queue
+  example: '6379'
+- name: N8N_QUEUE_BULL_REDIS_USERNAME
+  kind: literal
+  owner: productivity/automations
+  used_by:
+  - productivity/automations
+  required: false
+  default: default
+  description: n8n queue bull redis username setting for productivity/automations.
+  example: ''
+- name: N8N_WEBHOOK_URL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: n8n webhook url; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_n8n_webhook_url
+- name: NETDATA_CHILD_CONFIG_INTERVAL
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: false
+  default: '300'
+  description: Netdata child configuration collection interval (seconds)
+  example: '5'
+- name: NETDATA_CLAIM_ROOMS
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: Room ID from NetData Cloud
+  example: your_netdata_room_id
+- name: NETDATA_PARENT_HOST
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: Hostname or service name of the Netdata parent node
+  example: netdata-parent
+- name: NETDATA_STREAM_PORT
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: Port for Netdata agent-to-parent streaming
+  example: '19999'
+- name: NETDATA_TOKEN
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: Generated from NetData Cloud (https://app.netdata.cloud/)
+  example: your_netdata_token
+- name: NEXTDNS_API_KEY
+  kind: literal
+  owner: main/monitoring
+  used_by:
+  - main/monitoring
+  required: true
+  description: NextDNS API key (https://my.nextdns.io)
+  example: your_nextdns_api_key
+- name: NEXTDNS_PROFILE
+  kind: literal
+  owner: main/monitoring
+  used_by:
+  - main/monitoring
+  - main/traefik
+  required: true
+  description: NextDNS profile ID (the exporter reads it; Grafana receives it as NEXTDNS_PROFILE_ID for alert rules)
+  example: your_nextdns_profile_id
+- name: NFS_MEDIA_HOST
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: true
+  description: e.g. 100.x.x.x (Tailscale) or hostname; required if deploying hobby-streaming
+  example: your_nfs_host
+- name: NTOPNG_INTERFACE_DOCKER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - services
+  required: true
+  description: ntopng interface docker; read by services, not by a stack.
+  example: your_ntopng_interface_docker
+- name: NTOPNG_INTERFACE_PHYSICAL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - services
+  required: true
+  description: ntopng interface physical; read by services, not by a stack.
+  example: your_ntopng_interface_physical
+- name: NTOPNG_INTERFACE_VPC
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - services
+  required: true
+  description: ntopng interface vpc; read by services, not by a stack.
+  example: your_ntopng_interface_vpc
+- name: NVIDIA_GPU_TARGETS_FILE
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: false
+  default: ./configs/prometheus/nvidia_targets.example.yml
+  description: nvidia gpu targets file setting for main/traefik.
+  example: ./configs/prometheus/nvidia_targets.example.yml
+  exported: false
+- name: OAUTH2_PROXY_CLIENT_ID
+  kind: literal
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: OAuth2 client ID for oauth2-proxy (from your IdP)
+  example: your_oauth2_proxy_client_id
+- name: OAUTH2_PROXY_CLIENT_SECRET
+  kind: secret-file
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: OAuth2 client secret for oauth2-proxy
+  secret_file: oauth2-proxy/client_secret
+- name: OAUTH2_PROXY_COOKIE_SECRET
+  kind: secret-file
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: 'Generate: openssl rand -base64 32'
+  secret_file: oauth2-proxy/cookie_secret
+- name: OBSIDIAN_LIVESYNC_COUCHDB_USER
+  kind: literal
+  owner: productivity/knowledge
+  used_by:
+  - productivity/knowledge
+  required: false
+  default: obsidian_livesync
+  description: obsidian livesync couchdb user setting for productivity/knowledge.
+  example: obsidian_livesync
+- name: OLLAMA_BASE_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: ollama base url setting for retrieval/web.
+  example: ''
+- name: OPENAI_API_KEY
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: Get from OpenAI dashboard
+  example: your_openai_api_key
+- name: OPENBAO_ADDR
+  kind: literal
+  owner: main/trust-agent
+  used_by:
+  - main/trust-agent
+  required: true
+  description: OpenBao API address (used by cluster-utils openbao commands)
+  example: https://vault.${LOCAL_DOMAIN}
+- name: OPENDEVIN_GITHUB_TOKEN
+  kind: secret-file
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: true
+  description: opendevin github token setting for llms/agents.
+  secret_file: github/opendevin_github_token
+- name: OPENDEVIN_LITELLM_API_KEY
+  kind: secret-file
+  owner: llms/.tmp_service_deploy_hermes
+  used_by:
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  required: true
+  description: LiteLLM API key used by OpenHands/OpenDevin agent
+  secret_file: litellm/post_deploy_keys/liellm_api_key
+- name: OPENHANDS_DEFAULT_MODEL
+  kind: literal
+  owner: llms/agents
+  used_by:
+  - llms/agents
+  required: false
+  default: litellm_proxy/gemini-2.5-flash
+  description: Default model identifier for OpenHands
+  example: anthropic/claude-3-5-sonnet
+- name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: OpenSearch initial admin password (min 8 chars, must contain upper/lower/digit/special)
+  secret_file: opensearch/opensearch_password
+- name: OPEN_WEBUI_REPLICAS
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: false
+  default: '2'
+  description: open webui replicas setting for llms/governance.
+  example: '2'
+- name: OPEN_WEB_UI_DATABASE_SCHEMA
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: PostgreSQL schema for Open WebUI
+  example: openwebui
+- name: OPEN_WEB_UI_DATABASE_URL
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: PostgreSQL URL for Open WebUI
+  example: postgresql://webui:your_webui_db_password@postgres:5432/openwebui
+- name: OPEN_WEB_UI_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: open web ui db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: open_web_ui/db_password
+- name: OPEN_WEB_UI_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: open web ui db password encoded; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_open_web_ui_db_password_encoded
+- name: OPEN_WEB_UI_REDIS_DB
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: open web ui redis db; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_open_web_ui_redis_db
+- name: OPEN_WEB_UI_REDIS_URL
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: Redis URL for Open WebUI session storage
+  example: redis://redis:6379/2
+- name: OPEN_WEB_UI_SECRET_KEY
+  kind: secret-file
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: 'Open WebUI JWT secret key (Generate: openssl rand -hex 32)'
+  secret_file: open_web_ui/secret_key
+- name: OPEN_WEB_UI_WEBSOCKETS_REDIS_URL
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: Redis URL for Open WebUI WebSocket pub/sub
+  example: redis://redis:6379/3
+- name: ORG
+  kind: literal
+  owner: main/storage
+  used_by:
+  - llms/monitoring
+  - main/storage
+  required: true
+  description: Used for various services including InfluxDB
+  example: your_organization_name
+- name: OTEL_INSECURE
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: 'false'
+  description: Set to true to disable TLS for OTEL collector endpoints
+  example: 'false'
+- name: PATH
+  kind: literal
+  owner: llms/mcp
+  used_by:
+  - llms/mcp
+  required: false
+  default: ''
+  description: 'Unintended: stacks/llms/mcp.yml writes $PATH (should be $$PATH), so compose interpolates the deployer''s PATH. Never set it in
+    .env.'
+  example: ''
+  in_example: false
+- name: PGADMIN_DEFAULT_PASSWORD
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: Admin password for PgAdmin web interface
+  example: your_pgadmin_password
+- name: PGID
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: '1000'
+  description: Group ID for container process ownership
+  example: '1000'
+- name: PGSSLMODE
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: require
+  description: PostgreSQL SSL mode (disable/require/verify-full)
+  example: disable
+- name: PIHOLE_TOKEN
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: Generate from Pi-hole Admin interface
+  example: your_pihole_token
+- name: PLAYWRIGHT_MICROSERVICE_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: http://playwright:3000/scrape
+  description: Playwright microservice URL for RAGflow web scraping
+  example: http://playwright:3000
+- name: POMERIUM_CLIENT_ID
+  kind: literal
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: OAuth2 client ID for Pomerium (from your IdP)
+  example: your_pomerium_client_id
+- name: POMERIUM_CLIENT_SECRET
+  kind: secret-file
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: OAuth2 client secret for Pomerium
+  secret_file: pomerium/client_secret
+- name: POMERIUM_COOKIE_SECRET
+  kind: secret-file
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: 'Generate: openssl rand -base64 32'
+  secret_file: pomerium/cookie_secret
+- name: POMERIUM_SHARED_SECRET
+  kind: secret-file
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: 'Generate: openssl rand -base64 32'
+  secret_file: pomerium/shared_secret
+- name: POMERIUM_SIGNING_KEY
+  kind: secret-file
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: EC P-256 private key in base64 (see Pomerium docs)
+  secret_file: pomerium/signing_key
+- name: PORTAINER_AGENT_SECRET
+  kind: secret-file
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: 'Shared secret for Portainer agent authentication (Generate: openssl rand -hex 32)'
+  secret_file: portainer/agent_secret
+- name: POSTGRES_DB
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  - main/storage
+  required: false
+  default: postgres
+  description: Database name for PostgreSQL
+  example: your_database_name
+- name: POSTGRES_HOST
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: postgres
+  description: PostgreSQL hostname (service name in Swarm)
+  example: postgres
+- name: POSTGRES_INTERNAL_PORT
+  kind: literal
+  owner: main/uptime
+  used_by:
+  - main/uptime
+  required: false
+  default: '5432'
+  description: PostgreSQL internal port (may differ when using Traefik TCP proxy)
+  example: '5432'
+- name: POSTGRES_PASSWORD
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: 'Password for PostgreSQL superuser (Generate: openssl rand -hex 32)'
+  secret_file: postgres/postgres_db_password
+- name: POSTGRES_PORT
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '5432'
+  description: PostgreSQL standard port
+  example: '5432'
+- name: POSTGRES_USER
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  - main/storage
+  required: false
+  default: postgres
+  description: Username for PostgreSQL database
+  example: your_username
+- name: POSTHOG_API_KEY
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: posthog api key setting for retrieval/web.
+  secret_file: unassigned/posthog_api_key
+- name: POSTHOG_HOST
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: posthog host setting for retrieval/web.
+  example: ''
+- name: PROMETHEUS_RETENTION_SIZE
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: false
+  default: 750GB
+  description: Prometheus TSDB retention size (e.g. 750GB)
+  example: 750GB
+- name: PROMETHEUS_URL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: prometheus url; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_prometheus_url
+- name: PROXY_PASSWORD
+  kind: secret-file
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  - retrieval/web
+  required: false
+  default: ''
+  description: proxy password setting for compute/execution.
+  secret_file: unassigned/proxy_password
+- name: PROXY_SERVER
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  - retrieval/web
+  required: false
+  default: ''
+  description: proxy server setting for compute/execution.
+  example: ''
+- name: PROXY_USERNAME
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  - retrieval/web
+  required: false
+  default: ''
+  description: proxy username setting for compute/execution.
+  example: ''
+- name: PTERODACTYL_DB_ROOT_SECRET
+  kind: literal
+  owner: hobby/gaming
+  used_by:
+  - hobby/gaming
+  required: true
+  description: pterodactyl db root secret setting for hobby/gaming.
+  example: your_pterodactyl_db_root_secret
+  exported: false
+- name: PTERODACTYL_PANEL_DB_SECRET
+  kind: literal
+  owner: hobby/gaming
+  used_by:
+  - hobby/gaming
+  required: true
+  description: pterodactyl panel db secret setting for hobby/gaming.
+  example: your_pterodactyl_panel_db_secret
+  exported: false
+- name: PTERODACTYL_PANEL_DOTENV_SECRET
+  kind: literal
+  owner: hobby/gaming
+  used_by:
+  - hobby/gaming
+  required: true
+  description: pterodactyl panel dotenv secret setting for hobby/gaming.
+  example: your_pterodactyl_panel_dotenv_secret
+  exported: false
+- name: PTERODACTYL_PANEL_STORAGE_BUCKET
+  kind: literal
+  owner: hobby/gaming
+  used_by:
+  - hobby/gaming
+  required: true
+  description: pterodactyl panel storage bucket setting for hobby/gaming.
+  example: your_pterodactyl_panel_storage_bucket
+  exported: false
+- name: PUID
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: '1000'
+  description: User ID for container process ownership
+  example: '1000'
+- name: QDRANT_API_KEY
+  kind: secret-file
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: Get from Qdrant Cloud or set for local instance
+  secret_file: qdrant/api_key
+- name: QDRANT_ENDPOINT
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: true
+  description: 'Format: http://localhost:6333 or https://your-cluster.qdrant.io'
+  example: your_qdrant_endpoint
+- name: RAGFLOW_ADMIN_EMAIL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow admin email; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_admin_email
+- name: RAGFLOW_ADMIN_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow admin password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: ragflow/admin_password
+- name: RAGFLOW_HF_ENDPOINT
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: HuggingFace endpoint for RAGflow model downloads
+  example: https://huggingface.co
+- name: RAGFLOW_HTTP_APP_KEY
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: RAGflow HTTP API application key
+  secret_file: ragflow/http_app_key
+- name: RAGFLOW_HTTP_SECRET_KEY
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: RAGflow HTTP API secret key
+  secret_file: ragflow/http_secret_key
+- name: RAGFLOW_INFINITY_HOST
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow infinity host; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_infinity_host
+- name: RAGFLOW_INFINITY_PORT
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow infinity port; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_infinity_port
+- name: RAGFLOW_LITELLM_API_KEY
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: LiteLLM API key for RAGflow LLM calls
+  secret_file: litellm/post_deploy_keys/ragflow_service_key
+- name: RAGFLOW_MCP_API_KEY
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: 'API key for RAGFlow MCP server (self-host mode); generate with: openssl rand -hex 32'
+  secret_file: unassigned/ragflow_mcp_api_key
+- name: RAGFLOW_MINIO_HOST
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: MinIO host for RAGflow object storage
+  example: minio
+- name: RAGFLOW_MINIO_PASSWORD
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: MinIO secret key / password for RAGflow
+  secret_file: minio/minio_secret_key
+- name: RAGFLOW_MINIO_PORT
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: MinIO port for RAGflow
+  example: '9000'
+- name: RAGFLOW_MINIO_USER
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: MinIO access key / username for RAGflow
+  secret_file: minio/minio_access_key
+- name: RAGFLOW_MYSQL_DBNAME
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow mysql dbname; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_mysql_dbname
+- name: RAGFLOW_MYSQL_HOST
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow mysql host; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_mysql_host
+- name: RAGFLOW_MYSQL_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow mysql password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: mysql/ragflow_db_password
+- name: RAGFLOW_MYSQL_PORT
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow mysql port; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_mysql_port
+- name: RAGFLOW_MYSQL_USER
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow mysql user; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_mysql_user
+- name: RAGFLOW_OPENSEARCH_PASSWORD
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: OpenSearch password for RAGflow
+  example: your_opensearch_password
+- name: RAGFLOW_OS_HOST
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: OpenSearch host for RAGflow
+  example: opensearch
+- name: RAGFLOW_OS_PORT
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: OpenSearch port for RAGflow
+  example: '9200'
+- name: RAGFLOW_OS_USER
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: OpenSearch user for RAGflow
+  example: admin
+- name: RAGFLOW_POSTGRES_DBNAME
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: PostgreSQL database name for RAGflow
+  example: ragflow
+- name: RAGFLOW_POSTGRES_HOST
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: PostgreSQL host for RAGflow metadata
+  example: postgres
+- name: RAGFLOW_POSTGRES_PASSWORD
+  kind: secret-file
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: PostgreSQL password for RAGflow
+  secret_file: ragflow/db_password
+- name: RAGFLOW_POSTGRES_PORT
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: PostgreSQL port for RAGflow
+  example: '5432'
+- name: RAGFLOW_POSTGRES_SSLMODE
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: PostgreSQL SSL mode for RAGflow (disable/require/verify-full)
+  example: disable
+- name: RAGFLOW_POSTGRES_USER
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: PostgreSQL user for RAGflow
+  example: ragflow
+- name: RAGFLOW_REDIS_HOST
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: Redis host for RAGflow task queue
+  example: redis
+- name: RAGFLOW_REDIS_PASSWORD
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: Redis password for RAGflow (use the same value as REDIS_PASSWORD if sharing the instance)
+  example: your_redis_password
+- name: RAGFLOW_REDIS_PORT
+  kind: literal
+  owner: retrieval/documents
+  used_by:
+  - retrieval/documents
+  required: true
+  description: Redis port for RAGflow
+  example: '6379'
+- name: RAGFLOW_SERVICE_EMAIL
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow service email; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_service_email
+- name: RAGFLOW_SERVICE_PASSWORD
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: ragflow service password; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_ragflow_service_password
+- name: RCLONE_CONTROLLER_IMAGE
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: true
+  description: rclone controller image setting for main/maintenance.
+  example: your_rclone_controller_image
+  exported: false
+- name: RCLONE_REJECT_CHECK_INTERVAL
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '60'
+  description: Interval (seconds) between rclone reject-check iterations
+  example: '60'
+- name: RCLONE_REJECT_COOLDOWN_SECONDS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '300'
+  description: Cooldown (seconds) after a rclone rejection before retrying
+  example: '300'
+- name: RCLONE_REJECT_ERROR_PATTERN
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: rclone
+  description: Pattern to detect errors in rclone output
+  example: error
+- name: REBALANCE_COOLDOWN_SECONDS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '300'
+  description: Global cooldown (seconds) between rebalance cycles
+  example: '30'
+- name: REBALANCE_INTER_SERVICE_DELAY_SECONDS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '30'
+  description: rebalance inter service delay seconds setting for main/maintenance.
+  example: '30'
+- name: REBALANCE_SERVICE_COOLDOWN_SECONDS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '300'
+  description: Per-service cooldown (seconds) after a rebalance action
+  example: '60'
+- name: REBALANCE_SKIP_CONSTRAINTS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: node.labels.node.ephemeral != true,node.labels.storage.manager == true,node.labels.swarm.leader == true,node.role == manager
+  description: rebalance skip constraints setting for main/maintenance.
+  example: ''
+- name: REDIRECT_SUBDOMAIN
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: Default redirect after Authelia login
+  example: dashy.local
+- name: REDIS_HOST
+  kind: literal
+  owner: main/monitoring
+  used_by:
+  - llms/governance
+  - main/monitoring
+  - retrieval/analytics
+  required: true
+  description: Redis host for session storage
+  example: redis
+- name: REDIS_PASSWORD
+  kind: secret-file
+  owner: main/logging
+  used_by:
+  - llms/governance
+  - llms/monitoring
+  - main/logging
+  - main/monitoring
+  required: true
+  description: 'Redis password (Generate: openssl rand -hex 32)'
+  secret_file: redis/redis_password
+- name: REDIS_PORT
+  kind: literal
+  owner: main/monitoring
+  used_by:
+  - llms/governance
+  - main/monitoring
+  - retrieval/analytics
+  required: true
+  description: Redis port for session storage
+  example: '6379'
+- name: RESTART_DELAY_STANDARD
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - admin/dashboards
+  - compute/execution
+  - devtools/lineage
+  - devtools/ontology
+  - llms/.tmp_service_deploy_hermes
+  - llms/.tmp_service_deploy_open-terminal
+  - llms/agents
+  - llms/governance
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/maintenance
+  - main/storage
+  - main/trust-agent
+  - main/uptime
+  - productivity/automations
+  - productivity/finance
+  - productivity/knowledge
+  required: true
+  description: Delay between restart attempts for standard services
+  example: 5s
+- name: RESTART_MAX_ATTEMPTS
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - admin/dashboards
+  - compute/execution
+  - llms/.tmp_service_deploy_hermes
+  - llms/.tmp_service_deploy_open-terminal
+  - llms/agents
+  - llms/governance
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/maintenance
+  - main/storage
+  - main/trust-agent
+  - main/uptime
+  - productivity/automations
+  - productivity/finance
+  - productivity/knowledge
+  required: true
+  description: Maximum number of restart attempts before giving up
+  example: '3'
+- name: RESTART_WINDOW_CACHE
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: Time window for cache/fast-restart services (e.g. Redis)
+  example: 30s
+- name: RESTART_WINDOW_COMPLEX
+  kind: literal
+  owner: main/storage
+  used_by:
+  - llms/.tmp_service_deploy_vllm-gemma4
+  - llms/governance
+  - main/storage
+  - productivity/finance
+  - productivity/knowledge
+  required: false
+  default: 300s
+  description: Time window for complex/slow-start services (e.g. databases)
+  example: 300s
+- name: RESTART_WINDOW_STANDARD
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - admin/dashboards
+  - compute/execution
+  - llms/.tmp_service_deploy_hermes
+  - llms/.tmp_service_deploy_open-terminal
+  - llms/agents
+  - llms/governance
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/maintenance
+  - main/storage
+  - main/trust-agent
+  - main/uptime
+  - productivity/automations
+  - productivity/finance
+  required: true
+  description: Time window to evaluate restart policy for standard services
+  example: 120s
+- name: ROLLBACK_MONITOR_CACHE
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: Rollback health-check monitoring window for cache services
+  example: 15s
+- name: ROLLBACK_MONITOR_COMPLEX
+  kind: literal
+  owner: main/storage
+  used_by:
+  - llms/.tmp_service_deploy_vllm-gemma4
+  - llms/governance
+  - main/storage
+  required: true
+  description: Rollback health-check monitoring window for complex services
+  example: 120s
+- name: ROLLBACK_MONITOR_STANDARD
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - admin/dashboards
+  - compute/execution
+  - devtools/lineage
+  - devtools/ontology
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  - llms/governance
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/maintenance
+  - main/storage
+  - main/traefik
+  - main/trust-agent
+  - productivity/finance
+  - productivity/knowledge
+  required: true
+  description: Rollback health-check monitoring window for standard services
+  example: 30s
+- name: SANDBOX_BASE_NODEJS_IMAGE
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: infiniflow/sandbox-base-nodejs:latest
+  description: Base Node.js Docker image for OpenHands sandbox
+  example: node:20-slim
+- name: SANDBOX_BASE_PYTHON_IMAGE
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: infiniflow/sandbox-base-python:latest
+  description: Base Python Docker image for OpenHands sandbox
+  example: python:3.12-slim
+- name: SANDBOX_ENABLE_SECCOMP
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: 'false'
+  description: Enable seccomp security profile for sandbox containers
+  example: 'false'
+- name: SANDBOX_EXECUTOR_MANAGER_IMAGE
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: infiniflow/sandbox-executor-manager:latest
+  description: OpenHands runtime executor image
+  example: ghcr.io/all-hands-ai/runtime:latest
+- name: SANDBOX_EXECUTOR_MANAGER_POOL_SIZE
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: '3'
+  description: Size of the sandbox executor pool
+  example: '2'
+- name: SANDBOX_MAX_MEMORY
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: 256m
+  description: Maximum memory (MB) for each sandbox container
+  example: '2048'
+- name: SANDBOX_TIMEOUT
+  kind: literal
+  owner: compute/execution
+  used_by:
+  - compute/execution
+  required: false
+  default: 10s
+  description: Sandbox execution timeout (seconds)
+  example: '120'
+- name: SEARCHAPI_API_KEY
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: searchapi api key setting for retrieval/web.
+  secret_file: unassigned/searchapi_api_key
+- name: SEARXNG_CATEGORIES
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: searxng categories setting for retrieval/web.
+  example: ''
+- name: SEARXNG_ENGINES
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: searxng engines setting for retrieval/web.
+  example: ''
+- name: SELF_HOSTED_WEBHOOK_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: self hosted webhook url setting for retrieval/web.
+  example: ''
+- name: SENTINEL_APPLY
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: 'false'
+  description: sentinel apply setting for main/maintenance.
+  example: 'false'
+  exported: false
+- name: SENTINEL_GRACE_SECONDS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '600'
+  description: sentinel grace seconds setting for main/maintenance.
+  example: '600'
+- name: SENTINEL_IMAGE
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: true
+  description: sentinel image setting for main/maintenance.
+  example: <registry>/<project>/<repository>/crash-loop-sentinel@sha256:<digest>
+  exported: false
+- name: SENTINEL_LOG_RATE_WINDOW
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: 15m
+  description: sentinel log rate window setting for main/maintenance.
+  example: 15m
+- name: SENTINEL_POLL_SECONDS
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  required: false
+  default: '30'
+  description: sentinel poll seconds setting for main/maintenance.
+  example: '30'
+- name: SERPER_API_KEY
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: serper api key setting for retrieval/web.
+  secret_file: unassigned/serper_api_key
+- name: SIGILCORE_LOKI_API_CLIENT_ID
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - scripts/tests
+  required: true
+  description: OAuth2 client ID for authenticating to the remote Sigilcore Loki instance
+  example: your_sigilcore_loki_client_id
+- name: SIGILCORE_LOKI_API_CLIENT_SECRET
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - scripts/tests
+  required: true
+  description: OAuth2 client secret for the remote Sigilcore Loki instance
+  secret_file: keycloak/sigilcore_loki_api_client_secret
+- name: SLACK_WEBHOOK_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: slack webhook url setting for retrieval/web.
+  example: ''
+- name: SMTP_CONNECTION_URL
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: ''
+  description: SMTP connection URL for Metaflow notifications
+  example: smtp://apikey:your_sendgrid_key@smtp.sendgrid.net:587
+- name: SMTP_FROM
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: Email address for Grafana alerts
+  example: monitor@yourdomain.com
+- name: SMTP_USER
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: SMTP user for SendGrid (typically 'apikey')
+  example: apikey
+- name: STT_CPU_REPLICAS
+  kind: literal
+  owner: llms/speech-cpu
+  used_by:
+  - llms/speech-cpu
+  required: false
+  default: '0'
+  description: stt cpu replicas setting for llms/speech-cpu.
+  example: '0'
+- name: STT_GPU_REPLICAS
+  kind: literal
+  owner: llms/speech-gpu
+  used_by:
+  - llms/speech-gpu
+  required: false
+  default: '1'
+  description: stt gpu replicas setting for llms/speech-gpu.
+  example: '1'
+- name: STT_REPLICAS
+  kind: literal
+  owner: llms/speech
+  used_by:
+  - llms/speech
+  required: false
+  default: '0'
+  description: stt replicas setting for llms/speech.
+  example: '0'
+- name: STUDIO_DEFAULT_ORGANIZATION
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: Default Organization
+  description: studio default organization setting for apps/supabase.
+  example: Default Organization
+- name: STUDIO_DEFAULT_PROJECT
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: Default Project
+  description: studio default project setting for apps/supabase.
+  example: Default Project
+- name: SUPABASE_ADMIN_USER
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: supabase_admin
+  description: supabase admin user setting for apps/supabase.
+  example: supabase_admin
+- name: SUPABASE_ANALYTICS_POSTGRES_DATABASE
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: supabase analytics postgres database; read by unreferenced-in-tracked-files, not by a stack.
+  example: your_supabase_analytics_postgres_database
+- name: SUPABASE_ANALYTICS_POSTGRES_SCHEMA
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: _analytics
+  description: supabase analytics postgres schema setting for apps/supabase.
+  example: _analytics
+- name: SUPABASE_ANON_KEY
+  kind: secret-file
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: Supabase anonymous/public JWT key (from Supabase project settings)
+  secret_file: supabase/self_hosted/anon_key
+- name: SUPABASE_ANON_TOKEN
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: supabase anon token setting for retrieval/web.
+  secret_file: unassigned/supabase_anon_token
+- name: SUPABASE_DASHBOARD_PASSWORD
+  kind: secret-file
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: 'Supabase Studio dashboard login password (Generate: openssl rand -hex 16)'
+  secret_file: supabase/self_hosted/dashboard_password
+- name: SUPABASE_DASHBOARD_USERNAME
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: Supabase Studio dashboard login username
+  example: supabase
+- name: SUPABASE_JWT_EXPIRY
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: false
+  default: '3600'
+  description: JWT expiry in seconds for Supabase auth tokens
+  example: '3600'
+- name: SUPABASE_JWT_SECRET
+  kind: secret-file
+  owner: main/bridges
+  used_by:
+  - apps/supabase
+  - main/bridges
+  - main/storage
+  required: true
+  description: 'JWT secret for Supabase auth (Generate: openssl rand -base64 40)'
+  secret_file: supabase/self_hosted/jwt_secret
+- name: SUPABASE_POSTGRES_DATABASE
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: _supabase
+  description: supabase postgres database setting for apps/supabase.
+  example: _supabase
+- name: SUPABASE_POSTGRES_DB
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  - main/storage
+  required: false
+  default: postgres
+  description: Supabase PostgreSQL database name
+  example: postgres
+- name: SUPABASE_POSTGRES_INTERNAL_HOST
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: Internal hostname of the Supabase PostgreSQL service
+  example: postgres
+- name: SUPABASE_POSTGRES_INTERNAL_PORT
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: '5432'
+  description: supabase postgres internal port setting for apps/supabase.
+  example: '5432'
+- name: SUPABASE_POSTGRES_PASSWORD
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - apps/supabase
+  - main/storage
+  required: true
+  description: 'PostgreSQL superuser password for the Supabase DB container (Generate: openssl rand -hex 32)'
+  secret_file: supabase/self_hosted/postgres_password
+- name: SUPABASE_POSTGRES_PORT
+  kind: literal
+  owner: main/maintenance
+  used_by:
+  - main/maintenance
+  - main/storage
+  required: false
+  default: '5432'
+  description: Supabase PostgreSQL port
+  example: '5432'
+- name: SUPABASE_PUBLIC_URL
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: http://api.${LOCAL_DOMAIN}
+  description: supabase public url setting for apps/supabase.
+  example: http://api.${LOCAL_DOMAIN}
+- name: SUPABASE_SERVICE_ROLE_KEY
+  kind: secret-file
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: true
+  description: Supabase service role JWT key (from Supabase project settings)
+  secret_file: supabase/self_hosted/service_role_key
+- name: SUPABASE_SERVICE_TOKEN
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: supabase service token setting for retrieval/web.
+  secret_file: unassigned/supabase_service_token
+- name: SUPABASE_URL
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: supabase url setting for retrieval/web.
+  example: ''
+- name: SUPAVISOR_APPS_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: supavisor apps db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: supavisor_apps/db_password
+- name: SUPAVISOR_APPS_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: supavisor apps db password encoded setting for main/storage.
+  example: your_url_encoded_supavisor_apps_password
+- name: SUPAVISOR_APPS_SECRET_KEY_BASE
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: 'Generate: openssl rand -base64 64'
+  secret_file: supavisor_apps/secret_key_base
+- name: SUPAVISOR_APPS_VAULT_ENC_KEY
+  kind: secret-file
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: 'Generate: openssl rand -base64 32'
+  secret_file: supavisor_apps/vault_enc_key
+- name: SUPAVISOR_K3S_DB_PASSWORD
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: supavisor k3s db password; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: supavisor_k3s/db_password
+- name: SUPAVISOR_K3S_DB_PASSWORD_ENCODED
+  kind: computed
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: URL-encoded password for supavisor_k3s Postgres role
+  example: your_url_encoded_supavisor_k3s_password
+- name: SUPAVISOR_K3S_SECRET_KEY_BASE
+  kind: secret-file
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: 'Generate: openssl rand -base64 64'
+  secret_file: supavisor_k3s/secret_key_base
+- name: SUPAVISOR_K3S_VAULT_ENC_KEY
+  kind: secret-file
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  required: true
+  description: 'Generate: openssl rand -base64 32'
+  secret_file: supavisor_k3s/vault_enc_key
+- name: SUPBASE_OPENAI_API_BASE
+  kind: literal
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: https://api.openai.com/v1
+  description: supbase openai api base setting for apps/supabase.
+  example: https://api.openai.com/v1
+- name: SUPBASE_OPENAI_API_KEY
+  kind: secret-file
+  owner: apps/supabase
+  used_by:
+  - apps/supabase
+  required: false
+  default: ''
+  description: supbase openai api key setting for apps/supabase.
+  secret_file: unassigned/supbase_openai_api_key
+- name: TAILSCALE_AUTHKEY
+  kind: secret-file
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: tailscale authkey; read by unreferenced-in-tracked-files, not by a stack.
+  secret_file: tailscale/authkey
+- name: TAILSCALE_HOSTNAME
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - main/bridges
+  - main/storage
+  - main/traefik
+  required: true
+  description: tailscale hostname setting for main/bridges.
+  example: your_tailscale_hostname
+- name: TELEMETRY_ENABLED
+  kind: literal
+  owner: llms/monitoring
+  used_by:
+  - llms/monitoring
+  required: false
+  default: 'true'
+  description: Disable telemetry reporting in Open WebUI
+  example: 'false'
+- name: TEST_API_KEY
+  kind: secret-file
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: ''
+  description: test api key setting for retrieval/web.
+  secret_file: unassigned/test_api_key
+- name: TIMEZONE
+  kind: literal
+  owner: main/logging
+  used_by:
+  - compute/execution
+  - main/logging
+  - main/maintenance
+  required: false
+  default: UTC
+  description: Timezone for Open WebUI and related services
+  example: UTC
+- name: TORRENTING_PORT
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: '6881'
+  description: Port for torrent peer connections
+  example: '51413'
+- name: TRAEFIK_VIP
+  kind: literal
+  owner: main/identity-gateway
+  used_by:
+  - main/identity-gateway
+  required: true
+  description: Virtual IP of the Traefik load balancer (used in extra_hosts for service-to-Traefik resolution)
+  example: 10.10.0.2
+- name: TRUSTED_IPS
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - main/traefik
+  required: true
+  description: trusted ips setting for main/traefik.
+  example: 127.0.0.1/32,YOUR_LOCAL_SUBNET_CIDR
+- name: TRUST_AGENT_IMAGE
+  kind: literal
+  owner: main/trust-agent
+  used_by:
+  - main/trust-agent
+  required: true
+  description: trust agent image setting for main/trust-agent.
+  example: <registry>/<project>/<repository>/trust-agent:0.4.1@sha256:<digest>
+  exported: false
+- name: UPDATE_MONITOR_CACHE
+  kind: literal
+  owner: main/storage
+  used_by:
+  - main/storage
+  required: true
+  description: Update health-check monitoring window for cache services
+  example: 15s
+- name: UPDATE_MONITOR_COMPLEX
+  kind: literal
+  owner: main/storage
+  used_by:
+  - llms/.tmp_service_deploy_vllm-gemma4
+  - llms/governance
+  - main/storage
+  required: true
+  description: Update health-check monitoring window for complex services
+  example: 120s
+- name: UPDATE_MONITOR_STANDARD
+  kind: literal
+  owner: main/bridges
+  used_by:
+  - admin/dashboards
+  - compute/execution
+  - devtools/lineage
+  - devtools/ontology
+  - llms/.tmp_service_deploy_hermes
+  - llms/agents
+  - llms/governance
+  - main/bridges
+  - main/identity
+  - main/identity-gateway
+  - main/maintenance
+  - main/storage
+  - main/traefik
+  - main/trust-agent
+  - productivity/finance
+  - productivity/knowledge
+  required: true
+  description: Update health-check monitoring window for standard services
+  example: 30s
+- name: USER_TIMEZONE
+  kind: literal
+  owner: main/traefik
+  used_by:
+  - hobby/streaming
+  - main/traefik
+  - productivity/.tmp_service_deploy_browser-neko-brave
+  - productivity/automations
+  - productivity/browser-lab
+  - productivity/finance
+  - productivity/knowledge
+  - productivity/tools
+  - security/dns
+  required: false
+  default: Etc/UTC
+  description: user timezone setting for main/traefik.
+  example: ${USER_TIMEZONE:-UTC}
+- name: USE_DB_AUTHENTICATION
+  kind: literal
+  owner: retrieval/web
+  used_by:
+  - retrieval/web
+  required: false
+  default: 'false'
+  description: Enable database-backed authentication in Open WebUI
+  example: 'true'
+- name: WATCHTOWER_HTTP_API_TOKEN
+  kind: literal
+  owner: external
+  used_by: []
+  external_consumers:
+  - unreferenced-in-tracked-files
+  required: true
+  description: 'Generate with: openssl rand -hex 16'
+  example: your_watchtower_token
+- name: WEBUI_PORT
+  kind: literal
+  owner: hobby/streaming
+  used_by:
+  - hobby/streaming
+  required: false
+  default: '8080'
+  description: Internal port for Open WebUI HTTP server
+  example: '8080'

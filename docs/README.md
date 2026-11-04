@@ -22,6 +22,10 @@
 - [Ephemeral rebalance Rust rollout](adr/ephemeral_rebalance_rust_rollout_adr.md): controller rollout and gates.
 - [Redis database IDs](redis-db-ids.md): per-service Redis database allocation.
 
+## Configuration and secrets
+
+- [Environment-variable contract](adr/env_contract_adr.md): typed contract in `config/env-contract.yaml`, `scripts/env_contract.py` (tests in `tests/test_env_contract.py`), the layered shell-script `.env`, and why encrypted-secrets tooling was deferred.
+
 ## Observability and identity
 
 - [Grafana managed ingress alert routing](adr/grafana_managed_ingress_alert_routing_adr.md): alert routing for managed ingress.
