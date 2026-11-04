@@ -1,0 +1,38 @@
+# Host-level compose for sandbox-executor-manager.
+#
+# Runs on the designated sandbox host (a cloud node with gVisor available, to
+# contain sandbox escapes to the VM rather than bare metal).
+#
+# Why not Swarm: Docker Swarm does not support the `--runtime` flag in deploy
+# specs, and this service requires `privileged: true` to create sandbox
+# containers via /var/run/docker.sock. The manager itself runs on the default
+# runtime; it spawns child sandbox containers with `--runtime=runsc` (gVisor).
+#
+# Prerequisite: the gVisor `runsc` runtime must be active on the host
+# (registered in /etc/docker/daemon.json, loaded after a Docker daemon
+# restart). Do NOT start this service until `docker info | grep runtimes`
+# lists `runsc`.
+
+services:
+  sandbox-executor-manager:
+    container_name: sandbox-executor-manager
+    image: infiniflow/sandbox-executor-manager:latest
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "127.0.0.1:9385:9385"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - SANDBOX_EXECUTOR_MANAGER_POOL_SIZE=3
+      - SANDBOX_BASE_PYTHON_IMAGE
+      - SANDBOX_BASE_NODEJS_IMAGE
+      - SANDBOX_ENABLE_SECCOMP=false
+      - SANDBOX_MAX_MEMORY=256m
+      - SANDBOX_TIMEOUT=10s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9385/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
