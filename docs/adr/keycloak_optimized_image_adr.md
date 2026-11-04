@@ -29,7 +29,7 @@ Build our own image from `stacks/main/keycloak-optimized/` (`Dockerfile`, `VERSI
 - Restart cost drops from about 98 s of boot to 6 to 15 s. A Keycloak version change now requires building and publishing a new image.
 - The image must exist on frost-fang or be pullable there (registry auth is not forwarded by `cluster-utils deploy`; pre-pull as for the other private images).
 - `vault=file` and health/metrics are fixed into the image; changing them is an image release.
-- Rollback: `docker service update --no-resolve-image --image quay.io/keycloak/keycloak:26.4.7@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007 --args "start --http-enabled=true --proxy-headers=xforwarded --hostname=https://idp.local.tralmor.com" main-identity_keycloak`, then revert the compose hunk and `.env`. A `pg_dump` taken before the change (custom format, 2.4 MB, 5 realms, 58 clients, 17 users) is on frost-fang in `~/keycloak-optimized-rollback/` with its checksum. No schema change was made: the same Keycloak version runs against the same database.
+- Rollback: `docker service update --no-resolve-image --image quay.io/keycloak/keycloak:26.4.7@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007 --args "start --http-enabled=true --proxy-headers=xforwarded --hostname=https://idp.${LOCAL_DOMAIN}" main-identity_keycloak`, then revert the compose hunk and `.env`. A `pg_dump` taken before the change (custom format, 2.4 MB, 5 realms, 58 clients, 17 users) is on frost-fang in `~/keycloak-optimized-rollback/` with its checksum. No schema change was made: the same Keycloak version runs against the same database.
 
 ## Verification (2026-10-13)
 
@@ -38,7 +38,7 @@ Throwaway instance (image 0.1.0, restored dump, isolated Docker network, port bo
 - Ready in about 8 s from container start (`started in` 5.8 to 7.1 s) with a clean `jgroups_ping`; 33 s the first time because the restored dump carried the stale JGroups entry of the live node (about 20 s of join retries against an unreachable address).
 - No "Updating the configuration" line in the log: the optimized start path was used.
 - OIDC discovery for realm `sigilcore` 200; client-credentials tokens 200 for `mlflow-api` (sigilcore; audience `oauth2-proxy`, `mlflow-oidc`; group `mlflow-admin`) and `loki-api` (pomerium).
-- Admin API (temporary admin service client created in the copy only): five realms listed, client counts equal to the dump; `grafana` (redirect `https://grafana.tralmor.com/login/generic_oauth`, `groups-claim` mapper) and `oauth2-proxy` (redirect `https://oauth2.local.tralmor.com/oauth2/callback`, `groups-claim` mapper) intact.
+- Admin API (temporary admin service client created in the copy only): five realms listed, client counts equal to the dump; `grafana` (redirect `https://grafana.${DOMAIN_NAME}/login/generic_oauth`, `groups-claim` mapper) and `oauth2-proxy` (redirect `https://oauth2.${LOCAL_DOMAIN}/oauth2/callback`, `groups-claim` mapper) intact.
 - `kc.sh export --users realm_file` against the copy exported all five realms in 53 s; this is the realm export approach (files hold secrets, so delete them after use).
 - The Brave debug browser reached the "Sign in to sigilcore" form for the account console; no credential was entered.
 - The throwaway containers, network, secrets and export files were removed.

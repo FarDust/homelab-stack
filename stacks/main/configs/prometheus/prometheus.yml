@@ -83,6 +83,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/blackbox_targets.yaml
+          - /etc/prometheus/targets/ingress_blackbox_targets.yaml
         refresh_interval: 1m
     relabel_configs:
       - source_labels: [__address__]

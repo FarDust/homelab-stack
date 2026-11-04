@@ -1,0 +1,5 @@
+# Template for ${HOMELAB_PRIVATE_DIR}/stacks/main/configs/supabase/pg_hba.conf (docs/homelab-private.md).
+# Replace the CIDR with the overlay network that carries your Supabase services.
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             10.0.0.0/8              scram-sha-256

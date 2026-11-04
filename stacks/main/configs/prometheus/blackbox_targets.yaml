@@ -11,33 +11,6 @@
     monitor_group: monitoring_path
 
 - targets:
-  - https://grafana.tralmor.com/api/health
-  labels:
-    probe: ingress_grafana_health
-    service: grafana
-    monitor_group: ingress_control_plane
-    expected_status: "200"
-    module: http_2xx
-
-- targets:
-  - mcp-grafana.local.tralmor.com:443
-  labels:
-    probe: ingress_mcp_grafana_tcp
-    service: mcp-grafana
-    monitor_group: ingress_control_plane
-    expected_status: tcp
-    module: tcp_connect
-
-- targets:
-  - https://trust-agent.local.tralmor.com/
-  labels:
-    probe: ingress_trust_agent_auth_boundary
-    service: trust-agent
-    monitor_group: ingress_control_plane
-    expected_status: "401"
-    module: http_status_401
-
-- targets:
   - storage.googleapis.com:443
   labels:
     probe: critical_storage_googleapis_com

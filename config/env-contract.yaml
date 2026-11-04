@@ -750,9 +750,10 @@ variables:
   owner: main/storage
   used_by:
   - main/storage
+  - main/traefik
   - productivity/finance
   required: true
-  description: homelab private dir setting for main/storage.
+  description: Checkout of the private deployment repository; each stack reads its cluster-specific files from it (see docs/homelab-private.md).
   example: /path/to/private-deployment-repo
 - name: HONCHO_DERIVER_MODEL
   kind: literal

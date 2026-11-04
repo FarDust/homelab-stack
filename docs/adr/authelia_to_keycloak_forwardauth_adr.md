@@ -16,9 +16,9 @@ Seven Traefik routers still used the `authelia` forwardAuth middleware: mongo-ex
 
 ## Grafana: native Keycloak login (option 2)
 
-Grafana is served at `grafana.${DOMAIN_NAME}` (`grafana.tralmor.com`), outside the `.${LOCAL_DOMAIN}` cookie domain and `whitelist_domains` of the shared oauth2-proxy, and the shared Keycloak client `oauth2-proxy` only allows `https://oauth2.${LOCAL_DOMAIN}/oauth2/callback`. Reusing that proxy would need a second proxy instance or a change to the shared client, so Grafana uses its own OIDC login instead (decided 2026-10-13, confirmed by Gabriel).
+Grafana is served at `grafana.${DOMAIN_NAME}`, outside the `.${LOCAL_DOMAIN}` cookie domain and `whitelist_domains` of the shared oauth2-proxy, and the shared Keycloak client `oauth2-proxy` only allows `https://oauth2.${LOCAL_DOMAIN}/oauth2/callback`. Reusing that proxy would need a second proxy instance or a change to the shared client, so Grafana uses its own OIDC login instead (decided 2026-10-13, confirmed by Gabriel).
 
-- Keycloak: confidential client `grafana` in realm `sigilcore`, standard flow only (no direct grants, no service account), redirect URI `https://grafana.tralmor.com/login/generic_oauth`, post-logout `https://grafana.tralmor.com/login`, a `groups-claim` group-membership mapper. Created with `uv run cluster-utils keycloak upsert-oidc-client` and `upsert-group-mapper`. The shared `oauth2-proxy` client is untouched.
+- Keycloak: confidential client `grafana` in realm `sigilcore`, standard flow only (no direct grants, no service account), redirect URI `https://grafana.${DOMAIN_NAME}/login/generic_oauth`, post-logout `https://grafana.${DOMAIN_NAME}/login`, a `groups-claim` group-membership mapper. Created with `uv run cluster-utils keycloak upsert-oidc-client` and `upsert-group-mapper`. The shared `oauth2-proxy` client is untouched.
 - Secret: `secrets/grafana/oidc_client_secret` (git-ignored) mounted as the Docker secret `grafana_keycloak_oidc_secret` and read through `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET__FILE`.
 - Grafana (`stacks/main/traefik.yml`, commit 7c5b644): `GF_AUTH_GENERIC_OAUTH_*` with PKCE, scopes `openid email profile`, `role_attribute_strict=true` and role path `admin` -> Admin, `mlflow-admin` -> Viewer; users with neither group cannot log in. Google login and the local admin account are unchanged (break-glass).
 - Verified 2026-10-13: from inside the Grafana network namespace, `/login/generic_oauth` returns 302 to the Keycloak `sigilcore` authorization endpoint with `client_id=grafana` and the exact redirect URI; Grafana reaches the issuer; `/api/health` returns 200 and the mcp-grafana datasource listing still works (API router and token paths unchanged). A real Keycloak login was not performed (no credential).
@@ -36,7 +36,7 @@ Restore: set the `replicas:` values back in `stacks/main/traefik.yml` and `stack
 ## Alternatives
 
 - Reuse the shared `oauth2-proxy-forward-auth@swarm` middleware from `logging.yml`: rejected, it does not forward `Cookie`, so browser sessions would not authenticate.
-- Second oauth2-proxy for `.tralmor.com` plus a Keycloak redirect URI: more infrastructure and a change to a shared client; rejected in favor of Grafana native OIDC.
+- Second oauth2-proxy for `.${DOMAIN_NAME}` plus a Keycloak redirect URI: more infrastructure and a change to a shared client; rejected in favor of Grafana native OIDC.
 - Drop Authelia from Grafana and rely on Grafana's Google login: reduces protection.
 - Scale Authelia to zero now: rejected, Grafana would lose its forwardAuth target.
 
@@ -48,7 +48,7 @@ Restore: set the `replicas:` values back in `stacks/main/traefik.yml` and `stack
 
 ## Verification
 
-Per route: `curl` shows 302 to the Keycloak `sigilcore` realm authorization endpoint (was 302 to `auth.tralmor.com`), and the Brave debug browser lands on the Keycloak sign-in page. Completing the login and exercising each UI needs a Keycloak credential and remains an operator step. Rollback: redeploy the previous compose file (`git revert` of the migration commit, then `uv run cluster-utils deploy service <name>`).
+Per route: `curl` shows 302 to the Keycloak `sigilcore` realm authorization endpoint (was 302 to `auth.${DOMAIN_NAME}`), and the Brave debug browser lands on the Keycloak sign-in page. Completing the login and exercising each UI needs a Keycloak credential and remains an operator step. Rollback: redeploy the previous compose file (`git revert` of the migration commit, then `uv run cluster-utils deploy service <name>`).
 
 ## Addendum 2026-10-13: metaflow-ui
 

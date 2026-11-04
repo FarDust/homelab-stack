@@ -1,0 +1,3 @@
+# Template for ${HOMELAB_PRIVATE_DIR}/stacks/main/configs/supabase/postgresql-custom-overrides.conf (docs/homelab-private.md).
+# Cluster-specific PostgreSQL settings for the Supabase database; leave empty to use the image defaults.
+# max_connections = 100

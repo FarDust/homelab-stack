@@ -5,9 +5,8 @@ export GIT_MASTER=1
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 helper="$repo_root/scripts/grafana-config-version.sh"
-submodule_rel='stacks/main/configs/grafana/dashboards/tralmor-grafana-iac'
-submodule="$repo_root/$submodule_rel"
-expected_sha='aa85188efb63a64a0b43b1a947562f7b7deee048'
+# The rendered dashboards are a private deployment input (docs/homelab-private.md): ${HOMELAB_PRIVATE_DIR}/grafana-dashboards.
+# Without a private checkout the generic placeholders under examples/homelab-private are validated instead.
 baseline_migrated=(
   grafana_datasources
   grafana_dashboards
@@ -30,16 +29,14 @@ foreign_exceptions=(
   grafana_alerting_contact_points
   grafana_alerting_notification_policies
 )
-committed_dashboard_artifacts=(
+dashboard_artifacts=(
   cluster-operations-overview
   ingress-reliability
   swarm-workload-pressure
-)
-working_dashboard_artifacts=(
-  "${committed_dashboard_artifacts[@]}"
   swarm-service-detail
   observability-pipeline-health
 )
+expected_scoped_config_count=21
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -67,14 +64,6 @@ if [ "${1:-}" = '--from-index' ]; then
   shift
 fi
 [ "$#" -eq 0 ] || fail 'unsupported argument'
-
-if [ "$mode" = index ]; then
-  dashboard_artifacts=("${committed_dashboard_artifacts[@]}")
-  expected_scoped_config_count=18
-else
-  dashboard_artifacts=("${working_dashboard_artifacts[@]}")
-  expected_scoped_config_count=21
-fi
 
 [ -x "$helper" ] || fail 'missing executable scoped version helper'
 
@@ -117,31 +106,25 @@ else
   compose="$repo_root/stacks/main/traefik.yml"
 fi
 
-gitlink=$(git -C "$repo_root" ls-files --stage -- "$submodule_rel")
-printf -v expected_gitlink '160000 %s 0\t%s' "$expected_sha" "$submodule_rel"
-if [ "$mode" = index ]; then
-  [ "$gitlink" = "$expected_gitlink" ] || fail "parent index lacks exact approved private IaC gitlink: $submodule_rel"
-elif [ "$gitlink" != "$expected_gitlink" ]; then
-  git -C "$submodule" rev-parse HEAD | grep -Fqx "$expected_sha" || fail 'submodule is not pinned to the approved private IaC commit'
+if [ -n "$(git -C "$repo_root" ls-files --stage -- 'stacks/main/configs/grafana/dashboards')" ]; then
+  fail 'dashboards must not be tracked in the public repository (private deployment input)'
+fi
+if grep -qi 'grafana-iac' "$repo_root/.gitmodules"; then
+  fail 'the private dashboards repository must not be a submodule of the public repository'
+fi
+
+dashboards_dir="$repo_root/examples/homelab-private/grafana-dashboards"
+if [ -n "${HOMELAB_PRIVATE_DIR:-}" ] && [ -d "$HOMELAB_PRIVATE_DIR/grafana-dashboards" ]; then
+  dashboards_dir="$HOMELAB_PRIVATE_DIR/grafana-dashboards"
+else
+  printf 'NOTICE: no private grafana-dashboards under HOMELAB_PRIVATE_DIR; validating the generic examples
+' >&2
 fi
 
 for artifact in "${dashboard_artifacts[@]}"; do
-  artifact_path="$submodule/dist/$artifact.json"
-  if [ "$mode" = index ]; then
-    git -C "$submodule" show "$expected_sha:dist/$artifact.json" | python3 - "$artifact" 3<&0 <<'PY'
-import json
-import os
-import sys
-
-expected_uid = sys.argv[1]
-with os.fdopen(3, encoding='utf-8') as handle:
-    payload = json.load(handle)
-if not isinstance(payload, dict) or payload.get('uid') != expected_uid or not payload.get('panels'):
-    raise SystemExit(f'invalid Grafana dashboard artifact at committed revision: {expected_uid}')
-PY
-  else
-    [ -f "$artifact_path" ] || fail "missing rendered artifact: $artifact"
-    python3 - "$artifact_path" "$artifact" <<'PY'
+  artifact_path="$dashboards_dir/dist/$artifact.json"
+  [ -f "$artifact_path" ] || fail "missing rendered artifact: $artifact_path (see docs/homelab-private.md)"
+  python3 - "$artifact_path" "$artifact" <<'PY'
 import json
 import sys
 
@@ -151,13 +134,9 @@ with open(path, encoding='utf-8') as handle:
 if not isinstance(payload, dict) or payload.get('uid') != expected_uid or not payload.get('panels'):
     raise SystemExit(f'invalid Grafana dashboard artifact: {path}')
 PY
-  fi
 done
 
-owned_names=("${baseline_migrated[@]}")
-if [ "$mode" != index ]; then
-  owned_names+=(grafana_dashboard_gpu_history)
-fi
+owned_names=("${baseline_migrated[@]}" grafana_dashboard_gpu_history)
 for artifact in "${dashboard_artifacts[@]}"; do
   owned_names+=("grafana_dashboard_${artifact//-/_}")
 done
@@ -184,19 +163,14 @@ while IFS= read -r global_line; do
   esac
 done < <(rg -N '^    name: grafana_[A-Za-z0-9_]+-\$\{CONFIG_VERSION:-0\}$' "$compose" || true)
 
-if [ "$mode" = index ]; then
-  for exception in "${foreign_exceptions[@]}"; do
-    grep -Fq "  $exception:" "$compose" && fail "foreign alerting config staged: $exception"
-  done
-fi
-
 for artifact in "${dashboard_artifacts[@]}"; do
   config_name="grafana_dashboard_${artifact//-/_}"
   expect_count 1 "  $config_name:" "$compose"
   expect_count 1 "    - source: $config_name" "$compose"
   expect_count 1 "      target: /etc/grafana/provisioning/dashboards/custom/$artifact.json" "$compose"
-  expect_count 1 "    file: ./configs/grafana/dashboards/tralmor-grafana-iac/dist/$artifact.json" "$compose"
+  printf -v expected_file '    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/%s.json' "$artifact"
+  expect_count 1 "$expected_file" "$compose"
 done
 
-expect_line 'export GRAFANA_CONFIG_VERSION=1' "$repo_root/.env.example"
+grep -Eq '^export GRAFANA_CONFIG_VERSION=1([[:space:]]|$)' "$repo_root/.env.example" || fail 'missing GRAFANA_CONFIG_VERSION=1 in .env.example'
 printf 'PASS: Grafana IaC integration contract (%s)\n' "$mode"

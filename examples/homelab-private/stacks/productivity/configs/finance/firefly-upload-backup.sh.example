@@ -1,0 +1,20 @@
+#!/bin/sh
+# Template for ${HOMELAB_PRIVATE_DIR}/stacks/productivity/configs/finance/firefly-upload-backup.sh (docs/homelab-private.md).
+# Long-running `firefly-upload-backup` service: /source is the Firefly upload volume (read-only), /backups the durable
+# backup volume, /restore a scratch volume. Contract: back up, restore-probe, compare checksums, then create
+# /run/firefly-upload-backup-ready (the service healthcheck) and keep running.
+set -eu
+umask 077
+backup_id="firefly-upload-$(date -u +%Y%m%dT%H%M%SZ)"
+final="/backups/firefly-uploads/$backup_id"
+stage="/backups/firefly-uploads/.$backup_id.partial"
+restore_dir="/restore/$backup_id"
+manifest() { (cd "$1" && find . -type f -exec sha256sum '{}' ';' | LC_ALL=C sort); }
+trap 'rm -rf "$stage" "$restore_dir"' EXIT HUP INT TERM
+mkdir -p "$stage" "$restore_dir"
+cp -a /source/. "$stage/"
+cp -a "$stage/." "$restore_dir/"
+[ "$(manifest /source)" = "$(manifest "$restore_dir")" ] || { echo 'restore_probe=failed' >&2; exit 1; }
+mv "$stage" "$final"
+touch /run/firefly-upload-backup-ready
+while :; do sleep 3600; done
