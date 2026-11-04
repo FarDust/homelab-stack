@@ -1,0 +1,10 @@
+{
+  "role_type": "jwt",
+  "bound_audiences": ["trust-agent"],
+  "user_claim": "sub",
+  "bound_claims": {
+    "/realm_access/roles": ["trust-agent-admin"]
+  },
+  "token_policies": ["trust-agent-admin"],
+  "token_ttl": "15m"
+}

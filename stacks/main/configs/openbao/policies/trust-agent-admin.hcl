@@ -33,3 +33,7 @@ path "secret/data/services/postgres/*" {
 path "secret/data/services/redis/*" {
   capabilities = ["create", "update", "read"]
 }
+
+path "secret/data/services/openchamber-stt/litellm" {
+  capabilities = ["create", "update", "read"]
+}

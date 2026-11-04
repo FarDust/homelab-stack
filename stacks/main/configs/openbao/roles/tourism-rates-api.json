@@ -1,0 +1,10 @@
+{
+  "role_type": "jwt",
+  "bound_audiences": ["tourism-rates-api"],
+  "user_claim": "sub",
+  "bound_claims": {
+    "realm_access.roles": ["tourism-rates-reader"]
+  },
+  "token_policies": ["tourism-rates-read"],
+  "token_ttl": "1h"
+}

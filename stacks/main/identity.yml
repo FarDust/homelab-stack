@@ -20,6 +20,9 @@ services:
     networks:
       - traefik-public
       - keycloak-internal
+    secrets:
+      - source: sendgrid_smtp_password
+        target: sendgrid_smtp_password
     environment:
       - KC_BOOTSTRAP_ADMIN_USERNAME=admin
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD?err}
@@ -27,6 +30,8 @@ services:
       - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
       - KC_DB_USERNAME=keycloak
       - KC_DB_PASSWORD=${KEYCLOAK_DB_PASSWORD?err}
+      - KC_VAULT=file
+      - KC_VAULT_DIR=/run/secrets
     deploy:
       mode: replicated
       replicas: 1
@@ -37,7 +42,7 @@ services:
         window: ${RESTART_WINDOW_STANDARD}
       update_config:
         order: stop-first
-        failure_action: rollback
+        failure_action: pause
         monitor: ${UPDATE_MONITOR_STANDARD}
         max_failure_ratio: 0.3
       rollback_config:
@@ -92,11 +97,60 @@ services:
           - node.labels.storage.manager == true
           - node.labels.load.tier == heavy
 
+  vault:
+    image: quay.io/openbao/openbao:2.1.0
+    entrypoint: ["sh", "-c", "chown -R 100:1000 /openbao/data && exec bao server -config=/openbao/config/config.hcl"]
+    user: root
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - traefik-public
+    configs:
+      - source: openbao_config
+        target: /openbao/config/config.hcl
+    volumes:
+      - openbao_data:/openbao/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      placement:
+        constraints:
+          - node.role == worker
+          - node.labels.storage.manager == true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.vault.rule=Host(`vault.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.vault.entrypoints=websecure"
+        - "traefik.http.routers.vault.tls=true"
+        - "traefik.http.routers.vault.tls.certresolver=le-dns"
+        - "traefik.http.services.vault.loadbalancer.server.port=8200"
+        - "traefik.swarm.network=traefik-public"
+
 volumes:
   keycloak_db_data:
+    driver: local
+  openbao_data:
     driver: local
 
 secrets:
   keycloak_db_password:
     name: keycloak_db_password-${CONFIG_VERSION:-0}
     file: ../../secrets/keycloak/postgres_password
+  sendgrid_smtp_password:
+    file: ../../secrets/sendgrid/smtp_password
+
+configs:
+  openbao_config:
+    name: openbao_config-${CONFIG_VERSION:-0}
+    file: ./configs/openbao/config.hcl
