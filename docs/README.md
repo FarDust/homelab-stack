@@ -14,6 +14,7 @@
 ## Game server backups
 
 - [Pterodactyl GCS backup proposal](adr/pterodactyl_gcs_backup_proposal_adr.md): proposed identity, staging, restore verification and rollback gates.
+- [Wings game-container host prerequisites](adr/wings_container_host_prerequisites_adr.md): machine-id bind source and container DNS for game servers.
 
 ## Capacity and scheduling decisions
 
