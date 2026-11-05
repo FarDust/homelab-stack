@@ -135,6 +135,9 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/etc/pterodactyl/:/etc/pterodactyl/"
       - "/tmp:/tmp"
+      # Wings (v1.13+) bind-mounts /run/wings/machine-id/<uuid> into each game container; the Docker daemon resolves
+      # that path on the HOST, so Wings must write it there. Host side: tmpfiles.d `d /run/wings` (docs/adr/wings_container_host_prerequisites_adr.md).
+      - "/run/wings:/run/wings"
       - "/var/lib/pterodactyl/volumes:/var/lib/pterodactyl/volumes"
       - "pterodactyl-wings-archives:/var/lib/pterodactyl/archives/"
       - "pterodactyl-wings-staging:/var/lib/pterodactyl/backups/"
