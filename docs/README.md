@@ -31,6 +31,7 @@
 ## Observability and identity
 
 - [Grafana managed ingress alert routing](adr/grafana_managed_ingress_alert_routing_adr.md): alert routing for managed ingress.
+- [Volcano Prometheus jobs disabled](adr/prometheus_volcano_targets_disabled_adr.md): retired Kubernetes scrape jobs commented out; deploy needs a `CONFIG_VERSION` bump.
 - [Authelia backup direct discovery](adr/authelia_backup_direct_discovery_adr.md): how the backup finds its target.
 
 ## Examples
