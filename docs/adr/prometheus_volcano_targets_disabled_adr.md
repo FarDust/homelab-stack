@@ -4,7 +4,7 @@
 
 ## Context
 
-The `main-traefik_prometheus` service mounts the swarm config `prometheus_volcano_target` at `/etc/prometheus/targets/volcano_target.yaml`. The `volcano-scheduler` and `volcano-controllers` jobs in `stacks/main/configs/prometheus/prometheus.yml` read it and probed the Volcano endpoints on port 8443 roughly every 25 seconds. The Kubernetes cluster is retired and never served them, so every probe failed and produced about 3,000 firewall BLOCK log lines per day.
+The `main-traefik_prometheus` service mounts the swarm config `prometheus_volcano_target` at `/etc/prometheus/targets/volcano_target.yaml`. The `volcano-scheduler` and `volcano-controllers` jobs in `stacks/main/configs/prometheus/prometheus.yml` read it and probed the Volcano endpoints on port 8443 every 15 seconds (the configured `scrape_interval` of both jobs; the firewall log showed a probe about every 25 seconds). The Kubernetes cluster is retired and never served them, so every probe failed and produced about 3,000 firewall BLOCK log lines per day.
 
 ## Decision
 
@@ -17,7 +17,7 @@ Comment out the two Volcano scrape jobs in `prometheus.yml` (kept in place, not 
 
 ## Consequences
 
-Prometheus stops probing the retired endpoints once the main stack is redeployed. Volcano panels and any alerts depending on Volcano series go empty. To re-enable, uncomment both jobs and redeploy.
+Prometheus stops probing the retired endpoints once the main stack is redeployed. Volcano panels and any alerts depending on Volcano series go empty. To re-enable, uncomment both jobs, point `volcano_target.yaml` at the current scheduler and controller addresses (entries labelled `component: scheduler` and `component: controllers`), bump `CONFIG_VERSION` and redeploy.
 
 ## Verification
 

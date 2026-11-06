@@ -158,7 +158,7 @@ scrape_configs:
 
   # DISABLED 2026-11-06: the Kubernetes/Volcano cluster is retired and nothing serves :8443,
   # so these jobs only produced blocked probes. To re-enable, uncomment both jobs, make sure
-  # targets/volcano_target.yaml is populated, bump CONFIG_VERSION and redeploy the main stack.
+  # targets/volcano_target.yaml lists current addresses labelled component: scheduler / controllers, bump CONFIG_VERSION and redeploy the main stack.
   # See docs/adr/prometheus_volcano_targets_disabled_adr.md.
   # - job_name: "volcano-scheduler"
   #   scrape_interval: 15s
