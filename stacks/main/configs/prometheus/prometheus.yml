@@ -156,35 +156,39 @@ scrape_configs:
         type: "A"
         port: 9187
 
-  - job_name: "volcano-scheduler"
-    scrape_interval: 15s
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      insecure_skip_verify: false
-    file_sd_configs:
-      - files:
-          - /etc/prometheus/targets/volcano_target.yaml
-        refresh_interval: 30s
-    relabel_configs:
-      - source_labels: [component]
-        regex: scheduler
-        action: keep
-
-  - job_name: "volcano-controllers"
-    scrape_interval: 15s
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      insecure_skip_verify: false
-    file_sd_configs:
-      - files:
-          - /etc/prometheus/targets/volcano_target.yaml
-        refresh_interval: 30s
-    relabel_configs:
-      - source_labels: [component]
-        regex: controllers
-        action: keep
+  # DISABLED 2026-11-06: the Kubernetes/Volcano cluster is retired and nothing serves :8443,
+  # so these jobs only produced blocked probes. To re-enable, uncomment both jobs, make sure
+  # targets/volcano_target.yaml lists current addresses labelled component: scheduler / controllers, bump CONFIG_VERSION and redeploy the main stack.
+  # See docs/adr/prometheus_volcano_targets_disabled_adr.md.
+  # - job_name: "volcano-scheduler"
+  #   scrape_interval: 15s
+  #   metrics_path: /metrics
+  #   scheme: https
+  #   tls_config:
+  #     insecure_skip_verify: false
+  #   file_sd_configs:
+  #     - files:
+  #         - /etc/prometheus/targets/volcano_target.yaml
+  #       refresh_interval: 30s
+  #   relabel_configs:
+  #     - source_labels: [component]
+  #       regex: scheduler
+  #       action: keep
+  #
+  # - job_name: "volcano-controllers"
+  #   scrape_interval: 15s
+  #   metrics_path: /metrics
+  #   scheme: https
+  #   tls_config:
+  #     insecure_skip_verify: false
+  #   file_sd_configs:
+  #     - files:
+  #         - /etc/prometheus/targets/volcano_target.yaml
+  #       refresh_interval: 30s
+  #   relabel_configs:
+  #     - source_labels: [component]
+  #       regex: controllers
+  #       action: keep
 
   - job_name: "rclone-vfs"
     scrape_interval: 30s
