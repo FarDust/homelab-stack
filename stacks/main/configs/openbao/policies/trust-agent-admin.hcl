@@ -41,3 +41,11 @@ path "secret/data/services/openchamber-stt/litellm" {
 path "secret/data/services/minecraft-chat/litellm" {
   capabilities = ["create", "update", "read"]
 }
+
+path "secret/data/services/zeus-brain/litellm" {
+  capabilities = ["create", "update", "read"]
+}
+
+path "secret/data/services/zeus-cheap/litellm" {
+  capabilities = ["create", "update", "read"]
+}

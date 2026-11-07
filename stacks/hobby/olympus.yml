@@ -1,0 +1,154 @@
+# Olympus: the Zeus bridge and its trimmed OpenCode brain (stack `hobby-olympus`).
+# Generic and environment driven: image tags, the domain and the gateway address come from .env, secrets from
+# secrets/olympus-bridge/ (one file per secret, named as the Swarm secret). Images are built on the node that
+# runs them from the service's own repository (no registry): OLYMPUS_BRIDGE_IMAGE and OLYMPUS_OPENCODE_IMAGE.
+#
+# Memory budget (docs/adr/2026-10-11-memory-swap-budgeting.md): bridge 512M limit, 128M reservation, swap
+# allowance up to 256M (python, idle most of the time); opencode 768M limit, 256M reservation, swap allowance
+# up to 512M (node, one session per active player).
+version: "3.9"
+
+x-restart: &restart
+  condition: on-failure
+  delay: ${RESTART_DELAY_STANDARD}
+  max_attempts: ${RESTART_MAX_ATTEMPTS}
+  window: ${RESTART_WINDOW_STANDARD}
+
+x-hosts: &hosts
+  - "litellm.${LOCAL_DOMAIN?err}:${LITELLM_GATEWAY_HOST_IP?err}"
+  - "postgres.${LOCAL_DOMAIN?err}:${LITELLM_GATEWAY_HOST_IP?err}"
+  - "idp.${LOCAL_DOMAIN?err}:${LITELLM_GATEWAY_HOST_IP?err}"
+
+services:
+  olympus-bridge:
+    image: ${OLYMPUS_BRIDGE_IMAGE?err}
+    networks:
+      - default
+      - traefik-public
+    extra_hosts: *hosts
+    environment:
+      OLYMPUS_LITELLM_BASE_URL: https://litellm.${LOCAL_DOMAIN?err}
+      OLYMPUS_OPENCODE_URL: http://opencode:4096
+      OLYMPUS_BRAIN_BACKEND: auto
+      OLYMPUS_BRAIN_MODELS: zeus-brain
+      OLYMPUS_CHEAP_MODEL: zeus-cheap
+      OLYMPUS_BRAIN_DAILY_CALLS: "150"
+      OLYMPUS_BRAIN_DAILY_TOKENS: "7000000"
+      OLYMPUS_DIRECTOR_ENABLED: "true"
+      OLYMPUS_SCRIBE_ENABLED: "false"
+      OLYMPUS_OPENBAO_ADDR: ${OPENBAO_ADDR?err}
+      OLYMPUS_KEYCLOAK_TOKEN_URL: https://idp.${LOCAL_DOMAIN?err}/realms/cluster-services/protocol/openid-connect/token
+      OLYMPUS_MCP_ALLOWED_HOSTS: olympus-bridge:*,localhost:*,127.0.0.1:*
+      OLYMPUS_LOG_JSON: "true"
+    secrets:
+      - source: olympus_database_dsn
+        target: olympus_database_dsn
+      - source: olympus_mod_tokens
+        target: olympus_mod_tokens
+      - source: olympus_mcp_token
+        target: olympus_mcp_token
+      - source: olympus_litellm_key_cheap
+        target: olympus_litellm_key_cheap
+      - source: olympus_litellm_key_brain
+        target: olympus_litellm_key_brain
+      - source: olympus_opencode_password
+        target: olympus_opencode_password
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=4)"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 60s
+    tmpfs:
+      - /dev/shm:rw,size=16m,mode=1777
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy: *restart
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+        max_failure_ratio: 0.3
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+      placement:
+        constraints:
+          - node.role != manager
+          - node.labels.node.ephemeral != true
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.olympus-bridge.entrypoints=websecure"
+        - "traefik.http.routers.olympus-bridge.tls=true"
+        - "traefik.http.routers.olympus-bridge.tls.certresolver=le-dns"
+        # /mcp is for the brain container on the stack network only; it is not routed through Traefik.
+        - "traefik.http.routers.olympus-bridge.rule=Host(`olympus.${LOCAL_DOMAIN?err}`) && (Path(`/ws`) || Path(`/health`))"
+        - "traefik.http.services.olympus-bridge.loadbalancer.server.port=8080"
+        - "traefik.swarm.network=traefik-public"
+
+  opencode:
+    image: ${OLYMPUS_OPENCODE_IMAGE?err}
+    networks:
+      - default
+    extra_hosts: *hosts
+    environment:
+      LITELLM_BASE_URL: https://litellm.${LOCAL_DOMAIN?err}
+    secrets:
+      - source: olympus_litellm_key_brain
+        target: olympus_litellm_key_brain
+      - source: olympus_mcp_token
+        target: olympus_mcp_token
+      - source: olympus_opencode_password
+        target: olympus_opencode_password
+    volumes:
+      - opencode-data:/home/zeus/.local/share/opencode
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy: *restart
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
+      placement:
+        constraints:
+          - node.role != manager
+          - node.labels.node.ephemeral != true
+
+networks:
+  traefik-public:
+    external: true
+
+volumes:
+  opencode-data:
+
+secrets:
+  olympus_database_dsn:
+    name: olympus_database_dsn-${CONFIG_VERSION:-0}
+    file: ../../secrets/olympus-bridge/olympus_database_dsn
+  olympus_mod_tokens:
+    name: olympus_mod_tokens-${CONFIG_VERSION:-0}
+    file: ../../secrets/olympus-bridge/olympus_mod_tokens
+  olympus_mcp_token:
+    name: olympus_mcp_token-${CONFIG_VERSION:-0}
+    file: ../../secrets/olympus-bridge/olympus_mcp_token
+  olympus_litellm_key_cheap:
+    name: olympus_litellm_key_cheap-${CONFIG_VERSION:-0}
+    file: ../../secrets/olympus-bridge/olympus_litellm_key_cheap
+  olympus_litellm_key_brain:
+    name: olympus_litellm_key_brain-${CONFIG_VERSION:-0}
+    file: ../../secrets/olympus-bridge/olympus_litellm_key_brain
+  olympus_opencode_password:
+    name: olympus_opencode_password-${CONFIG_VERSION:-0}
+    file: ../../secrets/olympus-bridge/olympus_opencode_password

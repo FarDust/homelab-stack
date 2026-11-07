@@ -34,6 +34,8 @@ router_settings:
     trust-agent-chat: {DefaultRetries: 0, TimeoutErrorRetries: 0}
     trust-agent-chat-low-end: {DefaultRetries: 0, TimeoutErrorRetries: 0}
     minecraft-chat: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    zeus-cheap: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    zeus-brain: {DefaultRetries: 0, TimeoutErrorRetries: 0}
   # Local-first aliases for automation workloads (e.g. n8n).
   # Existing model names are unchanged; these add stable route targets.
   fallbacks:
@@ -42,7 +44,9 @@ router_settings:
     - {"n8n-code": ["n8n-code-fallback", "gemini-2.5-flash-lite"]}
     - {"trust-agent-chat": ["trust-agent-chat-low-end", "chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
     - {"trust-agent-chat-low-end": ["chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
-    - {"minecraft-chat": ["chatgpt-subscription-sol", "gemini-2.5-flash"]}
+    - {"minecraft-chat": ["chatgpt-subscription-sol", "gemini-2.5-flash", "gpt-5-mini"]}
+    - {"zeus-cheap": ["gemini-3-flash-preview", "gpt-5-mini"]}
+    - {"zeus-brain": ["chatgpt-subscription-sol", "gemini-3-flash-preview", "gpt-5"]}
     - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
 
 search_tools:
@@ -1016,6 +1020,23 @@ model_list:
     litellm_params:
       model: chatgpt/gpt-6.1-terra
       timeout: 20
+
+  # Zeus cheap path (Olympus router): smallest subscription model, then a Vertex API route.
+  # No Ollama or other local-GPU route may appear in this chain; see docs/adr/litellm_versioned_upgrade_adr.md "Zeus cheap route".
+  - model_name: zeus-cheap
+    litellm_params:
+      model: chatgpt/gpt-6-luna
+      timeout: 15
+    model_info:
+      mode: responses
+
+  # Zeus brain (Olympus agent): ChatGPT subscription first, then Sol, then Vertex Gemini (cents), then the
+  # pay-per-token OpenAI API as the last and most expensive route; the bridge caps estimated daily spend.
+  # No Ollama or other local-GPU route may appear; see docs/adr/litellm_versioned_upgrade_adr.md "Zeus brain route".
+  - model_name: zeus-brain
+    litellm_params:
+      model: chatgpt/gpt-6.1-terra
+      timeout: 60
 
   - model_name: n8n-embedding
     litellm_params:

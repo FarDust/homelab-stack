@@ -303,6 +303,7 @@ variables:
   - apps/supabase
   - devtools/notebooks
   - hobby/iot
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - llms/mcp
@@ -1415,6 +1416,7 @@ variables:
   kind: literal
   owner: main/trust-agent
   used_by:
+  - hobby/olympus
   - main/trust-agent
   required: true
   description: Address the Trust Agent resolves litellm.${LOCAL_DOMAIN} to (required, no default)
@@ -1466,6 +1468,7 @@ variables:
   - devtools/ontology
   - hobby/gaming
   - hobby/iot
+  - hobby/olympus
   - hobby/science
   - hobby/streaming
   - llms/agents
@@ -2234,6 +2237,24 @@ variables:
   default: ''
   description: ollama base url setting for retrieval/web.
   example: ''
+- name: OLYMPUS_BRIDGE_IMAGE
+  kind: literal
+  owner: hobby/olympus
+  used_by:
+  - hobby/olympus
+  required: true
+  description: olympus bridge image setting for hobby/olympus.
+  example: olympus-bridge:<version>
+  exported: false
+- name: OLYMPUS_OPENCODE_IMAGE
+  kind: literal
+  owner: hobby/olympus
+  used_by:
+  - hobby/olympus
+  required: true
+  description: olympus opencode image setting for hobby/olympus.
+  example: olympus-opencode:<version>
+  exported: false
 - name: OPENAI_API_KEY
   kind: literal
   owner: llms/governance
@@ -2246,6 +2267,7 @@ variables:
   kind: literal
   owner: main/trust-agent
   used_by:
+  - hobby/olympus
   - main/trust-agent
   required: true
   description: OpenBao API address (used by cluster-utils openbao commands)
@@ -3057,6 +3079,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3078,6 +3101,7 @@ variables:
   used_by:
   - admin/dashboards
   - compute/execution
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3120,6 +3144,7 @@ variables:
   used_by:
   - admin/dashboards
   - compute/execution
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3159,6 +3184,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3784,6 +3810,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
