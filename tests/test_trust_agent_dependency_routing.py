@@ -13,8 +13,13 @@ def _load(path: Path) -> dict:
 
 
 def test_traefik_publishes_exact_dependency_aliases_on_trust_overlay() -> None:
-    networks = _load(TRAEFIK_STACK)["services"]["traefik"]["networks"]
+    traefik = _load(TRAEFIK_STACK)["services"]["traefik"]
+    networks = traefik["networks"]
 
+    assert traefik["image"] == (
+        "traefik:latest@sha256:"
+        "6b9cbca6fac42ab0075f5437d8dc1685cfd188626d8d515839ea94f8b6271c42"
+    )
     assert networks["trust-internal"]["aliases"] == [
         "vault.${LOCAL_DOMAIN?err}",
         "idp.${LOCAL_DOMAIN?err}",
