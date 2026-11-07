@@ -31,6 +31,7 @@
 ## Observability and identity
 
 - [Trust Agent dependency routing](adr/trust_agent_dependency_routing_adr.md): exact TLS aliases on the existing isolated Traefik overlay avoid local Tailscale hairpin failures without widening service networks.
+- [Traefik immutable image pin](adr/traefik_image_pin_adr.md): configuration-only deployments retain the reviewed proxy image digest.
 - [Grafana managed ingress alert routing](adr/grafana_managed_ingress_alert_routing_adr.md): alert routing for managed ingress.
 - [Volcano Prometheus jobs disabled](adr/prometheus_volcano_targets_disabled_adr.md): retired Kubernetes scrape jobs commented out; deploy needs a `CONFIG_VERSION` bump.
 - [Authelia backup direct discovery](adr/authelia_backup_direct_discovery_adr.md): how the backup finds its target.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- Pin Traefik to the previously deployed immutable digest so a routing-only service update cannot silently upgrade the proxy through the floating `latest` tag.
+
 ## 0.1.2
 
 - Resolve the exact OpenBao and Keycloak TLS hostnames to Traefik's existing `trust-internal` endpoint for Trust Agent consumers. This preserves TLS/SNI and network segmentation while avoiding an unreachable container-to-local-Tailscale hairpin.
