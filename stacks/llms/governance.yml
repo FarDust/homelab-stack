@@ -88,9 +88,11 @@ services:
     command:
       - |
         ollama serve &
-        until ollama list >/dev/null 2>&1; do sleep 1; done
+        serve_pid=$$!
+        trap 'kill $$serve_pid' TERM INT
+        until ollama list >/dev/null 2>&1; do kill -0 $$serve_pid || exit 1; sleep 1; done
         ollama show gemma3:4b >/dev/null 2>&1 || ollama pull gemma3:4b
-        wait
+        wait $$serve_pid
     healthcheck:
       test: ["CMD-SHELL", "ollama show gemma3:4b >/dev/null 2>&1"]
       interval: 30s

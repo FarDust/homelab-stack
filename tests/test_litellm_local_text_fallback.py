@@ -138,3 +138,14 @@ def test_local_service_uses_a_node_local_volume_and_stable_placement() -> None:
     litellm_env = stack["services"]["litellm"]["environment"]
     assert "OLLAMA_TEXT_FALLBACK_API_BASE=http://llms-governance_ollama-text-fallback:11434" in litellm_env
     assert "gemma3:4b" in " ".join(service["command"])
+
+
+def test_guard_treats_tool_call_history_as_tool_use(monkeypatch: pytest.MonkeyPatch) -> None:
+    guard = _guard(monkeypatch)
+    handler = guard.proxy_handler_instance
+    history = [
+        {"role": "assistant", "tool_calls": [{"id": "1", "type": "function", "function": {"name": "x"}}]},
+        {"role": "tool", "tool_call_id": "1", "content": "ok"},
+    ]
+    out = asyncio.run(handler.async_pre_call_hook(None, None, {"model": "zeus-cheap", "messages": history}, "completion"))
+    assert out["disable_fallbacks"] is True

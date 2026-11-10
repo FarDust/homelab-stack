@@ -16,7 +16,13 @@ TOOL_FIELDS = ("tools", "tool_choice", "functions", "function_call")
 
 
 def carries_tools(data: dict) -> bool:
-    return any(data.get(field) for field in TOOL_FIELDS)
+    if any(data.get(field) for field in TOOL_FIELDS):
+        return True
+    # A conversation that already holds tool calls or tool results is part of a tool loop.
+    return any(
+        isinstance(message, dict) and (message.get("tool_calls") or message.get("role") in ("tool", "function"))
+        for message in data.get("messages") or []
+    )
 
 
 class TextOnlyFallbackGuard(CustomLogger):
