@@ -1,0 +1,73 @@
+version: '3.9'
+# Realtime events for the shared trip (Centrifugo), stack apps-japan-trip-realtime.
+# Decision and contract: the application repository's docs/adr/shared-trip-database_adr.md, "Realtime events".
+#
+# Centrifugo consumes trip.centrifugo_outbox (PostgreSQL outbox consumer, role jt_realtime) and pushes a content-free
+# {seq, kind} event to channel trip:<slug>. Browsers connect with their Keycloak access token (RS256, verified through the
+# realm JWKS, audience japan-trip) and then pull changes_since from the API, so row level security still decides what
+# a client sees. This copy is reviewable; the deployed source is the cluster repository (stacks/apps/japan-trip-realtime.yml).
+#
+# Required runtime variables (private operator configuration, never committed):
+#   JT_CENTRIFUGO_IMAGE           centrifugo/centrifugo:v6.10.3@sha256:33fdbbce7d195dde316cbde17bc1d2a17b9e345de82799d1ec3c2bb8916e3803
+#   JT_CENTRIFUGO_CONFIG_VERSION  version suffix of the Swarm secret jt_centrifugo_config-<version>; bump it with every change
+#   JOURNEY_HOSTNAME              host of the private PWA (the realtime endpoint is served under /realtime on the same host)
+# Required Swarm secret: jt_centrifugo_config-<version> = deploy/centrifugo.config.template.json rendered by
+#   db/scripts/live_realtime_role.py (it embeds the consumer DSN, so it only ever goes to `docker secret create`).
+services:
+  realtime:
+    image: ${JT_CENTRIFUGO_IMAGE?err}
+    command: [centrifugo, --config=/run/secrets/jt_centrifugo_config.json]
+    networks: [traefik, traefik-public]
+    read_only: true
+    cap_drop: [ALL]
+    secrets:
+      - source: jt_centrifugo_config
+        target: jt_centrifugo_config.json
+        mode: 0444
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8000/health']
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          memory: 192M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.japan-trip-realtime.rule=Host(`${JOURNEY_HOSTNAME?err}`) && PathPrefix(`/realtime`)
+        - traefik.http.routers.japan-trip-realtime.priority=100
+        - traefik.http.routers.japan-trip-realtime.entrypoints=websecure
+        - traefik.http.routers.japan-trip-realtime.tls=true
+        - traefik.http.routers.japan-trip-realtime.tls.certresolver=le-dns
+        - traefik.http.routers.japan-trip-realtime.middlewares=japan-trip-realtime-strip@swarm,japan-trip-realtime-rate@swarm
+        - traefik.http.middlewares.japan-trip-realtime-strip.stripprefix.prefixes=/realtime
+        - traefik.http.middlewares.japan-trip-realtime-rate.ratelimit.average=30
+        - traefik.http.middlewares.japan-trip-realtime-rate.ratelimit.burst=60
+        - traefik.http.services.japan-trip-realtime.loadbalancer.server.port=8000
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  jt_centrifugo_config:
+    name: jt_centrifugo_config-${JT_CENTRIFUGO_CONFIG_VERSION?err}
+    external: true

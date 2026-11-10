@@ -913,6 +913,7 @@ variables:
   owner: productivity/static-journey
   used_by:
   - apps/japan-trip-api
+  - apps/japan-trip-realtime
   - productivity/static-journey
   required: true
   description: journey hostname setting for productivity/static-journey.
@@ -3894,3 +3895,19 @@ variables:
   required: true
   description: Audience claim the shared trip API requires in access tokens.
   example: japan-trip
+- name: JT_CENTRIFUGO_IMAGE
+  kind: literal
+  owner: apps/japan-trip-realtime
+  used_by:
+  - apps/japan-trip-realtime
+  required: true
+  description: Centrifugo image (tag and digest) pushing realtime events of the shared trip.
+  example: your_centrifugo_image_reference
+- name: JT_CENTRIFUGO_CONFIG_VERSION
+  kind: literal
+  owner: apps/japan-trip-realtime
+  used_by:
+  - apps/japan-trip-realtime
+  required: true
+  description: Version suffix of the Swarm secret jt_centrifugo_config-<version> holding the rendered Centrifugo configuration; bump with every change.
+  example: '1'
