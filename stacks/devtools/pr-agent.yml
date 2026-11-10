@@ -55,6 +55,13 @@ services:
       rollback_config:
         order: stop-first
         monitor: ${ROLLBACK_MONITOR_STANDARD}
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pr-agent.rule=Host(`pr-agent.${LOCAL_DOMAIN?err}`)"
+        - "traefik.http.routers.pr-agent.entrypoints=websecure"
+        - "traefik.http.routers.pr-agent.tls=true"
+        - "traefik.http.routers.pr-agent.tls.certresolver=le-dns"
+        - "traefik.http.services.pr-agent.loadbalancer.server.port=9000"
 secrets:
   pr_agent_litellm_api_key:
     name: pr_agent_litellm_api_key-${CONFIG_VERSION:-0}
