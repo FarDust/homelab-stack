@@ -1,0 +1,85 @@
+version: '3.9'
+# Shared trip API (PostgREST over the japan_trip database), stack apps-japan-trip-api.
+# Decision and contract: the application repository's docs/adr/shared-trip-database_adr.md.
+#
+# Required runtime variables (private operator configuration, never committed):
+#   JT_POSTGREST_IMAGE   postgrest/postgrest:v16.5@sha256:1347d7552b88f17832912c06afbf7c43209af6eeeb60834b04aae12c9bd9d5cc
+#   JOURNEY_HOSTNAME     host of the private PWA (the API is served under /api on the same host)
+#   JT_KEYCLOAK_AUDIENCE audience claim of the Keycloak client, default japan-trip
+# Required Swarm secret: jt_db_uri = postgres://jt_authenticator:<password>@tasks.postgres:5432/japan_trip
+# Required Swarm config: jt_jwks = public JWKS of the Keycloak realm (versioned; replace when Keycloak rotates keys).
+services:
+  api:
+    image: ${JT_POSTGREST_IMAGE?err}
+    networks: [traefik, traefik-public]
+    read_only: true
+    cap_drop: [ALL]
+    secrets:
+      - source: jt_db_uri
+        target: jt_db_uri
+        mode: 0444
+    configs:
+      - source: jt_jwks
+        target: /etc/postgrest/jwks.json
+        mode: 0444
+    environment:
+      PGRST_DB_URI: '@/run/secrets/jt_db_uri'
+      PGRST_DB_SCHEMAS: api
+      PGRST_DB_POOL: '5'
+      PGRST_DB_MAX_ROWS: '5000'
+      PGRST_JWT_SECRET: '@/etc/postgrest/jwks.json'
+      PGRST_JWT_AUD: ${JT_KEYCLOAK_AUDIENCE:-japan-trip}
+      PGRST_JWT_ROLE_CLAIM_KEY: '$$.realm_access.roles[?(@ == ''jt_member'')]'
+      PGRST_SERVER_HOST: 0.0.0.0
+      PGRST_SERVER_PORT: '3000'
+      PGRST_ADMIN_SERVER_PORT: '3001'
+    healthcheck:
+      test: [CMD, /bin/postgrest, --ready]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 32M
+        limits:
+          memory: 128M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.japan-trip-api.rule=Host(`${JOURNEY_HOSTNAME?err}`) && PathPrefix(`/api`)
+        - traefik.http.routers.japan-trip-api.priority=100
+        - traefik.http.routers.japan-trip-api.entrypoints=websecure
+        - traefik.http.routers.japan-trip-api.tls=true
+        - traefik.http.routers.japan-trip-api.tls.certresolver=le-dns
+        - traefik.http.routers.japan-trip-api.middlewares=japan-trip-api-strip@swarm,japan-trip-api-rate@swarm
+        - traefik.http.middlewares.japan-trip-api-strip.stripprefix.prefixes=/api
+        - traefik.http.middlewares.japan-trip-api-rate.ratelimit.average=30
+        - traefik.http.middlewares.japan-trip-api-rate.ratelimit.burst=60
+        - traefik.http.services.japan-trip-api.loadbalancer.server.port=3000
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  jt_db_uri:
+    external: true
+configs:
+  jt_jwks:
+    name: japan_trip_jwks-${JT_JWKS_VERSION?err}
+    file: ${HOMELAB_PRIVATE_DIR:?set HOMELAB_PRIVATE_DIR}/stacks/apps/configs/japan-trip/jwks.json

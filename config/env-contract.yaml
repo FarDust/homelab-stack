@@ -750,6 +750,7 @@ variables:
   kind: literal
   owner: main/storage
   used_by:
+  - apps/japan-trip-api
   - main/storage
   - main/traefik
   - productivity/finance
@@ -911,6 +912,7 @@ variables:
   kind: literal
   owner: productivity/static-journey
   used_by:
+  - apps/japan-trip-api
   - productivity/static-journey
   required: true
   description: journey hostname setting for productivity/static-journey.
@@ -3868,3 +3870,27 @@ variables:
   default: '8080'
   description: Internal port for Open WebUI HTTP server
   example: '8080'
+- name: JT_POSTGREST_IMAGE
+  kind: literal
+  owner: apps/japan-trip-api
+  used_by:
+  - apps/japan-trip-api
+  required: true
+  description: PostgREST image (tag and digest) serving the shared trip API.
+  example: your_postgrest_image_reference
+- name: JT_JWKS_VERSION
+  kind: literal
+  owner: apps/japan-trip-api
+  used_by:
+  - apps/japan-trip-api
+  required: true
+  description: Version suffix of the Swarm config holding the identity realm's public JWKS; bump when the realm rotates keys.
+  example: "1"
+- name: JT_KEYCLOAK_AUDIENCE
+  kind: literal
+  owner: apps/japan-trip-api
+  used_by:
+  - apps/japan-trip-api
+  required: true
+  description: Audience claim the shared trip API requires in access tokens.
+  example: japan-trip
