@@ -37,6 +37,16 @@
 - [Volcano Prometheus jobs disabled](adr/prometheus_volcano_targets_disabled_adr.md): retired Kubernetes scrape jobs commented out; deploy needs a `CONFIG_VERSION` bump.
 - [Authelia backup direct discovery](adr/authelia_backup_direct_discovery_adr.md): how the backup finds its target.
 
+## Troubleshooting notes
+
+Small, generic notes in [troubleshoot/](troubleshoot/); the vault sync turns their links into wikilinks.
+
+- Database pooling: [pool versus server idle-session timeout](troubleshoot/postgres-client-pool-vs-server-idle-session-timeout.md), [triage](troubleshoot/postgres-idle-session-timeout-triage.md), [pool liveness settings](troubleshoot/connection-pool-liveness-settings.md), [warning printed by every credentialless client](troubleshoot/warning-printed-by-every-credentialless-client.md).
+- Secrets in output: [`docker stack config` prints resolved secrets](troubleshoot/docker-stack-config-prints-resolved-secrets.md), [scrubbing a leaked secret](troubleshoot/scrubbing-a-leaked-secret-from-transcripts.md).
+- Docker networking: [published ports unreachable from containers (Docker 29.8)](troubleshoot/docker-29-8-published-ports-unreachable-from-containers.md), [gwbridge ingress DNAT remediation](troubleshoot/gwbridge-ingress-dnat-remediation.md), [gwbridge return routing](troubleshoot/docker-gwbridge-return-routing.md), [reversible live network changes](troubleshoot/dead-man-switch-for-live-network-changes.md).
+- LiteLLM local fallback: [design](troubleshoot/litellm-local-text-only-fallback-design.md), [tool requests excluded](troubleshoot/litellm-tool-requests-excluded-from-local-fallback.md), [testing egress cost](troubleshoot/litellm-fallback-testing-egress-cost.md), [config version rollback](troubleshoot/litellm-config-version-rollback.md), [cold start versus caller timeout](troubleshoot/local-model-cold-start-versus-caller-timeout.md).
+- Node loss and the WSL node: [node loss with a retained boot volume](troubleshoot/node-loss-with-retained-boot-volume.md), [capacity retry loops](troubleshoot/capacity-retry-loops-need-caps-and-fail-closed-state.md), [data disk after a WSL VM rebuild](troubleshoot/wsl-ephemeral-node-data-disk-after-vm-rebuild.md), [exec failure is not guest down](troubleshoot/wsl-exec-failure-is-not-guest-down.md), [WSL and Tailscale MTU black hole](troubleshoot/wsl-tailscale-mtu-black-hole.md).
+
 ## Examples
 
 Review-only compose fragments in [examples/](examples/): Pterodactyl DB rotation, panel v1 upgrade overlay, Wings GCS backup volume and native GCS S3 settings. Merge them into the reconciled live stack; never deploy them alone.
