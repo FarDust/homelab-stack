@@ -303,6 +303,7 @@ variables:
   - apps/supabase
   - devtools/notebooks
   - hobby/iot
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - llms/mcp
@@ -749,6 +750,7 @@ variables:
   kind: literal
   owner: main/storage
   used_by:
+  - apps/japan-trip-api
   - main/storage
   - main/traefik
   - productivity/finance
@@ -910,6 +912,8 @@ variables:
   kind: literal
   owner: productivity/static-journey
   used_by:
+  - apps/japan-trip-api
+  - apps/japan-trip-realtime
   - productivity/static-journey
   required: true
   description: journey hostname setting for productivity/static-journey.
@@ -1415,6 +1419,7 @@ variables:
   kind: literal
   owner: main/trust-agent
   used_by:
+  - hobby/olympus
   - main/trust-agent
   required: true
   description: Address the Trust Agent resolves litellm.${LOCAL_DOMAIN} to (required, no default)
@@ -1466,6 +1471,7 @@ variables:
   - devtools/ontology
   - hobby/gaming
   - hobby/iot
+  - hobby/olympus
   - hobby/science
   - hobby/streaming
   - llms/agents
@@ -2234,6 +2240,24 @@ variables:
   default: ''
   description: ollama base url setting for retrieval/web.
   example: ''
+- name: OLYMPUS_BRIDGE_IMAGE
+  kind: literal
+  owner: hobby/olympus
+  used_by:
+  - hobby/olympus
+  required: true
+  description: olympus bridge image setting for hobby/olympus.
+  example: olympus-bridge:<version>
+  exported: false
+- name: OLYMPUS_OPENCODE_IMAGE
+  kind: literal
+  owner: hobby/olympus
+  used_by:
+  - hobby/olympus
+  required: true
+  description: olympus opencode image setting for hobby/olympus.
+  example: olympus-opencode:<version>
+  exported: false
 - name: OPENAI_API_KEY
   kind: literal
   owner: llms/governance
@@ -2246,6 +2270,7 @@ variables:
   kind: literal
   owner: main/trust-agent
   used_by:
+  - hobby/olympus
   - main/trust-agent
   required: true
   description: OpenBao API address (used by cluster-utils openbao commands)
@@ -3057,6 +3082,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3078,6 +3104,7 @@ variables:
   used_by:
   - admin/dashboards
   - compute/execution
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3120,6 +3147,7 @@ variables:
   used_by:
   - admin/dashboards
   - compute/execution
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3159,6 +3187,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3784,6 +3813,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - hobby/olympus
   - llms/agents
   - llms/governance
   - main/bridges
@@ -3841,3 +3871,43 @@ variables:
   default: '8080'
   description: Internal port for Open WebUI HTTP server
   example: '8080'
+- name: JT_POSTGREST_IMAGE
+  kind: literal
+  owner: apps/japan-trip-api
+  used_by:
+  - apps/japan-trip-api
+  required: true
+  description: PostgREST image (tag and digest) serving the shared trip API.
+  example: your_postgrest_image_reference
+- name: JT_JWKS_VERSION
+  kind: literal
+  owner: apps/japan-trip-api
+  used_by:
+  - apps/japan-trip-api
+  required: true
+  description: Version suffix of the Swarm config holding the identity realm's public JWKS; bump when the realm rotates keys.
+  example: "1"
+- name: JT_KEYCLOAK_AUDIENCE
+  kind: literal
+  owner: apps/japan-trip-api
+  used_by:
+  - apps/japan-trip-api
+  required: true
+  description: Audience claim the shared trip API requires in access tokens.
+  example: japan-trip
+- name: JT_CENTRIFUGO_IMAGE
+  kind: literal
+  owner: apps/japan-trip-realtime
+  used_by:
+  - apps/japan-trip-realtime
+  required: true
+  description: Centrifugo image (tag and digest) pushing realtime events of the shared trip.
+  example: your_centrifugo_image_reference
+- name: JT_CENTRIFUGO_CONFIG_VERSION
+  kind: literal
+  owner: apps/japan-trip-realtime
+  used_by:
+  - apps/japan-trip-realtime
+  required: true
+  description: Version suffix of the Swarm secret jt_centrifugo_config-<version> holding the rendered Centrifugo configuration; bump with every change.
+  example: '1'

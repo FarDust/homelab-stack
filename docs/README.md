@@ -2,6 +2,7 @@
 
 ## Speech and model serving
 
+- [LiteLLM local text-only fallback](adr/litellm_local_text_fallback_adr.md): local Gemma 3 4B as the last hop of text-only aliases, the no-tools rule, node-local weights (no GCS egress), placement, rollback (tests in `tests/test_litellm_local_text_fallback.py`).
 - [STT runtime and credential decision](adr/cluster_stt_adr.md): official serving runtime, LiteLLM alias, exact-path custody, acceptance gates and rollback.
 
 ## Placement and operations

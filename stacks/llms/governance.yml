@@ -75,6 +75,67 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - traefik
+  ollama-text-fallback:
+    # Local text-only fallback for LiteLLM (docs/adr/litellm_local_text_fallback_adr.md). Internal only: no Traefik
+    # route, reached as http://llms-governance_ollama-text-fallback:11434 over the overlay network. Weights live on a
+    # node-local volume (never the rclone/GCS volume) and are pulled once from the Ollama registry when absent.
+    # Memory budget: 5G resident cap, swap not separately capped (docs/adr/2026-10-11-memory-swap-budgeting.md);
+    # the model unloads after OLLAMA_KEEP_ALIVE of idleness.
+    image: ollama/ollama:0.20.5@sha256:662109db8037f17257cfc6e816289c0d4c9ae8a2a4ff760b653d8d410e234ba0
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        ollama serve &
+        serve_pid=$$!
+        trap 'kill $$serve_pid' TERM INT
+        until ollama list >/dev/null 2>&1; do kill -0 $$serve_pid || exit 1; sleep 1; done
+        ollama show gemma3:4b >/dev/null 2>&1 || ollama pull gemma3:4b
+        wait $$serve_pid
+    healthcheck:
+      test: ["CMD-SHELL", "ollama show gemma3:4b >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 600s
+    volumes:
+      - ollama_text_fallback_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_CONTEXT_LENGTH=4096
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_KEEP_ALIVE=5m
+      - OLLAMA_NUM_THREAD=2
+      - OLLAMA_FLASH_ATTENTION=1
+      - NVIDIA_VISIBLE_DEVICES=all
+    networks:
+      - traefik
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.gpu == true
+          - node.labels.gpu.class == low-end
+          - node.labels.node.ephemeral != true
+      resources:
+        limits:
+          cpus: '2'
+          memory: 5G
+        reservations:
+          memory: 512M
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
   ollama-fallback:
     # Not working as expected
     image: nginx:1.29-alpine
@@ -276,6 +337,7 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD?err}
       - OLLAMA_API_BASE=https://ollama.${LOCAL_DOMAIN?err}
       - OLLAMA_LOWEND_API_BASE=https://ollama-low-end.${LOCAL_DOMAIN?err}
+      - OLLAMA_TEXT_FALLBACK_API_BASE=http://llms-governance_ollama-text-fallback:11434
       - VLLM_GEMMA4_API_BASE=https://vllm-gemma4.${LOCAL_DOMAIN?err}/v1
       - MCP_CLUSTER_UTILS_URL=https://mcp.${LOCAL_DOMAIN?err}/mcp
       - MCP_GATEWAY_OIDC_TOKEN_URL=https://idp.${LOCAL_DOMAIN?err}/realms/${KEYCLOAK_SIGILCORE_REALM?err}/protocol/openid-connect/token
@@ -294,6 +356,8 @@ services:
         target: /app/config/config.yaml
       - source: litellm_ollama_unload_hook
         target: /app/config/ollama_unload_hook.py
+      - source: litellm_text_only_fallback_guard
+        target: /app/config/text_only_fallback_guard.py
     secrets:
       - source: vertex_ai_credentials
         target: vertex_ai_credentials
@@ -440,6 +504,8 @@ networks:
 volumes:
   litellm_chatgpt_auth:
     driver: local
+  ollama_text_fallback_data:
+    driver: local
   ollama_data:
     driver: rclone
     driver_opts:
@@ -481,6 +547,9 @@ configs:
   litellm_ollama_unload_hook:
     name: litellm_ollama_unload_hook-${CONFIG_VERSION:-0}
     file: ./configs/litellm/ollama_unload_hook.py
+  litellm_text_only_fallback_guard:
+    name: litellm_text_only_fallback_guard-${CONFIG_VERSION:-0}
+    file: ./configs/litellm/text_only_fallback_guard.py
   ollama_fallback_nginx:
     name: ollama_fallback_nginx-${CONFIG_VERSION:-0}
     file: ./configs/ollama/fallback-nginx.conf
