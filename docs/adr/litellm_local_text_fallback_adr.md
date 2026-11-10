@@ -68,4 +68,12 @@ The 30 minute keep-alive hides the cold load after first use; the first fallback
 
 ## Live verification
 
-Pending deployment.
+Deployed 2026-11-10 (gateway `CONFIG_VERSION` 760; rollback reference 759, whose configs remain in the Swarm). Times UTC.
+
+- Service: `ollama-text-fallback` healthy on the stable GPU node, volume `local` driver, model tags present after a redeploy, keep-alive 30 minutes.
+- Primary path (18:31): `zeus-text` and `zeus-cheap` answered 200 through the gateway. The subscription route was already at its usage limit that day, so the answers came from the Vertex Gemini hop (1.8-5.9 s), which is the existing chain working before the local hop.
+- Simulated upstream failure: an isolated Router built inside the gateway image from the real fallback map and retry policy, with every cloud route pointed at a refused port and the real local service. `zeus-text` was answered by `ollama_chat/gemma3:4b` in 34 s cold and 2.5 s warm; the Spanish persona text was in character. The same request with `tools` and `disable_fallbacks` failed with the upstream error (1.6 s), and a `zeus-brain` request with tools failed without any local hop (0.3 s).
+- Gateway guard: a tool request sent straight to `local-fallback` returned HTTP 400 "text-only"; a tool request on `zeus-text` returned the upstream error (HTTP 429, usage limit) instead of being answered by Gemini or the local model, which confirms the hook switches fallbacks off for tool requests. Consequence: tool requests on a text-only alias also lose the cloud fallbacks; use a tool-using alias for tool work.
+- Direct call to `local-fallback` through the gateway after the restart: 200 in 18 s cold and 3.0 s warm.
+- Restart: the gateway task was replaced by the deployment; the local service kept running and answered afterwards.
+- Neighbors: with the model loaded the node showed 3 GiB used by the service, GPU memory 2.0-2.5 GB and no change in free RAM beyond that; the existing low-end instance and the game server were not restarted.
