@@ -1,0 +1,64 @@
+version: "3.9"
+networks:
+  traefik:
+    external: true
+services:
+  pr-agent:
+    image: pragent/pr-agent:0.49.0-mosaico_agent@sha256:cc428b0f0283f249020a25271eb14d63b07ef5f9245afbba43f5e293ca518271
+    networks:
+      - traefik
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        API_KEY="$$(cat /run/secrets/pr_agent_litellm_api_key)";
+        export API_KEY;
+        exec python pr_agent/mosaico/server.py
+    environment:
+      - API_BASE=http://litellm:4000/v1
+      - MODEL_NAME=openai/chatgpt-subscription-sol
+      - MODEL_MAX_TOKENS=128000
+      - HOST=0.0.0.0
+      - PORT=9000
+      - AGENT_CARD_HOST=pr-agent
+      - AGENT_CARD_PORT=9000
+    secrets:
+      - source: pr_agent_litellm_api_key
+      - source: pr_agent_settings_toml
+        target: /app/pr_agent/settings/.secrets.toml
+        mode: 0444
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9000/.well-known/agent-card.json', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+      placement:
+        constraints:
+          - node.labels.node.ephemeral != true
+      restart_policy:
+        condition: any
+        delay: ${RESTART_DELAY_STANDARD}
+        max_attempts: 0
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: ${UPDATE_MONITOR_STANDARD}
+      rollback_config:
+        order: stop-first
+        monitor: ${ROLLBACK_MONITOR_STANDARD}
+secrets:
+  pr_agent_litellm_api_key:
+    name: pr_agent_litellm_api_key-${CONFIG_VERSION:-0}
+    file: ../../secrets/pr-agent/litellm_api_key
+  pr_agent_settings_toml:
+    name: pr_agent_settings_toml-${CONFIG_VERSION:-0}
+    file: ../../secrets/pr-agent/secrets.toml
