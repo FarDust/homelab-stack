@@ -52,9 +52,11 @@ def test_minecraft_chat_local_aliases_are_removed() -> None:
 def test_zeus_cheap_uses_only_subscription_and_api_routes() -> None:
     config = _load()
     names = ["zeus-cheap", *_chain(config, "zeus-cheap")]
-    assert names == ["zeus-cheap", "gemini-3-flash-preview", "gpt-5-mini"]
+    # The chain ends on the node-local text-only model (docs/adr/litellm_local_text_fallback_adr.md);
+    # every hop before it is a subscription or API route.
+    assert names == ["zeus-cheap", "gemini-3-flash-preview", "gpt-5-mini", "local-fallback"]
     assert _deployments(config, "zeus-cheap")[0]["litellm_params"]["model"] == "chatgpt/gpt-6-luna"
-    for name in names:
+    for name in names[:-1]:
         deployments = _deployments(config, name)
         assert deployments, name
         for deployment in deployments:

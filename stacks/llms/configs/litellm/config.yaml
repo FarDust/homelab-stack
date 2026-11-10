@@ -7,6 +7,7 @@ litellm_settings:
   callbacks:
     - langfuse
     - ollama_unload_hook.proxy_handler_instance
+    - text_only_fallback_guard.proxy_handler_instance
     - websearch_interception
   websearch_interception_params:
     enabled_providers:
@@ -35,6 +36,8 @@ router_settings:
     trust-agent-chat-low-end: {DefaultRetries: 0, TimeoutErrorRetries: 0}
     minecraft-chat: {DefaultRetries: 0, TimeoutErrorRetries: 0}
     zeus-cheap: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    zeus-text: {DefaultRetries: 0, TimeoutErrorRetries: 0}
+    local-fallback: {DefaultRetries: 0, TimeoutErrorRetries: 0}
     zeus-brain: {DefaultRetries: 0, TimeoutErrorRetries: 0}
   # Local-first aliases for automation workloads (e.g. n8n).
   # Existing model names are unchanged; these add stable route targets.
@@ -45,7 +48,10 @@ router_settings:
     - {"trust-agent-chat": ["trust-agent-chat-low-end", "chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
     - {"trust-agent-chat-low-end": ["chatgpt-subscription-terra", "chatgpt-subscription-sol"]}
     - {"minecraft-chat": ["chatgpt-subscription-sol", "gemini-2.5-flash", "gpt-5-mini"]}
-    - {"zeus-cheap": ["gemini-3-flash-preview", "gpt-5-mini"]}
+    # Text-only aliases end on the local model; tool-using aliases (zeus-brain, agents) never do.
+    # See docs/adr/litellm_local_text_fallback_adr.md.
+    - {"zeus-cheap": ["gemini-3-flash-preview", "gpt-5-mini", "local-fallback"]}
+    - {"zeus-text": ["gemini-3-flash-preview", "gpt-5-mini", "local-fallback"]}
     - {"zeus-brain": ["chatgpt-subscription-sol", "gemini-3-flash-preview", "gpt-5"]}
     - {"gpt-5-chat-latest": ["n8n-chat", "n8n-chat-low-end", "n8n-chat-fallback", "gemini-2.5-flash"]}
 
@@ -1029,6 +1035,27 @@ model_list:
       timeout: 15
     model_info:
       mode: responses
+
+  # Zeus text (Olympus gods' flavor text): same primary as zeus-cheap, text generation only. The chain ends
+  # on `local-fallback`, a small local model on a stable node, so plain text keeps working when every upstream
+  # fails, rate-limits or runs out of quota. Requests that carry tools never fall back (text_only_fallback_guard.py).
+  - model_name: zeus-text
+    litellm_params:
+      model: chatgpt/gpt-6-luna
+      timeout: 15
+    model_info:
+      mode: responses
+
+  # Local text-only fallback (Gemma 3 4B on the dedicated Ollama with a node-local volume). Reached only through the
+  # fallback chains of text-only aliases. No tool calling: the guard rejects direct tool requests. See
+  # docs/adr/litellm_local_text_fallback_adr.md.
+  - model_name: local-fallback
+    litellm_params:
+      model: ollama_chat/gemma3:4b
+      api_base: os.environ/OLLAMA_TEXT_FALLBACK_API_BASE
+      timeout: 90
+    model_info:
+      owned_by: google
 
   # Zeus brain (Olympus agent): ChatGPT subscription first, then Sol, then Vertex Gemini (cents), then the
   # pay-per-token OpenAI API as the last and most expensive route; the bridge caps estimated daily spend.
