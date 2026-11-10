@@ -72,8 +72,11 @@ services:
       - pterodactyl-panel-config:/app/var/
       - pterodactyl-panel-logs:/app/storage/logs
     secrets:
+      # Mounted outside /app/var: the rclone volume shadows /app/var/.env.
+      # Laravel loads /app/.env.production when APP_ENV=production and then
+      # ignores .env, so this dotenv carries APP_KEY and the DB_* settings.
       - source: panel-dotenv
-        target: /app/var/.env
+        target: /app/.env.production
         uid: "0"
         gid: "101"
         mode: 0440
