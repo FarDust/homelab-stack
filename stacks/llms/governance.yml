@@ -80,7 +80,10 @@ services:
     # route, reached as http://llms-governance_ollama-text-fallback:11434 over the overlay network. Weights live on a
     # node-local volume (never the rclone/GCS volume) and are pulled once from the Ollama registry when absent.
     # Memory budget: 5G resident cap, swap not separately capped (docs/adr/2026-10-11-memory-swap-budgeting.md);
-    # the model unloads after OLLAMA_KEEP_ALIVE of idleness.
+    # the model stays loaded for OLLAMA_KEEP_ALIVE after use (a cold load takes about a minute on this node).
+    # Image 0.20.5 is deliberate: the registry's current gemma3:4b manifest needs a newer Ollama (HTTP 412) and
+    # Ollama 0.40.7 ran this model at under 1 token/s on the 3 GB Pascal GPU; the weights are seeded once from
+    # the existing model store's local cache (see the ADR).
     image: ollama/ollama:0.20.5@sha256:662109db8037f17257cfc6e816289c0d4c9ae8a2a4ff760b653d8d410e234ba0
     entrypoint:
       - /bin/sh
@@ -106,7 +109,7 @@ services:
       - OLLAMA_CONTEXT_LENGTH=4096
       - OLLAMA_MAX_LOADED_MODELS=1
       - OLLAMA_NUM_PARALLEL=1
-      - OLLAMA_KEEP_ALIVE=5m
+      - OLLAMA_KEEP_ALIVE=30m
       - OLLAMA_NUM_THREAD=2
       - OLLAMA_FLASH_ATTENTION=1
       - NVIDIA_VISIBLE_DEVICES=all

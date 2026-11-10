@@ -25,16 +25,30 @@ Findings: the existing instance answers well enough, but (1) its weights sit on 
 
 ## Decision
 
-1. Serve the fallback from a dedicated Ollama service, `ollama-text-fallback`, with a node-local Docker volume, placed by labels on a stable GPU node (`gpu == true`, `gpu.class == low-end`, `node.ephemeral != true`); no hostname pin. The weights (Gemma 3 4B, about 3.3 GB) are pulled once from the Ollama registry when absent; ingress is free and the bucket is never read. The service has no Traefik route and is reached over the overlay network by service name, so no `*.local` name or alias is involved.
+1. Serve the fallback from a dedicated Ollama service, `ollama-text-fallback`, with a node-local Docker volume, placed by labels on a stable GPU node (`gpu == true`, `gpu.class == low-end`, `node.ephemeral != true`); no hostname pin. The weights (Gemma 3 4B, about 3.3 GB) are seeded once from the existing store's local cache (see Provisioning); no bucket read happens. The service has no Traefik route and is reached over the overlay network by service name, so no `*.local` name or alias is involved.
 2. Add the model as `local-fallback` (`ollama_chat/gemma3:4b`, 4096-token context, 90 s deployment timeout) and make it the last hop of the fallback chains of text-only aliases only: `zeus-cheap` and `zeus-text`. Chains: primary subscription model, Vertex Gemini Flash, `gpt-5-mini`, `local-fallback`. Retries stay at zero so each failure moves down the chain at once.
 3. Enforce the no-tools rule structurally and at runtime. Structurally: no tool-using alias (`zeus-brain`, `trust-agent-chat`, `minecraft-chat`, provider aliases) has `local-fallback` in its chain, and `tests/test_litellm_local_text_fallback.py` fails if one does. At runtime: `text_only_fallback_guard.py`, a pre-call hook, sets `disable_fallbacks` for any request that carries `tools`, `tool_choice`, `functions`, `function_call`, tool-call messages or tool results on a text-only alias (so a tool request that reaches `zeus-text` fails with the upstream error instead of being answered by the local model) and rejects such requests addressed directly to `local-fallback` with HTTP 400. The hook is the only custom code; the library has no content-based fallback condition (documented mismatch), and all routing, retry and cooldown behavior stays in LiteLLM Router.
 4. `minecraft-chat` keeps its earlier rule (no local model); its chain is unchanged.
+
+### Provisioning of the weights (2026-11-10)
+
+The registry's current `gemma3:4b` manifest is rejected by Ollama 0.20.5 with HTTP 412 ("requires a newer version"), and Ollama 0.40.7 served the same model at 0.5-0.8 tokens/s on the 3 GB Pascal GPU (58% of the layers on the CPU, GPU idle, two CPU threads), against 13-19 tokens/s on 0.20.5. The service therefore stays on 0.20.5. The model files were seeded once from the existing model store's local cache on the same node into the new node-local volume (about 55 MB of network traffic, so no bucket read) and tagged `gemma3:4b`. The command still pulls `gemma3:4b` when the tag is absent, which succeeds on a newer Ollama only. To rebuild a lost volume, repeat the seeding from the existing store (copy the manifest and its four blobs, then copy the manifest to the `4b` tag); `llama3.2:3b` pulls on 0.20.5 and is kept on the volume as the emergency alternative.
+
+Measurements on the final service (0.20.5, two CPU threads, 4096 context, 5 GiB cap), 2026-11-10 18:20-18:25 UTC (15:20-15:25 Santiago):
+
+| Model | Cold load | Warm TTFT | Warm tokens/s | GPU share | Refusals on a player-death prompt | Quality |
+| --- | --- | --- | --- | --- | --- | --- |
+| gemma3:4b (seeded) | 69 s | 0.4-0.5 s | 13-15 | 55% | 0 of 8 | in character, fluent |
+| llama3.2:3b (registry) | 12-28 s | 0.2-0.3 s | 13-24 | 79-82% | 2 of 8 | uneven, mangles names |
+| gemma3:4b on Ollama 0.40.7 | 17 s | 20 s (cold) | 0.5-0.8 | 42% | 0 of 2 | in character |
+
+The 30 minute keep-alive hides the cold load after first use; the first fallback call after a long idle period pays about a minute, which is within the 90 second deployment timeout but longer than a client's own short timeout may allow.
 
 ## Alternatives
 
 - Reuse `ollama-low-end` and its bucket-backed volume: rejected, it repeats the egress and load pressure measured above.
 - Qwen 3.5 2B on the existing instance: fits the 3 GB GPU and is fast, but its Spanish persona quality was clearly worse; kept available as the manual alternative (`n8n-chat-low-end`).
-- Llama 3.2 3B (2.0 GB, Spanish officially supported, about 87M Ollama pulls) as the alternative should Gemma 3 4B prove too slow beside the game server; not measured here.
+- Llama 3.2 3B (2.0 GB, Spanish officially supported, about 87M Ollama pulls): pullable on 0.20.5 and faster to load, but it refused 2 of 8 death-themed prompts and mangled names; kept as the emergency alternative.
 - The desktop GPU: rejected, the node is ephemeral and its owner uses it interactively.
 - CPU inference on the manager: rejected, no AVX and memory pressure.
 - vLLM: rejected for a rarely used fallback, it keeps a model resident and its image and startup cost are far larger.
@@ -43,7 +57,7 @@ Findings: the existing instance answers well enough, but (1) its weights sit on 
 ## Consequences
 
 - Plain-text aliases keep answering when every upstream is unavailable; quality is that of a 4B model and latency is a few seconds (cold start from local disk adds seconds). Persona drift and shorter answers are expected.
-- Memory: the service is capped at 5 GiB resident and two CPUs, reserves 512 MiB, and unloads the model after 5 minutes idle; the GPU is shared with the existing low-end instance, so a loaded neighbor makes the model run partly on CPU. Swap is not separately capped (see `2026-10-11-memory-swap-budgeting.md`). The fallback is single-node: if the stable GPU node is down, the chain fails as it did before.
+- Memory: the service is capped at 5 GiB resident and two CPUs, reserves 512 MiB, and keeps the model loaded for 30 minutes after use; the GPU is shared with the existing low-end instance, so a loaded neighbor makes the model run partly on CPU. Swap is not separately capped (see `2026-10-11-memory-swap-budgeting.md`). The fallback is single-node: if the stable GPU node is down, the chain fails as it did before.
 - Egress: pulling the model is ingress; steady-state reads are local disk. The only bucket read this change caused was the benchmarking above, recorded as a one-off.
 - Operations: the node-local volume is not backed up (the model is re-pullable). Roll back by restoring the previous `CONFIG_VERSION` configs and removing the `ollama-text-fallback` service; `zeus-cheap` loses only its last hop and `zeus-text` is new.
 
