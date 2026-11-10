@@ -1,6 +1,6 @@
 # Client connection pools versus the server idle-session timeout
 
-PostgreSQL's `idle_session_timeout` terminates a backend that sits idle outside a transaction for longer than the limit. A client pool that keeps connections idle for longer than that limit holds sockets the server has already closed, and hands one to the next caller.
+PostgreSQL's `idle_session_timeout` (PostgreSQL 14 and later) terminates a backend that sits idle outside a transaction for longer than the limit. A client pool that keeps connections idle for longer than that limit holds sockets the server has already closed, and hands one to the next caller.
 
 ## Mechanism
 
@@ -19,6 +19,7 @@ The failure is intermittent and follows idleness, not load, so it often looks li
 
 ## Related
 
+- [Pooler orphan connection limits](../adr/pooler_orphan_connection_limits_adr.md)
 - [Recognising idle-session timeouts](postgres-idle-session-timeout-triage.md)
 - [Warnings printed by every credentialless client](warning-printed-by-every-credentialless-client.md)
 

@@ -5,10 +5,10 @@ Firewall, NAT and routing edits on a live node can cut the access you need to un
 ## Pattern
 
 1. Snapshot the current state (`iptables-save`, `ip rule`, `ip route`) to a root-only file.
-2. Arm a rollback with a transient timer: `systemd-run --on-active=<n>m <rollback script>`. The script removes only what the change added.
+2. Arm a rollback with a named transient timer: `systemd-run --unit=rollback-<change> --on-active=<n>m <rollback script>`. The script removes only what the change added. Transient timers do not survive a reboot, so this guards against a lost session, not against a reboot.
 3. Apply the change on one canary scope (one port, one rule).
 4. Verify from the affected side (the network namespace that had the fault) and compare the unchanged tables with the snapshot.
-5. Disarm the timer (`systemctl stop <timer>`) after the verification passes; extend the scope and repeat.
+5. Disarm the timer (`systemctl stop rollback-<change>.timer`) after the verification passes; extend the scope and repeat.
 6. Persist the change through a reviewed unit only after the canary holds.
 
 ## Notes

@@ -1,6 +1,6 @@
 # Testing local models can read gigabytes from the model store
 
-Loading an uncached model from a bucket-backed volume (the rclone volume plugin) reads the whole weights file through the bucket, and that read is billed as egress. Comparing four candidate models on one node read about 17 GB, and about 2 GB more on a second node: roughly 0.75 USD at a 0.04 USD/GiB cross-region rate, and up to about 2.2 USD at the 0.12 USD/GB list rate.
+Loading an uncached model from a bucket-backed volume (the rclone volume plugin) reads the whole weights file through the bucket, and that read is billed as egress. Comparing four candidate models on one node read about 17 GB, and about 2 GB more on a second node (about 19 GB in total): roughly 0.75 USD at 0.04 USD/GB, and up to about 2.3 USD at the 0.12 USD/GB list rate (rates as of November 2026; check current pricing).
 
 ## Rules
 

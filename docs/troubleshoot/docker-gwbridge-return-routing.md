@@ -1,10 +1,10 @@
 # Docker gwbridge return routing with Tailscale
 
-On a node that runs Tailscale with advertised or accepted routes, replies to containers on `docker_gwbridge` can be captured by Tailscale's policy-routing table (the rule at priority 5270 sends lookups to table 52) instead of returning through the bridge. Connections from those containers then time out although the forward path works.
+On a node that runs Tailscale with advertised or accepted routes, replies to containers on `docker_gwbridge` can be captured by Tailscale's policy-routing table (typically a rule at priority 5270 sending lookups to table 52; the numbers are Tailscale internals, so read them from `ip rule` first) instead of returning through the bridge. Connections from those containers then time out although the forward path works.
 
 ## Fix
 
-Add a policy rule with a priority just below Tailscale's, destination the `docker_gwbridge` subnet, lookup `main`. A small idempotent helper applies it from a oneshot unit and refuses to proceed when `docker_gwbridge` is not the expected subnet or a different rule already holds that priority.
+Add a policy rule with a numerically lower priority than Tailscale's (evaluated first), destination the `docker_gwbridge` subnet, lookup `main`. A small idempotent helper applies it from a oneshot unit and refuses to proceed when `docker_gwbridge` is not the expected subnet or a different rule already holds that priority.
 
 ## Probe correctly
 

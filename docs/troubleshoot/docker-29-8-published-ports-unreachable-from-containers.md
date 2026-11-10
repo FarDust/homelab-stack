@@ -10,9 +10,9 @@ Since Docker 29.8 a container on a Swarm node can fail to reach a Swarm ingress-
 
 ## Mechanism
 
-The nat `DOCKER` chain DNAT rule for ingress ports is restricted with `! -i docker_gwbridge`, so packets arriving from `docker_gwbridge` are not DNAT-ed to the ingress network. They reach the host input path with the published port as destination, and the firewall drops them. `docker-proxy` listening on the port does not help because the packet never takes the proxy path.
+The nat `DOCKER` chain DNAT rule for ingress ports is restricted with `! -i docker_gwbridge`, so packets arriving from `docker_gwbridge` are not DNAT-ed to the ingress network. They reach the host input path with the published port as destination, and the firewall drops them. `docker-proxy` listening on the port does not help: the packet is dropped on the input path before the proxy is reached.
 
-Upstream: moby/moby issue 53962; the fix, pull request 54006 ("DNAT gwbridge packets to ingress ports"), targets release 29.10.0. Releases before 29.10 GA do not contain it.
+Upstream (as of 2026-11-10; verify before relying on it): moby/moby issue 53962, and the fix, pull request 54006 ("DNAT gwbridge packets to ingress ports"), merged for milestone 29.10.0, which was available only as a release candidate then.
 
 ## Confirm
 

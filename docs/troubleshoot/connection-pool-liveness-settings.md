@@ -4,10 +4,10 @@ Keep every client pool's idle lifetime below the server's idle limit and validat
 
 | Client | Validate on checkout | Retire idle connections |
 | --- | --- | --- |
-| psycopg_pool | `check=ConnectionPool.check_connection` | `max_idle` below the server limit (the default is 10 minutes) |
+| psycopg_pool | `check=ConnectionPool.check_connection` | `max_idle` below the server limit (default 10 minutes; it only closes connections above `min_size`, so use `max_lifetime` or `check=` for the rest) |
 | SQLAlchemy | `pool_pre_ping=True` | `pool_recycle` below the server limit |
 | asyncpg | none built in | `max_inactive_connection_lifetime` below the server limit |
-| Prisma | none built in | lower the pool idle lifetime through the connection-string parameters |
+| Prisma | none built in | no idle-lifetime setting: rely on a pooler in front, retry the first statement, or opt the database out of the server limit |
 
 Pick the retire value with margin: with a 60 second server limit, use 30 seconds or less so a connection is never handed out in the last seconds of its life.
 

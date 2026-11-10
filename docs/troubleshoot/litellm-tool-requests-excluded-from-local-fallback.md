@@ -8,7 +8,7 @@ No alias that serves tool calls lists the local fallback hop. A test reads the g
 
 ## Runtime
 
-The gateway version in use cannot condition fallbacks on the presence of `tools`. A pre-call hook therefore:
+LiteLLM 1.106.6 (the version this was verified on) cannot condition fallbacks on the presence of `tools`. A pre-call hook therefore:
 
 - sets `disable_fallbacks` for requests that carry tools, tool calls or tool results when they arrive on a text-only alias;
 - returns HTTP 400 for tools sent straight to the local fallback model.

@@ -4,10 +4,10 @@ Host-level replica of the upstream fix for [published ports unreachable from con
 
 ## Design
 
-- A dedicated nat chain holds one DNAT rule per ingress-published port: match the `docker_gwbridge` input interface and a local destination type, then `DNAT --to-destination <ingress gateway>:<port>`.
+- A dedicated nat chain holds one DNAT rule per ingress-published port: match the `docker_gwbridge` input interface and a local destination type, then `DNAT --to-destination <ingress sandbox address>:<port>`.
 - One jump to that chain is inserted at the top of `PREROUTING`.
 - Only the ports that need it are listed. Add a port after proving it times out from a gwbridge container and that the rule fixes it.
-- A systemd oneshot ordered after (and part of) `docker.service` applies it, plus a short timer that reconciles when Docker rebuilds its chains. Applying twice leaves exactly one jump.
+- A systemd oneshot with `After=docker.service` and `PartOf=docker.service` applies it, plus a short timer that reconciles when Docker rebuilds its chains. Applying twice leaves exactly one jump.
 - The unit has no capabilities beyond network administration; check with `systemd-analyze security`.
 
 ## Rollout that worked
