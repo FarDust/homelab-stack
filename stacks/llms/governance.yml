@@ -250,6 +250,15 @@ services:
         - traefik.http.routers.vllm-gemma4.tls=true
         - traefik.http.routers.vllm-gemma4.tls.certresolver=le-dns
         - traefik.http.routers.vllm-gemma4.middlewares=load-vllm@file
+        - traefik.http.routers.vllm-gemma4.service=vllm-gemma4
+        - traefik.http.routers.vllm-gemma4.priority=10
+        # Reads never wake the scale-to-zero engine; see docs/adr/vllm_gemma4_read_routes_adr.md
+        - traefik.http.routers.vllm-gemma4-read.entrypoints=websecure
+        - traefik.http.routers.vllm-gemma4-read.rule=Host(`vllm-gemma4.${LOCAL_DOMAIN}`) && (Method(`GET`) || Method(`HEAD`))
+        - traefik.http.routers.vllm-gemma4-read.tls=true
+        - traefik.http.routers.vllm-gemma4-read.tls.certresolver=le-dns
+        - traefik.http.routers.vllm-gemma4-read.service=vllm-gemma4
+        - traefik.http.routers.vllm-gemma4-read.priority=100
         - traefik.http.services.vllm-gemma4.loadbalancer.server.port=8000
         - traefik.http.services.vllm-gemma4.loadbalancer.healthcheck.path=/health
         - traefik.http.services.vllm-gemma4.loadbalancer.healthcheck.interval=30s
