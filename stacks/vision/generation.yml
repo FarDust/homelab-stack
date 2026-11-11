@@ -1,6 +1,18 @@
 services:
   comfy-gpu:
     image: us-central1-docker.pkg.dev/landing-fardust/public-docker/comfyui-cuda12.8-cudnn9-runtime:0.0.0-refs-pull-2-merge.20260203-005047
+    entrypoint:
+      - sh
+      - -c
+      - |
+        up=$$(cut -d. -f1 "$${STARTUP_GATE_UPTIME_FILE:-/proc/uptime}")
+        slot=$${STARTUP_GATE_SLOT_S:-0}
+        if [ "$$up" -lt "$$slot" ]; then
+          echo "startup-gate: host uptime $${up}s is below slot $${slot}s, waiting $$((slot - up))s"
+          sleep "$$((slot - up))"
+        fi
+        exec python -u main.py --listen --port 7860 "$$@"
+      - startup-gate
     command:
       [
         "--listen",
@@ -31,6 +43,7 @@ services:
       - comfyui_models:/stable-diffusion/models
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - STARTUP_GATE_SLOT_S=660
     networks:
       - traefik
     deploy:
@@ -41,9 +54,12 @@ services:
           - node.labels.gpu.class == high-end
       restart_policy:
         condition: any
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+        delay: 165s
+        max_attempts: 5
+        window: 20m
+      resources:
+        reservations:
+          memory: 4G
       labels:
         - traefik.enable=true
         - traefik.http.routers.comfy-gpu-http.entrypoints=web

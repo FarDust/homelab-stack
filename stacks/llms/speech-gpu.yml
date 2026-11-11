@@ -2,7 +2,18 @@ x-release: "0.1.0"
 services:
   whisper:
     image: ghcr.io/ggml-org/whisper.cpp@sha256:eb5f21530421cefcb1c5bf18a276dc5082110e66dd4962eb403e578679562126
-    entrypoint: ["whisper-server"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        up=$$(cut -d. -f1 "$${STARTUP_GATE_UPTIME_FILE:-/proc/uptime}")
+        slot=$${STARTUP_GATE_SLOT_S:-0}
+        if [ "$$up" -lt "$$slot" ]; then
+          echo "startup-gate: host uptime $${up}s is below slot $${slot}s, waiting $$((slot - up))s"
+          sleep "$$((slot - up))"
+        fi
+        exec whisper-server "$$@"
+      - startup-gate
     command:
       - --host
       - 0.0.0.0
@@ -18,6 +29,7 @@ services:
       - /v1/audio/transcriptions
     environment:
       NVIDIA_VISIBLE_DEVICES: all
+      STARTUP_GATE_SLOT_S: "120"
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     user: "1000:1000"
     working_dir: /tmp
@@ -32,7 +44,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 120s
+      start_period: 300s
     deploy:
       replicas: ${STT_GPU_REPLICAS:-1}
       placement:
@@ -50,7 +62,8 @@ services:
       restart_policy:
         condition: on-failure
         delay: 30s
-        max_attempts: 1
+        max_attempts: 5
+        window: 10m
       update_config:
         order: stop-first
         failure_action: rollback

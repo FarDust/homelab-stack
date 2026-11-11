@@ -1,8 +1,26 @@
 version: "3.8"
+# Staggered start after a VM boot of the ephemeral GPU node: each gated service waits until
+# the host has been up for STARTUP_GATE_SLOT_S seconds; as decided in
+# docs/adr/gpu_node_staggered_start_adr.md
+x-startup-gate-lsio: &startup-gate-lsio
+  - sh
+  - -c
+  - |
+    up=$$(cut -d. -f1 "$${STARTUP_GATE_UPTIME_FILE:-/proc/uptime}")
+    slot=$${STARTUP_GATE_SLOT_S:-0}
+    if [ "$$up" -lt "$$slot" ]; then
+      echo "startup-gate: host uptime $${up}s is below slot $${slot}s, waiting $$((slot - up))s"
+      sleep "$$((slot - up))"
+    fi
+    exec /init "$$@"
+  - startup-gate
+
 services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
+    entrypoint: *startup-gate-lsio
     environment:
+      - STARTUP_GATE_SLOT_S=490
       - WEBUI_PORT=${WEBUI_PORT:-8080}
       - TORRENTING_PORT=${TORRENTING_PORT:-6881}
       - PUID=${PUID:-1000}
@@ -16,6 +34,12 @@ services:
       - traefik-public
       - media-net
     deploy:
+      restart_policy:
+        condition: any
+        delay: 135s
+      resources:
+        reservations:
+          memory: 256M
       mode: replicated
       replicas: 1
       labels:
@@ -118,7 +142,9 @@ services:
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
+    entrypoint: *startup-gate-lsio
     environment:
+      - STARTUP_GATE_SLOT_S=340
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${USER_TIMEZONE:-Etc/UTC}
@@ -131,6 +157,12 @@ services:
       - traefik-public
       - media-net
     deploy:
+      restart_policy:
+        condition: any
+        delay: 90s
+      resources:
+        reservations:
+          memory: 256M
       mode: replicated
       replicas: 1
       labels:
@@ -149,7 +181,9 @@ services:
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
+    entrypoint: *startup-gate-lsio
     environment:
+      - STARTUP_GATE_SLOT_S=390
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${USER_TIMEZONE:-Etc/UTC}
@@ -162,6 +196,12 @@ services:
       - traefik-public
       - media-net
     deploy:
+      restart_policy:
+        condition: any
+        delay: 105s
+      resources:
+        reservations:
+          memory: 256M
       mode: replicated
       replicas: 1
       labels:
@@ -180,7 +220,9 @@ services:
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
+    entrypoint: *startup-gate-lsio
     environment:
+      - STARTUP_GATE_SLOT_S=440
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${USER_TIMEZONE:-Etc/UTC}
@@ -193,6 +235,12 @@ services:
       - traefik-public
       - media-net
     deploy:
+      restart_policy:
+        condition: any
+        delay: 120s
+      resources:
+        reservations:
+          memory: 256M
       mode: replicated
       replicas: 1
       labels:
@@ -211,7 +259,9 @@ services:
 
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:latest
+    entrypoint: *startup-gate-lsio
     environment:
+      - STARTUP_GATE_SLOT_S=240
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${USER_TIMEZONE:-Etc/UTC}
@@ -227,6 +277,12 @@ services:
       - traefik-public
       - media-net
     deploy:
+      restart_policy:
+        condition: any
+        delay: 60s
+      resources:
+        reservations:
+          memory: 256M
       mode: replicated
       replicas: 1
       labels:
@@ -245,7 +301,23 @@ services:
 
   jellyseerr:
     image: ghcr.io/fallenbagel/jellyseerr:latest
+    entrypoint:
+      - sh
+      - -c
+      - |
+        up=$$(cut -d. -f1 "$${STARTUP_GATE_UPTIME_FILE:-/proc/uptime}")
+        slot=$${STARTUP_GATE_SLOT_S:-0}
+        if [ "$$up" -lt "$$slot" ]; then
+          echo "startup-gate: host uptime $${up}s is below slot $${slot}s, waiting $$((slot - up))s"
+          sleep "$$((slot - up))"
+        fi
+        exec /sbin/tini -- "$$@"
+      - startup-gate
+    command:
+      - pnpm
+      - start
     environment:
+      - STARTUP_GATE_SLOT_S=290
       - LOG_LEVEL=${JELLYSEERR_LOG_LEVEL:-info}
       - TZ=${USER_TIMEZONE:-Etc/UTC}
       - PORT=${JELLYSEERR_PORT:-5055}
@@ -255,6 +327,12 @@ services:
       - traefik-public
       - media-net
     deploy:
+      restart_policy:
+        condition: any
+        delay: 75s
+      resources:
+        reservations:
+          memory: 256M
       mode: replicated
       replicas: 1
       labels:
