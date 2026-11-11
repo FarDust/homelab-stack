@@ -3,7 +3,7 @@
 ## Speech and model serving
 
 - [LiteLLM local text-only fallback](adr/litellm_local_text_fallback_adr.md): local Gemma 3 4B as the last hop of text-only aliases, the no-tools rule, node-local weights (no GCS egress), placement, rollback (tests in `tests/test_litellm_local_text_fallback.py`).
-- [vLLM Gemma read routes](adr/vllm_gemma4_read_routes_adr.md): `GET`/`HEAD` reach the scale-to-zero engine without waking it; every other method, inference included, can start a Sablier session (tests in `tests/test_vllm_gemma4_read_routes.py`).
+- [vLLM Gemma on demand](adr/vllm_gemma4_read_routes_adr.md): a static `/v1/models` list, reads that never wake the scale-to-zero engine, a readiness healthcheck for Sablier, and copy offload instead of UVA on WSL; every other method, inference included, can start a Sablier session (tests in `tests/test_vllm_gemma4_read_routes.py`).
 - [STT runtime and credential decision](adr/cluster_stt_adr.md): official serving runtime, LiteLLM alias, exact-path custody, acceptance gates and rollback.
 
 ## Placement and operations
