@@ -302,6 +302,7 @@ variables:
   used_by:
   - apps/supabase
   - devtools/notebooks
+  - devtools/pr-agent
   - hobby/iot
   - hobby/olympus
   - llms/agents
@@ -1469,6 +1470,7 @@ variables:
   - devtools/lineage
   - devtools/notebooks
   - devtools/ontology
+  - devtools/pr-agent
   - hobby/gaming
   - hobby/iot
   - hobby/olympus
@@ -3187,6 +3189,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - devtools/pr-agent
   - hobby/olympus
   - llms/agents
   - llms/governance
@@ -3813,6 +3816,7 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
+  - devtools/pr-agent
   - hobby/olympus
   - llms/agents
   - llms/governance
