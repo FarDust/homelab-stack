@@ -7,7 +7,7 @@ services:
     command: ['-g', 'daemon off;']
     read_only: true
     cap_drop: [ALL]
-    networks: [traefik-public]
+    networks: [traefik-public, traefik]
     volumes:
       - type: tmpfs
         target: /tmp
@@ -51,6 +51,8 @@ services:
         - traefik.http.services.static-journey.loadbalancer.server.port=8080
 networks:
   traefik-public:
+    external: true
+  traefik:
     external: true
 configs:
   nginx:
