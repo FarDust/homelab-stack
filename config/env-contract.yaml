@@ -302,6 +302,7 @@ variables:
   used_by:
   - apps/supabase
   - devtools/notebooks
+  - devtools/pr-agent
   - hobby/iot
   - hobby/olympus
   - llms/agents
