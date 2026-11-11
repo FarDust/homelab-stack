@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- Static journey nginx: compress text assets with gzip and serve a static `/reset` recovery page with `Cache-Control: no-store`. The versioned config name changes with `JOURNEY_VERSION`, so the next rollout of the stack picks it up.
+
 ## 0.1.4
 
 - Stagger the start of the GPU and AI services on the ephemeral GPU node after a VM start: an uptime-slot startup gate in the entrypoint of whisper, ollama, jellyfin, jellyseerr, sonarr, radarr, bazarr, qbittorrent, jupyter-tensorflow and comfy-gpu, ordered restart delays, memory reservations and a longer whisper start period. `vllm-gemma4` stays at zero replicas. See `docs/adr/gpu_node_staggered_start_adr.md`.
