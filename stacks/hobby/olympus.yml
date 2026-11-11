@@ -22,6 +22,9 @@ x-hosts: &hosts
 services:
   olympus-bridge:
     image: ${OLYMPUS_BRIDGE_IMAGE?err}
+    # Migrations are a separate one-shot step (olympus-bridge docs/operations.md, release runbook): serve
+    # refuses to boot on an older schema, and bridge 0.6.1, which migrates at start, cannot boot on 0009.
+    command: ["serve", "--no-migrate"]
     networks:
       - default
       - traefik-public
