@@ -33,11 +33,13 @@ MIN_SPACING_S = 45
 
 
 def _service(name: str) -> dict:
+    """Return the parsed compose service for a planned name."""
     stack = yaml.safe_load((ROOT / PLAN[name][0]).read_text(encoding="utf-8"))
     return stack["services"][name]
 
 
 def _env(service: dict) -> dict[str, str]:
+    """Return the service environment as a mapping."""
     env = service["environment"]
     if isinstance(env, dict):
         return {k: str(v) for k, v in env.items()}
@@ -45,11 +47,13 @@ def _env(service: dict) -> dict[str, str]:
 
 
 def _seconds(value: str) -> int:
+    """Parse a whole-second compose duration such as 300s."""
     return int(value.removesuffix("s"))
 
 
 @pytest.mark.parametrize("name", sorted(PLAN))
 def test_each_gpu_service_declares_its_slot_and_ordered_restart_delay(name: str) -> None:
+    """Each planned service declares its slot, gate entrypoint and restart delay."""
     _, slot, delay = PLAN[name]
     service = _service(name)
     assert _env(service)["STARTUP_GATE_SLOT_S"] == str(slot)
@@ -64,6 +68,7 @@ def test_each_gpu_service_declares_its_slot_and_ordered_restart_delay(name: str)
 
 
 def test_slots_and_restart_delays_are_strictly_ordered_and_spaced() -> None:
+    """Slots and restart delays increase with the rank and keep the minimum spacing."""
     ordered = list(PLAN.values())
     slots = [slot for _, slot, _ in ordered]
     delays = [delay for _, _, delay in ordered]
@@ -73,21 +78,29 @@ def test_slots_and_restart_delays_are_strictly_ordered_and_spaced() -> None:
 
 
 def test_models_with_a_healthcheck_cover_the_gate_wait_and_model_load() -> None:
+    """The whisper start period covers the gate wait plus the model load."""
     whisper = _service("whisper")
     assert _seconds(whisper["healthcheck"]["start_period"]) >= 300
 
 
 def test_vllm_gemma4_stays_declared_at_zero_replicas() -> None:
+    """The disabled vLLM service is neither scaled nor gated by this change."""
     governance = yaml.safe_load((ROOT / "stacks/llms/governance.yml").read_text(encoding="utf-8"))
     vllm = governance["services"]["vllm-gemma4"]
     assert vllm["deploy"]["replicas"] == 0
     assert "entrypoint" not in vllm
 
 
-def _run_gate(tmp_path: Path, uptime: str, slot: int, args: list[str]) -> tuple[str, list[str]]:
-    script = _service("sonarr")["entrypoint"][2]
+def _run_gate(
+    tmp_path: Path, name: str, uptime: str, args: list[str]
+) -> tuple[str, list[str]]:
+    """Run one service's own gate script with a fake uptime file and a fake sleep."""
+    slot = PLAN[name][1]
+    script = _service(name)["entrypoint"][2]
     # Compose escapes dollar signs as $$; the container shell receives single dollars.
-    script = script.replace("$$", "$").replace("exec /init", "exec echo ran")
+    script = script.replace("$$", "$")
+    script, replaced = re.subn(r'^exec .* "\$@"$', 'exec echo ran "$@"', script, flags=re.M)
+    assert replaced == 1, f"{name} gate must end by exec-ing the original entrypoint"
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     log = tmp_path / "sleep.log"
@@ -111,15 +124,20 @@ def _run_gate(tmp_path: Path, uptime: str, slot: int, args: list[str]) -> tuple[
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX sh gate script")
-def test_gate_waits_only_for_the_remaining_boot_time(tmp_path: Path) -> None:
-    out, sleeps = _run_gate(tmp_path, "100.50", 340, ["--flag", "value"])
-    assert sleeps == ["240"]
-    assert "waiting 240s" in out
+@pytest.mark.parametrize("name", sorted(PLAN))
+def test_gate_waits_only_for_the_remaining_boot_time(tmp_path: Path, name: str) -> None:
+    """Each gate sleeps for slot minus uptime and passes its arguments through."""
+    remaining = PLAN[name][1] - 100
+    out, sleeps = _run_gate(tmp_path, name, "100.50", ["--flag", "value"])
+    assert sleeps == [str(remaining)]
+    assert f"waiting {remaining}s" in out
     assert out.rstrip().endswith("ran --flag value")
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX sh gate script")
-def test_gate_is_a_no_op_after_the_slot_has_passed(tmp_path: Path) -> None:
-    out, sleeps = _run_gate(tmp_path, "351137.72", 340, [])
+@pytest.mark.parametrize("name", sorted(PLAN))
+def test_gate_is_a_no_op_after_the_slot_has_passed(tmp_path: Path, name: str) -> None:
+    """After the slot a routine restart does not wait."""
+    out, sleeps = _run_gate(tmp_path, name, "351137.72", [])
     assert sleeps == []
     assert re.fullmatch(r"ran\s*", out)
