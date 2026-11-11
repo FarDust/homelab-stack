@@ -22,6 +22,7 @@
 - [Memory and swap budgeting](adr/2026-10-11-memory-swap-budgeting.md): every memory budget states its swap budget.
 - [Node-local state pinning](adr/node_local_state_pinning_adr.md): which volumes are node-local and how consumers are pinned.
 - [Ephemeral rebalance Rust rollout](adr/ephemeral_rebalance_rust_rollout_adr.md): controller rollout and gates.
+- [Staggered start of GPU and AI services](adr/gpu_node_staggered_start_adr.md): uptime-slot startup gate and ordered restart delays so the ephemeral node's services come up one at a time after a VM start (tests in `tests/test_gpu_node_staggered_start.py`).
 - [Redis database IDs](redis-db-ids.md): per-service Redis database allocation.
 
 ## Configuration and secrets

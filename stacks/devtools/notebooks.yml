@@ -9,8 +9,21 @@ services:
       - JUPYTER_ENABLE_LAB=yes
       - JUPYTER_TOKEN=${JUPYTER_TOKEN?err}
       - NVIDIA_VISIBLE_DEVICES=all
+      - STARTUP_GATE_SLOT_S=560
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - UV_BOOTSTRAP_ENABLED=true
+    entrypoint:
+      - sh
+      - -c
+      - |
+        up=$$(cut -d. -f1 "$${STARTUP_GATE_UPTIME_FILE:-/proc/uptime}")
+        slot=$${STARTUP_GATE_SLOT_S:-0}
+        if [ "$$up" -lt "$$slot" ]; then
+          echo "startup-gate: host uptime $${up}s is below slot $${slot}s, waiting $$((slot - up))s"
+          sleep "$$((slot - up))"
+        fi
+        exec tini -g -- "$$@"
+      - startup-gate
     command:
       - start-notebook.py
       - --ServerApp.allow_origin=https://colab.research.google.com
@@ -48,6 +61,10 @@ services:
         delay: 10s
       restart_policy:
         condition: on-failure
+        delay: 150s
+      resources:
+        reservations:
+          memory: 2G
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=traefik-public"

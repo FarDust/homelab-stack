@@ -1,6 +1,20 @@
 services:
   ollama:
     image: ollama/ollama:0.40.7
+    entrypoint:
+      - sh
+      - -c
+      - |
+        up=$$(cut -d. -f1 "$${STARTUP_GATE_UPTIME_FILE:-/proc/uptime}")
+        slot=$${STARTUP_GATE_SLOT_S:-0}
+        if [ "$$up" -lt "$$slot" ]; then
+          echo "startup-gate: host uptime $${up}s is below slot $${slot}s, waiting $$((slot - up))s"
+          sleep "$$((slot - up))"
+        fi
+        exec /bin/ollama "$$@"
+      - startup-gate
+    command:
+      - serve
     deploy:
       replicas: 1
       placement:
@@ -9,8 +23,11 @@ services:
         - node.labels.gpu.class == high-end
       restart_policy:
         condition: any
-        delay: 5s
+        delay: 45s
         window: 120s
+      resources:
+        reservations:
+          memory: 2G
       labels:
         - traefik.enable=true
         - traefik.http.routers.ollama.entrypoints=websecure
@@ -27,6 +44,7 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
+      - STARTUP_GATE_SLOT_S=180
       - OLLAMA_CONTEXT_LENGTH=128000
       - OLLAMA_MAX_LOADED_MODELS=2
       - NVIDIA_VISIBLE_DEVICES=all

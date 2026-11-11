@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Stagger the start of the GPU and AI services on the ephemeral GPU node after a VM start: an uptime-slot startup gate in the entrypoint of whisper, ollama, jellyfin, jellyseerr, sonarr, radarr, bazarr, qbittorrent, jupyter-tensorflow and comfy-gpu, ordered restart delays, memory reservations and a longer whisper start period. `vllm-gemma4` stays at zero replicas. See `docs/adr/gpu_node_staggered_start_adr.md`.
+
 ## 0.1.3
 
 - Pin Traefik to the previously deployed immutable digest so a routing-only service update cannot silently upgrade the proxy through the floating `latest` tag.
