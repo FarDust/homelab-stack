@@ -54,7 +54,14 @@ def review(
     if (pr_url is None) == (diff_file is None):
         err.print("pass exactly one of --pr-url or --diff-file")
         raise typer.Exit(2)
-    body = f"{command} {pr_url}" if pr_url else f"{command} the following\n```diff\n{diff_file.read_text()}\n```"
+    diff_text = ""
+    if diff_file is not None:
+        try:
+            diff_text = diff_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            err.print(f"cannot read --diff-file {diff_file}: {exc}")
+            raise typer.Exit(2) from exc
+    body = f"{command} {pr_url}" if pr_url else f"{command} the following\n```diff\n{diff_text}\n```"
     headers = {"Authorization": f"Bearer {token}", "A2A-Version": "1.0", "Content-Type": "application/json"}
     request = {
         "jsonrpc": "2.0",

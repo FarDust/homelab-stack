@@ -3084,7 +3084,6 @@ variables:
   - compute/execution
   - devtools/lineage
   - devtools/ontology
-  - devtools/pr-agent
   - hobby/olympus
   - llms/agents
   - llms/governance

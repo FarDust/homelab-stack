@@ -28,6 +28,7 @@
 ## Configuration and secrets
 
 - [Private deployment directory](homelab-private.md): `HOMELAB_PRIVATE_DIR`, the files each stack expects there, and the templates in `examples/homelab-private/`.
+- [PR-Agent CI review](adr/pr_agent_ci_adr.md): A2A review server behind LiteLLM, the `scripts/pr-agent-review.py` client, tailnet-only reachability and key renewal.
 - [Environment-variable contract](adr/env_contract_adr.md): typed contract in `config/env-contract.yaml`, `scripts/env_contract.py` (tests in `tests/test_env_contract.py`), the layered shell-script `.env`, and the secret-source recommendation (OpenBao via the Trust Agent, SOPS and Infisical compared).
 
 ## Observability and identity
