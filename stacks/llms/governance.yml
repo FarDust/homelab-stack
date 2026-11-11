@@ -213,15 +213,14 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-      # UVA views of unpinned memory fail on WSL; use the copy offload path. ADR: docs/adr/vllm_gemma4_read_routes_adr.md
-      - VLLM_WEIGHT_OFFLOADING_DISABLE_UVA=1
     healthcheck:
-      # Sablier reports ready only after this passes, so held requests wait for the model load.
+      # Intended to hold Sablier requests until vLLM serves; start_period stays below the 15m Sablier window.
+      # Unverified until a load test. ADR: docs/adr/vllm_gemma4_read_routes_adr.md
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 20m
+      start_period: 14m
     volumes:
       - vllm_cache:/root/.cache/huggingface
     networks:
