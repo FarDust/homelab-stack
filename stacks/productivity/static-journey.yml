@@ -56,5 +56,5 @@ networks:
     external: true
 configs:
   nginx:
-    name: static_journey_nginx-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}
+    name: static_journey_nginx-${JOURNEY_VERSION?err}-${CONFIG_VERSION:-0}-${JOURNEY_CONFIG_REV:-0}
     file: ./configs/static-journey/nginx.conf

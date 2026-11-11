@@ -954,6 +954,15 @@ variables:
   required: true
   description: journey photo two filename; read by unreferenced-in-tracked-files, not by a stack.
   example: your_journey_photo_two_filename
+- name: JOURNEY_CONFIG_REV
+  kind: literal
+  owner: productivity/static-journey
+  used_by:
+  - productivity/static-journey
+  required: false
+  description: revision suffix of the static journey nginx Swarm config name; bump it when the rendered config changes so a new config is created.
+  default: '0'
+  example: '1'
 - name: JOURNEY_VERSION
   kind: literal
   owner: productivity/static-journey
