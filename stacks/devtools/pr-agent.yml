@@ -45,9 +45,9 @@ services:
           - node.labels.node.ephemeral != true
       restart_policy:
         condition: any
-        delay: ${RESTART_DELAY_STANDARD}
-        max_attempts: 0
-        window: 120s
+        delay: 60s
+        max_attempts: 5
+        window: 600s
       update_config:
         order: stop-first
         failure_action: rollback
