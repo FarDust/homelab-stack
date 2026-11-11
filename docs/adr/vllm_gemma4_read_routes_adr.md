@@ -33,7 +33,7 @@ Add a read router, `vllm-gemma4-read`, for `GET` and `HEAD` on the same host, wi
 
 - `tests/test_vllm_gemma4_read_routes.py` pins the routers, priorities and middleware.
 - After deployment, Loki shows the poll on `RouterName="vllm-gemma4-read@swarm"`, Sablier logs no new `vllm-inference` session for it, and the service stays at its declared zero replicas.
-- An inference `POST` through LiteLLM still starts a session and scales the service up.
+- Pending: an inference `POST` through LiteLLM starting a session and scaling the service up end to end. It waits for a load test on the GPU node with enough host memory headroom; the routing rule itself sends every method other than `GET`/`HEAD` through the wake router.
 
 ## Rollback
 
