@@ -503,9 +503,13 @@ services:
       placement:
         constraints:
           - node.labels.swarm.leader == true
+      # Bounded retries: a sync that cannot reach its graph backend stays failed instead of creating a task every
+      # few seconds (70 tasks raised the task-churn alert on 2026-11-11).
       restart_policy:
         condition: on-failure
-        delay: ${RESTART_DELAY_STANDARD}
+        delay: 60s
+        max_attempts: 5
+        window: 600s
 
 volumes:
   backups:
