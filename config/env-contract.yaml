@@ -914,6 +914,7 @@ variables:
   owner: productivity/static-journey
   used_by:
   - apps/japan-trip-api
+  - apps/japan-trip-mcp
   - apps/japan-trip-realtime
   - productivity/static-journey
   required: true
@@ -1473,6 +1474,7 @@ variables:
   owner: main/bridges
   used_by:
   - admin/dashboards
+  - apps/japan-trip-mcp
   - apps/supabase
   - apps/web
   - compute/execution
@@ -3924,6 +3926,7 @@ variables:
   required: false
   description: Optional MCP tool groups (comma list of actuals, location); enable a group only after its database migration is deployed.
   example: actuals
+  default: ''
 - name: JT_MCP_SECRET_VERSION
   kind: literal
   owner: apps/japan-trip-mcp
@@ -3932,6 +3935,7 @@ variables:
   required: false
   description: Version suffix of the Swarm secret jt_mcp_client_secret-<version> holding the token-exchange client secret; bump when the secret changes.
   example: '1'
+  default: '1'
 - name: JT_CENTRIFUGO_IMAGE
   kind: literal
   owner: apps/japan-trip-realtime
