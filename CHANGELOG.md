@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- ClickHouse: pin the exact running release by digest and remove the self-telemetry tables (`trace_log`, `text_log`, `metric_log`, `asynchronous_metric_log`, `part_log` and related) that wrote to the data disk around the clock; `query_log` and `crash_log` stay. Existing tables are kept.
+- Prometheus: `HostIoPressureSustained` and `HostDiskSaturated` alerts with rule tests.
+- Docs: troubleshooting note for throwaway test databases. See `docs/adr/hdd_node_io_budget_adr.md`.
+
 ## 0.1.5
 
 - Static journey nginx: compress text assets with gzip and serve a static `/reset` recovery page with `Cache-Control: no-store`. The versioned config name changes with `JOURNEY_VERSION`, so the next rollout of the stack picks it up.

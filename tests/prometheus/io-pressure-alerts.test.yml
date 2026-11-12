@@ -1,0 +1,57 @@
+rule_files:
+  - /rules/alert.rules
+evaluation_interval: 1m
+tests:
+  # 20% of the time waiting on I/O: busy, below the threshold.
+  - interval: 1m
+    input_series:
+      - series: 'node_pressure_io_waiting_seconds_total{job="node-exporter",instance="busy:9100"}'
+        values: '0+12x120'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HostIoPressureSustained
+        exp_alerts: []
+
+  # 50% of the time waiting on I/O: pending for 30 minutes, then firing.
+  - interval: 1m
+    input_series:
+      - series: 'node_pressure_io_waiting_seconds_total{job="node-exporter",instance="worker:9100"}'
+        values: '0+30x120'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HostIoPressureSustained
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: HostIoPressureSustained
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              instance: worker:9100
+            exp_annotations:
+              summary: Host worker:9100 under sustained I/O pressure
+              description: Tasks on worker:9100 waited on I/O more than 30% of the time for 30 minutes. Name the writer from per-cgroup io.stat and remove the cause; a lock or a lower concurrency is not the fix.
+
+  # A disk busy all the time fires; device-mapper targets are not matched.
+  - interval: 1m
+    input_series:
+      - series: 'node_disk_io_time_seconds_total{job="node-exporter",instance="worker:9100",device="sdc"}'
+        values: '0+60x120'
+      - series: 'node_disk_io_time_seconds_total{job="node-exporter",instance="worker:9100",device="dm-5"}'
+        values: '0+60x120'
+      - series: 'node_disk_io_time_seconds_total{job="node-exporter",instance="worker:9100",device="sda"}'
+        values: '0+12x120'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: HostDiskSaturated
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              instance: worker:9100
+              device: sdc
+            exp_annotations:
+              summary: Disk sdc on worker:9100 saturated
+              description: sdc on worker:9100 was busy more than 90% of the time for 30 minutes. Attribute the I/O per container and fix the consumer.
