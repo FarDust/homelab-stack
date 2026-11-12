@@ -18,7 +18,7 @@ Raising the memory limit was evaluated and rejected as the fix. The tree is larg
 ## Decision
 
 - Set `RCLONE_CACHE_SCAN_MAX_ENTRIES=1` on the controller service.
-  - Each cache walk stops at its first entry and reports `scan_incomplete`, which is what every cycle already reported.
+  - Each cache walk stops after at most two entries (plus one `read_dir` of `vfs/` for the per-remote list) and reports `scan_incomplete`, which is what every cycle already reported.
   - `rclone_vfs_cache_available_bytes` comes from a filesystem statistic, not the walk, and stays published.
   - Recovery, probes, cooldowns and the cycle metrics are unchanged.
 - Keep the memory budget as decided in the rollout ADR: 64M limit, 8M reservation. Swarm has no per-task swap knob, so the runtime allows swap up to the limit (64M), as in the [memory and swap budgeting ADR](2026-10-11-memory-swap-budgeting.md). Without the walk, the working set is about 2 MiB RSS plus its binary.
