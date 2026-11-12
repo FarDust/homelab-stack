@@ -137,6 +137,10 @@ services:
       - RCLONE_FIX_LOG_LEVEL=info
       - RCLONE_EXPECTED_NODE_ID={{.Node.ID}}
       - RCLONE_ALLOWED_PLUGIN_REFERENCES=docker.io/rclone/docker-volume-rclone:amd64-1.75.2
+      # The VFS cache tree is too large to size within the scan deadline; a full walk every cycle
+      # thrashed the 64M cgroup and the root disk. Bound it to the root entry until the controller
+      # sizes the cache without a walk: docs/adr/rclone_fixer_cache_scan_budget_adr.md
+      - RCLONE_CACHE_SCAN_MAX_ENTRIES=1
       - TOKIO_WORKER_THREADS=1
     read_only: true
     cap_drop:

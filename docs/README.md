@@ -23,6 +23,7 @@
 - [Memory and swap budgeting](adr/2026-10-11-memory-swap-budgeting.md): every memory budget states its swap budget.
 - [Node-local state pinning](adr/node_local_state_pinning_adr.md): which volumes are node-local and how consumers are pinned.
 - [Ephemeral rebalance Rust rollout](adr/ephemeral_rebalance_rust_rollout_adr.md): controller rollout and gates.
+- [rclone-fixer cache scan budget](adr/rclone_fixer_cache_scan_budget_adr.md): the per-cycle VFS cache walk never finished and thrashed the controller's 64M cgroup and the root disk; scan bounded to one entry, memory budget unchanged (tests in `tests/test_rclone_fixer_scan_budget.py`).
 - [Staggered start of GPU and AI services](adr/gpu_node_staggered_start_adr.md): uptime-slot startup gate and ordered restart delays so the ephemeral node's services come up one at a time after a VM start (tests in `tests/test_gpu_node_staggered_start.py`).
 - [Redis database IDs](redis-db-ids.md): per-service Redis database allocation.
 - [Netdata parent image and memory budget](adr/netdata_parent_memory_budget_adr.md): parent metadata growth from container churn fixed by v2.12.2+, 6G limit with 4G reservation, implicit swap allowance, rollback (tests in `tests/test_netdata_parent_budget.py`).
