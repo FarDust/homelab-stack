@@ -82,7 +82,9 @@ services:
         - com.centurylinklabs.watchtower.enable=false
 
   netdata-parent:
-    image: netdata/netdata:v2.12.1
+    # v2.12.2+ frees obsolete charts and finishes metadata cleanup on parents;
+    # as decided in docs/adr/netdata_parent_memory_budget_adr.md
+    image: netdata/netdata:v2.12.3@sha256:c7eab00e20901eb60595ebae0fbfe88e59464e663924461874719d40de0735d2
     hostname: netdata-parent
     networks:
       - traefik
@@ -118,9 +120,13 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      # Resident budget 3G hard, 2G reserved; Swarm sets no per-task swap knob, so the
+      # runtime allows swap equal to the limit (docs/adr/2026-10-11-memory-swap-budgeting.md).
       resources:
         limits:
           memory: 3G
+        reservations:
+          memory: 2G
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}
