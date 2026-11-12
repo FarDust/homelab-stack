@@ -4,7 +4,7 @@ Date: 2026-11-12 09:40 UTC
 
 ## Context
 
-The Netdata parent (`main-bridges_netdata-parent`) receives streams from three child agents and runs health checks for them. On 2026-11-12 its node showed load about 5 on 6 cores with CPU half idle, I/O wait 16-18 %, node `io some` pressure 25-31 % and 10 GiB of 16 GiB swap in use with constant swap-in and swap-out.
+The Netdata parent (`main-bridges_netdata-parent`) receives streams from three child agents and runs health checks for them; with its own host it serves four nodes. On 2026-11-12 its node showed load about 5 on 6 cores with CPU half idle, I/O wait 16-18 %, node `io some` pressure 25-31 % and 10 GiB of 16 GiB swap in use with constant swap-in and swap-out.
 
 Evidence from the parent's cgroup and its own API, five days after its last start (image `netdata/netdata:v2.12.1`, limit `3G`, no reservation):
 
@@ -15,7 +15,7 @@ Evidence from the parent's cgroup and its own API, five days after its last star
 
 Upstream release notes for v2.12.2 describe this mechanism: alert evaluation reset the last-access time of obsolete charts, so obsolete charts with alerts were never cleaned up, and on hosts with container churn the charts and their metadata kept growing on parents (netdata/netdata PR 24273). The same release fixes metadata cleanup passes that could stall and checks the WAL size far less often during cleanup (PR 24227). v2.12.3 adds further cleanup fixes for obsolete charts and ephemeral hosts.
 
-The thrash loop was: unbounded metadata growth fills the 3 GiB resident limit, the kernel swaps the anonymous working set (Docker allows swap equal to the limit) and evicts the page cache of the SQLite and dbengine files, and every metadata and query pass refaults them from the lvmcache SSD. On 2026-11-12 09:27 UTC a large contexts API query pushed the process over the limit and the kernel OOM-killed it inside its cgroup (`CONSTRAINT_MEMCG`).
+The thrash loop was: unbounded metadata growth fills the 3 GiB resident limit, the kernel swaps the anonymous working set (Docker allows swap equal to the limit) and evicts the page cache of the SQLite and dbengine files, and every metadata and query pass refaults them from the node's disk. On 2026-11-12 09:27 UTC a large contexts API query pushed the process over the limit and the kernel OOM-killed it inside its cgroup (`CONSTRAINT_MEMCG`).
 
 ## Decision
 
@@ -26,8 +26,8 @@ The thrash loop was: unbounded metadata growth fills the 3 GiB resident limit, t
 
 ## Alternatives
 
-1. Raise the limit (for example to 6 GiB). Rejected: it only delays the same growth, doubles the implicit swap allowance and takes memory from the game server that shares the node.
-2. Shrink dbengine page cache or retention. Rejected: dbengine was not the growing allocation, the page cache is already the 256 MiB floor per the memory ADR, and it would reduce the history the operator uses.
+1. Raise the limit (for example to 6 GiB). Rejected: it only delays the same growth, doubles the implicit swap allowance and takes memory from the other workloads on the node.
+2. Shrink dbengine page cache or retention. Rejected: dbengine was not the growing allocation, the configured `dbengine page cache size` is already 256 MiB, and it would reduce the history the operator uses.
 3. Disable health on the parent or drop cgroup charts on children. Rejected for now: it removes alerts and container visibility. Filtering ephemeral containers on the children is a separate host change, to be considered only if metadata still grows after this upgrade.
 4. Restart the parent periodically. Rejected: a bounce is not a fix and loses streaming continuity.
 
@@ -40,7 +40,7 @@ The thrash loop was: unbounded metadata growth fills the 3 GiB resident limit, t
 ## Verification
 
 - `tests/test_netdata_parent_budget.py` checks the pinned image version and digest, the limit and reservation, and this record.
-- Runtime, for at least 15 minutes after convergence: cgroup `memory.current` well below `memory.max`, `memory.events max` constant, the `netdata.memory` metadata series flat, node `io some` pressure, load average, swap-in/out and SSD read rate lower than before, and all four nodes still streaming with health alerts present.
+- Runtime, for at least 15 minutes after convergence: cgroup `memory.current` well below `memory.max`, `memory.events max` constant, the `netdata.memory` metadata series flat, node `io some` pressure, load average, swap-in/out and SSD read rate lower than before, and all four nodes (parent plus three children) still streaming with health alerts present.
 
 ## Rollback
 

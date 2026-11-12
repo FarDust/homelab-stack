@@ -27,12 +27,15 @@ def test_parent_image_is_pinned_to_a_fixed_release_and_digest() -> None:
 
 
 def test_parent_memory_budget_states_limit_and_reservation() -> None:
-    resources = _parent()["deploy"]["resources"]
-    assert resources["limits"]["memory"] == "3G"
-    assert resources["reservations"]["memory"] == "2G"
+    resources = _parent()["deploy"].get("resources", {})
+    assert resources.get("limits", {}).get("memory") == "3G", f"limit must stay 3G, got {resources!r}"
+    assert resources.get("reservations", {}).get("memory") == "2G", f"reservation must be 2G, got {resources!r}"
 
 
 def test_budget_adr_records_swap_and_rollback() -> None:
     text = ADR.read_text()
-    for needle in ("## Context", "## Decision", "## Alternatives", "## Consequences", "## Verification", "swap", "Rollback", "v2.12.1"):
-        assert needle in text, f"ADR is missing {needle!r}"
+    for heading in ("## Context", "## Decision", "## Alternatives", "## Consequences", "## Verification", "## Rollback"):
+        assert heading in text, f"ADR is missing {heading!r}"
+    rollback = text.split("## Rollback", 1)[1]
+    assert "netdata/netdata:v2.12.1" in rollback and "3G" in rollback, "rollback must name the previous image and limit"
+    assert "swap" in text.split("## Decision", 1)[1].split("## Alternatives", 1)[0], "decision must state the swap budget"
