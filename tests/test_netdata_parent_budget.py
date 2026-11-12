@@ -28,8 +28,8 @@ def test_parent_image_is_pinned_to_a_fixed_release_and_digest() -> None:
 
 def test_parent_memory_budget_states_limit_and_reservation() -> None:
     resources = _parent()["deploy"].get("resources", {})
-    assert resources.get("limits", {}).get("memory") == "3G", f"limit must stay 3G, got {resources!r}"
-    assert resources.get("reservations", {}).get("memory") == "2G", f"reservation must be 2G, got {resources!r}"
+    assert resources.get("limits", {}).get("memory") == "6G", f"limit must be 6G, got {resources!r}"
+    assert resources.get("reservations", {}).get("memory") == "4G", f"reservation must be 4G, got {resources!r}"
 
 
 def test_budget_adr_records_swap_and_rollback() -> None:

@@ -120,13 +120,13 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      # Resident budget 3G hard, 2G reserved; implicit swap up to 3G, because Swarm has no per-task
+      # Resident budget 6G hard, 4G reserved; implicit swap up to 6G, because Swarm has no per-task
       # swap knob (docs/adr/2026-10-11-memory-swap-budgeting.md).
       resources:
         limits:
-          memory: 3G
+          memory: 6G
         reservations:
-          memory: 2G
+          memory: 4G
       restart_policy:
         condition: any
         delay: ${RESTART_DELAY_STANDARD}

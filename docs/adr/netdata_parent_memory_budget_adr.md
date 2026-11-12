@@ -20,13 +20,17 @@ The thrash loop was: unbounded metadata growth fills the 3 GiB resident limit, t
 ## Decision
 
 - Pin the parent to `netdata/netdata:v2.12.3` by tag and digest (`sha256:c7eab00e20901eb60595ebae0fbfe88e59464e663924461874719d40de0735d2`), the current stable release that contains the parent metadata fixes.
-- Keep the resident limit at `3G` and add a `2G` memory reservation, so the scheduler accounts for the parent's measured steady state and keeps room for it on the node.
-- Swap budget: Swarm exposes no per-task swap control, and the runtime currently allows swap equal to the limit (3 GiB). That swap allowance is accepted as an implicit, uncontrolled budget and documented here instead of being presented as a limit, as required by [memory and swap budgeting](2026-10-11-memory-swap-budgeting.md). With the growth fixed the parent should not reach the limit, which keeps that swap unused.
+- Raise the resident limit from `3G` to `6G` and add a `4G` memory reservation (amended the same day, see below). The first step of this decision kept `3G` with a `2G` reservation; measurement showed that `3G` is below the working set even on the fixed release.
+- Swap budget: Swarm exposes no per-task swap control, and the runtime currently allows swap equal to the limit (6 GiB). That swap allowance is accepted as an implicit, uncontrolled budget and documented here instead of being presented as a limit, as required by [memory and swap budgeting](2026-10-11-memory-swap-budgeting.md). With the growth fixed the parent should not reach the limit, which keeps that swap unused.
 - Keep the dbengine retention, page cache, tiers and health settings unchanged, and keep the existing dbengine and metadata files: no history is deleted.
+
+### Amendment 2026-11-12 09:55 UTC: 3G is below the working set
+
+After deploying v2.12.3 with `3G` (09:42 UTC) the parent was back at its limit within five minutes of start: about 2.7 GiB anonymous memory (1.46 GiB of it already swapped nine minutes after start) plus 1.3-1.8 GiB of file cache for its metadata and dbengine files, `memory.events max` 16,857 after nine minutes, and 10,095 block read operations per second attributed to its cgroup: the largest reader on the node by a factor of seven. The same happened on v2.12.1 after an unplanned restart at 09:27 UTC. The upgrade bounds the long-term metadata growth; it does not make the startup and steady working set fit in 3 GiB. The node has 31 GiB, with about 15 GiB available and 6 GiB reserved before this change, so a `6G` limit with a `4G` reservation fits without displacing other workloads.
 
 ## Alternatives
 
-1. Raise the limit (for example to 6 GiB). Rejected: it only delays the same growth, doubles the implicit swap allowance and takes memory from the other workloads on the node.
+1. Only raise the limit (for example to 6 GiB) on v2.12.1. Rejected: without the upstream fix, metadata growth would fill any limit within days. The limit is raised together with the upgrade instead.
 2. Shrink dbengine page cache or retention. Rejected: dbengine was not the growing allocation, the configured `dbengine page cache size` is already 256 MiB, and it would reduce the history the operator uses.
 3. Disable health on the parent or drop cgroup charts on children. Rejected for now: it removes alerts and container visibility. Filtering ephemeral containers on the children is a separate host change, to be considered only if metadata still grows after this upgrade.
 4. Restart the parent periodically. Rejected: a bounce is not a fix and loses streaming continuity.
@@ -39,9 +43,9 @@ The thrash loop was: unbounded metadata growth fills the 3 GiB resident limit, t
 
 ## Verification
 
-- `tests/test_netdata_parent_budget.py` checks the pinned image version and digest, the limit and reservation, and this record.
+- `tests/test_netdata_parent_budget.py` checks the pinned image version and digest, the `6G` limit and `4G` reservation, and this record.
 - Runtime, for at least 15 minutes after convergence: cgroup `memory.current` well below `memory.max`, `memory.events max` constant, the `netdata.memory` metadata series flat, node `io some` pressure, load average, swap-in/out and SSD read rate lower than before, and all four nodes (parent plus three children) still streaming with health alerts present.
 
 ## Rollback
 
-Restore the previous service definition and redeploy `main-bridges`: image `netdata/netdata:v2.12.1`, `deploy.resources.limits.memory: 3G` and no `reservations` entry.
+Restore the previous service definition and redeploy `main-bridges`: image `netdata/netdata:v2.12.1`, `deploy.resources.limits.memory: 3G` and no `reservations` entry. To roll back only the amendment, set `limits.memory: 3G` and `reservations.memory: 2G` on v2.12.3.
