@@ -1,0 +1,74 @@
+version: '3.9'
+# MCP server of the shared trip (the mcp/ package of the trip application and its MCP ADR): a thin adapter over the trip API
+# (stack apps-japan-trip-api). It holds no database credential: every tool call reaches the API with a token of the
+# caller, obtained by OAuth 2.0 token exchange at the trip realm with the confidential client japan-trip-mcp.
+# Tailnet only: the router sits on the private application host under /mcp, with its own rate limit; no public route.
+#
+# Environment (.env, see config/env-contract.yaml):
+#   JT_MCP_IMAGE      image reference with digest
+#   JT_MCP_FEATURES   optional tool groups (actuals, location); a group needs its database migration deployed
+#   JOURNEY_HOSTNAME  private application host; LOCAL_DOMAIN for the identity provider
+# Swarm secret: jt_mcp_client_secret-<JT_MCP_SECRET_VERSION>, the secret of japan-trip-mcp
+# (created from secrets/japan-trip-mcp/oidc_client_secret).
+services:
+  mcp:
+    image: ${JT_MCP_IMAGE?err}
+    networks: [traefik, traefik-public]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    secrets:
+      - source: jt_mcp_client_secret
+        target: jt_mcp_client_secret
+        uid: '10001'
+        mode: 0400
+    environment:
+      JT_MCP_ISSUER: https://idp.${LOCAL_DOMAIN?err}/realms/japan-trip
+      JT_MCP_RESOURCE_URL: https://${JOURNEY_HOSTNAME?err}/mcp
+      JT_MCP_API_BASE_URL: http://apps-japan-trip-api_api:3000
+      JT_MCP_DOWNSTREAM_TOKEN: exchange
+      JT_MCP_CLIENT_ID: japan-trip-mcp
+      JT_MCP_CLIENT_SECRET_FILE: /run/secrets/jt_mcp_client_secret
+      JT_MCP_FEATURES: ${JT_MCP_FEATURES:-}
+      JT_MCP_LOG_LEVEL: INFO
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 64M
+        limits:
+          memory: 256M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.japan-trip-mcp.rule=Host(`${JOURNEY_HOSTNAME?err}`) && (Path(`/mcp`) || PathPrefix(`/.well-known/oauth-protected-resource`))
+        - traefik.http.routers.japan-trip-mcp.priority=110
+        - traefik.http.routers.japan-trip-mcp.entrypoints=websecure
+        - traefik.http.routers.japan-trip-mcp.tls=true
+        - traefik.http.routers.japan-trip-mcp.tls.certresolver=le-dns
+        - traefik.http.routers.japan-trip-mcp.middlewares=japan-trip-mcp-rate@swarm
+        - traefik.http.middlewares.japan-trip-mcp-rate.ratelimit.average=10
+        - traefik.http.middlewares.japan-trip-mcp-rate.ratelimit.burst=20
+        - traefik.http.services.japan-trip-mcp.loadbalancer.server.port=8080
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  jt_mcp_client_secret:
+    external: true
+    name: jt_mcp_client_secret-${JT_MCP_SECRET_VERSION:-1}
