@@ -24,6 +24,12 @@ Raising the memory limit was evaluated and rejected as the fix. The tree is larg
 - Keep the memory budget as decided in the rollout ADR: 64M limit, 8M reservation. Swarm has no per-task swap knob, so the runtime allows swap up to the limit (64M), as in the [memory and swap budgeting ADR](2026-10-11-memory-swap-budgeting.md). Without the walk, the working set is about 2 MiB RSS plus its binary.
 - Follow-up in the controller's own repository: size the cache without a full walk every cycle. Options are a single pass shared by the totals and the per-remote values, a slower scan interval than the recovery loop, or rclone's own cache statistics. Re-enable the scan budget here only after that change.
 
+### Amendment 2026-11-12 11:10 UTC: exclude the ephemeral node
+
+The first deploy of this change (10:58 UTC) was rolled back automatically at 11:00 UTC. The global service had gained a task on the ephemeral node, which had come up since the rollout, and that task was rejected with `No such image`, because the private image is pre-pulled only on the rollout nodes. With `max_failure_ratio: 0` and `failure_action: rollback`, any update of the service fails while that node is up.
+
+Pre-pulling the image there is possible. But that node's rclone plugin (the allowlisted reference) is installed **disabled**, and the controller has never run there. With `--apply`, a task would start repairing a plugin on the short-lived node that the rollout never covered. That is a new behavior for the node, and it needs its own decision. The service therefore gets `node.labels.node.ephemeral != true`, the existing label for short-lived nodes in [node labels](../node-labels.md). This adds no new label and no hostname or node-ID targeting, so the rollout ADR's placement rule still holds. If the ephemeral node should run the controller, decide that explicitly, then pre-pull the image there and remove this constraint.
+
 ## Alternatives
 
 1. Raise the limit (for example to 512M). Rejected: the walk still exceeds its budget, the cache would need far more memory, and the metric would stay incomplete.
@@ -43,4 +49,4 @@ Raising the memory limit was evaluated and rejected as the fix. The tree is larg
 
 ## Rollback
 
-Remove `RCLONE_CACHE_SCAN_MAX_ENTRIES` from the service, which restores the binary default of 500000, and redeploy the single service.
+Remove `RCLONE_CACHE_SCAN_MAX_ENTRIES` from the service, which restores the binary default of 500000, and redeploy the single service. To undo only the amendment, remove the `node.labels.node.ephemeral != true` constraint; updates will then fail and roll back whenever the ephemeral node is up.

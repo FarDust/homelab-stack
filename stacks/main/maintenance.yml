@@ -179,6 +179,9 @@ services:
         constraints:
           - node.platform.os == linux
           - node.platform.arch == x86_64
+          # The rollout never covered the ephemeral node (image not cached, plugin installed disabled);
+          # a task there fails and rolls back every update: docs/adr/rclone_fixer_cache_scan_budget_adr.md
+          - node.labels.node.ephemeral != true
   rclone-metrics-proxy:
     image: caddy:2
     networks:
