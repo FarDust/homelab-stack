@@ -27,6 +27,12 @@ def test_cache_scan_is_bounded_to_the_root_entry() -> None:
     assert "RCLONE_CACHE_SCAN_SECONDS" not in env, "a longer scan deadline would read the disk longer"
 
 
+def test_controller_skips_the_ephemeral_node() -> None:
+    constraints = _fixer()["deploy"]["placement"]["constraints"]
+    assert "node.labels.node.ephemeral != true" in constraints
+    assert not any("node.hostname" in c or "node.id" in c for c in constraints), "no host pinning"
+
+
 def test_memory_budget_is_unchanged() -> None:
     resources = _fixer()["deploy"]["resources"]
     assert resources["limits"]["memory"] == "64M"
