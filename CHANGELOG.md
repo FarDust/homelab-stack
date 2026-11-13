@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Fix `main/traefik`: the `HOMELAB_PRIVATE_DIR` required-variable messages contained hyphens, which `docker stack deploy` reads as the default operator, so the Prometheus ingress probe targets and five Grafana dashboards resolved to a wrong path and the services could not be redeployed. Messages are hyphen-free and guarded by a test. See `docs/adr/swarm_interpolation_required_message_adr.md`.
+
 ## 0.1.7
 
 - Docs: the HDD-backed node record now covers memory. Job scratch moved to tmpfs became swap-out; adds the admission signal, the per-job footprint, the node budget and the runtime zswap change. No stack configuration changes.
