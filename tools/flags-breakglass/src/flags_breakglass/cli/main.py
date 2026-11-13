@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 
 from flags_breakglass.adapters import UnleashAdminApi, UnleashDatabase
-from flags_breakglass.application import switch
+from flags_breakglass.application import plan, switch
 from flags_breakglass.domain import BreakGlassError, FlagTarget
 
 app = typer.Typer(help="Switch cluster feature flags when the admin panel is unavailable.", no_args_is_help=True)
@@ -55,29 +55,37 @@ def _database(settings: Settings) -> UnleashDatabase | None:
     return UnleashDatabase(settings.dsn_file.read_text().strip())
 
 
-def _switch(flag: str, enabled: bool) -> None:
+DryRun = Annotated[bool, typer.Option("--dry-run", help="Choose the path and read the current state; change nothing")]
+
+
+def _switch(flag: str, enabled: bool, dry_run: bool) -> None:
     settings = _settings()
     try:
         target = FlagTarget(flag, settings.project, settings.environment)
-        outcome = switch(target, enabled, _api(settings), _database(settings))
+        use_case = plan if dry_run else switch
+        outcome = use_case(target, enabled, _api(settings), _database(settings))
     except BreakGlassError as error:
         err.print(f"[red]failed:[/red] {error}")
         raise typer.Exit(1) from error
     state = "on" if outcome.enabled else "off"
-    typer.echo(json.dumps({"flag": flag, "state": state, "path": outcome.path.value, "verified": outcome.verified}))
+    typer.echo(
+        json.dumps(
+            {"flag": flag, "state": state, "path": outcome.path.value, "verified": outcome.verified, "dry_run": dry_run}
+        )
+    )
     err.print(f"[green]{flag} {state}[/green] via {outcome.path.value}: {outcome.note}")
 
 
 @app.command()
-def kill(flag: Annotated[str, typer.Argument(help="Flag key, e.g. trail.recording")]) -> None:
+def kill(flag: Annotated[str, typer.Argument(help="Flag key, e.g. trail.recording")], dry_run: DryRun = False) -> None:
     """Switch a flag off (kill switch)."""
-    _switch(flag, False)
+    _switch(flag, False, dry_run)
 
 
 @app.command()
-def enable(flag: Annotated[str, typer.Argument(help="Flag key, e.g. trail.recording")]) -> None:
+def enable(flag: Annotated[str, typer.Argument(help="Flag key, e.g. trail.recording")], dry_run: DryRun = False) -> None:
     """Switch a flag on in the environment (its strategies still decide who gets it)."""
-    _switch(flag, True)
+    _switch(flag, True, dry_run)
 
 
 @app.command()

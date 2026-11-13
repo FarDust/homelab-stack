@@ -45,8 +45,13 @@ Unleash wins on the decisive criteria: the best admin panel, native PostgreSQL (
 API that evaluates on the server and returns only the caller's resolved flags (no targeting leaks to phones), first-party
 SDKs in every client language and first-party OpenFeature providers (`@openfeature/unleash-web-provider`,
 `openfeature-provider-unleash`, both from the OpenFeature organisation). Its OSS edition lacks OIDC SSO, so the admin UI sits
-behind the cluster's oauth2-proxy + Keycloak pattern instead of paying or patching. AGPL-3.0 applies to modifications we
-distribute; we run the unmodified official image. Unleash Edge (MIT) is not used: its open-source build reaches end of life on
+behind the cluster's oauth2-proxy + Keycloak pattern instead of paying or patching.
+
+Licence: the Unleash server is AGPL-3.0. The cluster runs the unmodified official image for private use by the owner and
+invited friends over the tailnet; nothing of the server is redistributed, modified or offered as a public network service,
+so no source-offer obligation arises. Any future patch to the server image, or exposing the service outside the tailnet,
+re-opens this decision (AGPL section 13 would then require offering the modified source to its users). The client SDKs
+and OpenFeature providers used by applications are Apache-2.0 or MIT and impose nothing on the applications. Unleash Edge (MIT) is not used: its open-source build reaches end of life on
 2026-12-31 and the server's built-in frontend API covers the need.
 
 Clients standardise on the OpenFeature API; replacing Unleash later changes one adapter per client.
@@ -162,6 +167,34 @@ stopped (shared by every service; the role cut reproduces the same loss for Unle
 Incident during the tests: the first database-path run printed a fragment of the database password in a psycopg DSN
 parse error inside the agent transcript. The password was rotated at 10:02 (new secret `feature_flags_db_url_v2`,
 OpenBao updated, old secret removed) and the CLI now reports database failures by error class only, with a test.
+
+## Independent review 2026-11-13
+
+Reviewer: an integration lane that did not write this change, against the running stack (UTC; Chile UTC-3), without
+reading or printing any secret value (comparisons by hash or by count only).
+
+| Check | Result |
+| --- | --- |
+| Rotation took effect | the service references only `feature_flags_db_url_v2` (mode 0400, uid 1000); the first secret no longer exists in Swarm; the live secret equals the private `db_url`, which embeds the private `db_password`; both replicas healthy on it |
+| Secrets in logs | 2 h of service logs (5,240 lines) and 3 h of Loki (776,535 lines, every stream): zero occurrences of any of the five private values, of 8-character fragments of the database password, of Unleash token shapes or of a password-bearing PostgreSQL URL |
+| Admin UI | `flags.${LOCAL_DOMAIN}` answers 302 to oauth2-proxy without a session, also on `/api/admin` without `Authorization`; a bogus `Authorization` header reaches Unleash and gets 401 |
+| Frontend route | per-user server-side: two synthetic subjects get 0 flags, the owner gets 5; the responses carry flag names and variants only, no strategies, constraints, segments or other subjects. Path traversal (`../`, `%2e%2e`) from `/flags/api/frontend` to `/api/admin` lands on the application, never on Unleash; the injected token is a frontend token, which Unleash refuses on admin and client APIs anyway |
+| Kill one replica | `docker kill` of one task container: 72/72 probes every 0.5 s answered 200 with the owner's 5 flags; the task was replaced |
+| Rolling update | `docker service update --force` with `stop-first`, parallelism 1: 120/120 probes 200 with 5 flags during the 2 min 8 s update; never fewer than one running task, so the policy replaces one replica at a time |
+| Break-glass | `--dry-run` added to `kill` and `enable` (chooses the path and reads the current state, writes nothing); a rejected token (401/403) is now an explicit failure instead of a fallback to the database behind a running service |
+
+Findings kept open, with their owner:
+
+- CORS: the frontend API answers `Access-Control-Allow-Origin: *`. The application calls it same-origin and native
+  clients ignore CORS, so the allowed origins can be narrowed to the application origin in the admin panel (Configure, CORS
+  origins) without client changes; until then any page open in a tailnet browser can ask which flags a known subject gets
+  (the same exposure stated under Consequences, no data access). Owner: the service owner, through the admin panel.
+- The token route admits any request that carries an `Authorization` header, so on `/api/admin` the Unleash token or
+  session is the only gate there (oauth2-proxy is skipped by design, for break-glass while Keycloak is down). Keep the
+  admin PAT in OpenBao and the private directory only, and prefer named users over the shared `admin` session.
+- Throughput: 400 parallel frontend requests (50 at a time) were served at about 16 per second, every one 200, so the
+  30 per second rate limit was not reached; the 0.5 CPU limit bounds the service before the limiter does. Enough for a
+  few clients polling every 15 s or more; raise the limit before many clients poll often.
 
 ## Rollback
 

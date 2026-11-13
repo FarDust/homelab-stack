@@ -19,6 +19,32 @@ class FlagDatabase(Protocol):
     def is_enabled(self, target: FlagTarget) -> bool: ...
 
 
+def plan(target: FlagTarget, enabled: bool, api: AdminApi, database: FlagDatabase | None) -> SwitchOutcome:
+    """Dry run of :func:`switch`: choose the path and read the current state through it, without writing.
+
+    ``verified`` is False because nothing was changed; the note states the current value and what a real run does.
+    """
+    want = "on" if enabled else "off"
+    api_error: Exception | None = None
+    try:
+        if api.health():
+            state = "on" if api.is_enabled(target) else "off"
+            return SwitchOutcome(target, enabled, Path.ADMIN_API, False, f"dry run: currently {state}; would switch {want}")
+        api_error = BreakGlassError("admin API health check did not answer 200")
+    except BreakGlassError:
+        raise
+    except Exception as error:  # same fallback rule as switch(); keep the cause
+        api_error = error
+    if database is None:
+        raise BreakGlassError(
+            f"admin API unavailable ({api_error!r}) and no database DSN configured; set FLAGS_BREAKGLASS_DSN_FILE"
+        ) from api_error
+    state = "on" if database.is_enabled(target) else "off"
+    return SwitchOutcome(
+        target, enabled, Path.DATABASE, False, f"dry run: admin API unavailable, database has it {state}; would switch {want}"
+    )
+
+
 def switch(target: FlagTarget, enabled: bool, api: AdminApi, database: FlagDatabase | None) -> SwitchOutcome:
     """Switch a flag through the admin API; fall back to the database only when the API is unreachable.
 

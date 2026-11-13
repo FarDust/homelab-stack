@@ -18,8 +18,18 @@ class UnleashAdminApi:
         return f"/api/admin/projects/{target.project}/features/{target.key}"
 
     def health(self) -> bool:
+        """True when a replica answers with the token accepted; False when no replica answers (fall back).
+
+        A 401 or 403 means the service is up and the token is wrong: that is raised, never a reason to write to the
+        database behind a running service, which would not see the change until it restarts.
+        """
         # A token-authenticated admin endpoint: proves the replica, its routing and the token in one call.
-        return self._client.get("/api/admin/ui-config").status_code == 200
+        status = self._client.get("/api/admin/ui-config").status_code
+        if status in (401, 403):
+            raise BreakGlassError(
+                f"admin API rejected the token (HTTP {status}); renew the admin PAT, the service itself is up"
+            )
+        return status == 200
 
     def set_enabled(self, target: FlagTarget, enabled: bool) -> None:
         state = "on" if enabled else "off"

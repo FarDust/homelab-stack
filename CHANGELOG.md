@@ -4,6 +4,7 @@
 
 - Add `main/feature-flags`: the cluster feature-flag service (Unleash OSS 8.3.1 pinned by digest, two replicas on two stable nodes, database through `cluster-utils db create-service-db`, covered by the existing `postgres-backup` job), its admin panel behind Keycloak through the shared oauth2-proxy, a token-only API route for SDKs and break-glass, and a same-origin frontend route for applications. See `docs/adr/feature_flags_service_adr.md`.
 - Add: Prometheus job `feature-flags` with `FeatureFlagServiceDown` and `FeatureFlagServiceDegraded` (promtool tests), the Grafana "Errors by feature flag" dashboard and `FeatureFlagRaisesErrorRate` alert definitions, and the `tools/flags-breakglass` uv package (admin API with read-back, database fallback when the service is down).
+- Add (independent review): `flags-breakglass` 0.2.0 has `--dry-run` on `kill` and `enable`, and treats a rejected token (HTTP 401/403) as an explicit failure instead of falling back to the database behind a running service. The ADR states the AGPL-3.0 private-use position and records the review's live checks (replica kill, stop-first rolling update, per-user frontend evaluation, log scan) and open findings.
 
 ## 0.1.8
 

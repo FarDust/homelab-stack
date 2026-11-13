@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from flags_breakglass.adapters import UnleashAdminApi
-from flags_breakglass.application import switch
+from flags_breakglass.application import plan, switch
 from flags_breakglass.domain import BreakGlassError, FlagTarget, Path
 
 TARGET = FlagTarget("trail.recording", "default", "production")
@@ -107,3 +107,63 @@ def test_database_errors_never_echo_the_dsn() -> None:
     with pytest.raises(BreakGlassError) as caught:
         database.set_enabled(TARGET, False)
     assert "s3cret-value" not in str(caught.value) and caught.value.__cause__ is None
+
+
+def test_rejected_token_is_explicit_and_never_writes_the_database() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401)
+
+    database = FakeDatabase()
+    with pytest.raises(BreakGlassError, match="rejected the token"):
+        switch(TARGET, False, _api(handler), database)
+    assert database.state is None
+
+
+def test_dry_run_reads_through_the_admin_api_and_writes_nothing() -> None:
+    writes: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method != "GET":
+            writes.append(request.url.path)
+        if request.url.path == "/api/admin/ui-config":
+            return httpx.Response(200, json={})
+        return httpx.Response(200, json={"environments": [{"name": "production", "enabled": True}]})
+
+    outcome = plan(TARGET, False, _api(handler), FakeDatabase())
+    assert outcome.path is Path.ADMIN_API and not outcome.verified and "currently on" in outcome.note
+    assert writes == []
+
+
+def test_dry_run_with_service_down_reads_the_database_only() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502)
+
+    class ReadOnlyDatabase(FakeDatabase):
+        def set_enabled(self, target: FlagTarget, enabled: bool) -> int:
+            raise AssertionError("dry run must not write")
+
+    database = ReadOnlyDatabase()
+    database.state = True
+    outcome = plan(TARGET, False, _api(handler), database)
+    assert outcome.path is Path.DATABASE and "database has it on" in outcome.note
+
+
+def test_cli_dry_run_prints_the_plan(monkeypatch, tmp_path) -> None:
+    from typer.testing import CliRunner
+
+    from flags_breakglass.cli import main
+
+    token = tmp_path / "token"
+    token.write_text("user:test\n")
+    monkeypatch.setenv("FLAGS_BREAKGLASS_URL", "http://unleash")
+    monkeypatch.setenv("FLAGS_BREAKGLASS_TOKEN_FILE", str(token))
+    monkeypatch.setattr(
+        main,
+        "_api",
+        lambda settings: _api(
+            lambda request: httpx.Response(200, json={"environments": [{"name": "production", "enabled": False}]})
+        ),
+    )
+    result = CliRunner().invoke(main.app, ["kill", "trail.recording", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert '"dry_run": true' in result.stdout and '"verified": false' in result.stdout
