@@ -32,6 +32,8 @@ deployment directory on 2026-11-04; the running Prometheus and Grafana services 
 Messages of `${VAR:?message}` and `${VAR?message}` in compose files under `stacks/` contain no hyphen. The six `HOMELAB_PRIVATE_DIR`
 references in `stacks/main/traefik.yml` share one hyphen-free message. `tests/test_stack_interpolation_messages.py` scans every
 compose file under `stacks/` and fails on a hyphen in such a message; it runs in the pre-commit workflow test step.
+The scan covers `stacks/<folder>/<file>.yml`, the same set the compose validation workflow renders and the only files
+`docker stack deploy` interpolates; files under `configs/` are passed to containers verbatim and are out of scope.
 
 ## Alternatives
 

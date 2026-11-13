@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).parents[1]
-BRACED = re.compile(r"(?<!\$)\$\{([^}]*)\}")
+BRACED = re.compile(r"\$\{([^}]*)\}")
 REQUIRED = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*:?\?(.*)$", re.DOTALL)
 
 
@@ -21,7 +21,8 @@ def misparsed_required_expressions(text: str) -> list[str]:
     hyphen, whether or not the variable is set.
     """
     found = []
-    for match in BRACED.finditer(text):
+    # `$$` is the escaped dollar sign; drop the pairs so `$$${VAR?a-b}` (escaped dollar, then an expression) is still seen.
+    for match in BRACED.finditer(text.replace("$$", "")):
         required = REQUIRED.match(match.group(1))
         if required and "-" in required.group(1):
             found.append(match.group(0))
@@ -44,6 +45,7 @@ def test_detector_flags_the_hyphenated_message_and_accepts_the_safe_forms() -> N
     bad = "file: ${PRIVATE_DIR:?PRIVATE_DIR must be set (docs/homelab-private.md)}/x.yaml"
     assert misparsed_required_expressions(bad) == ["${PRIVATE_DIR:?PRIVATE_DIR must be set (docs/homelab-private.md)}"]
     assert misparsed_required_expressions("${PRIVATE_DIR?a-b}") == ["${PRIVATE_DIR?a-b}"]
+    assert misparsed_required_expressions("$$${PRIVATE_DIR:?a-b}") == ["${PRIVATE_DIR:?a-b}"]
     for safe in ("${PRIVATE_DIR:?PRIVATE_DIR must be set}", "${PRIVATE_DIR?err}", "${NAME:-a-b}", "${NAME-a-b}", "$${NAME:?a-b}"):
         assert misparsed_required_expressions(safe) == []
 
