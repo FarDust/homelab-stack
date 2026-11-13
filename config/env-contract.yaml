@@ -490,6 +490,39 @@ variables:
   default: '5'
   description: firecrawl worker replicas setting for retrieval/web.
   example: '5'
+- name: FLAGS_DATABASE_SSL
+  kind: literal
+  owner: main/feature-flags
+  used_by:
+  - main/feature-flags
+  required: false
+  default: 'false'
+  description: Unleash DATABASE_SSL setting for the connection to the shared PostgreSQL over the internal overlay.
+  example: 'false'
+- name: FLAGS_FRONTEND_HOSTNAME
+  kind: literal
+  owner: main/feature-flags
+  used_by:
+  - main/feature-flags
+  required: true
+  description: Host of the application that evaluates flags same-origin under /flags/api/frontend.
+  example: app.example.com
+- name: FLAGS_FRONTEND_TOKEN_HEADER
+  kind: secret-file
+  owner: main/feature-flags
+  used_by:
+  - main/feature-flags
+  required: true
+  description: Unleash frontend API token (a public-by-design client token) that Traefik adds on the frontend route; created in the admin API after the first start, rotated there.
+  secret_file: feature-flags/frontend_token
+- name: FLAGS_UNLEASH_IMAGE
+  kind: literal
+  owner: main/feature-flags
+  used_by:
+  - main/feature-flags
+  required: true
+  description: Unleash server image as an exact tag plus digest (docs/adr/feature_flags_service_adr.md).
+  example: unleashorg/unleash-server:8.3.1@sha256:025cd8b003a70cceb88427ca393c377ca6503a210d95fdee54d21610d51f7ed0
 - name: FLARESOLVERR_CAPTCHA_SOLVER
   kind: literal
   owner: hobby/streaming
@@ -1492,6 +1525,7 @@ variables:
   - llms/mcp
   - llms/monitoring
   - main/bridges
+  - main/feature-flags
   - main/identity
   - main/identity-gateway
   - main/logging

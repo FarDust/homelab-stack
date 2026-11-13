@@ -1,0 +1,80 @@
+rule_files:
+  - /rules/alert.rules
+evaluation_interval: 1m
+tests:
+  # Both replicas healthy: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="feature-flags",instance="10.0.1.10:4242"}'
+        values: '1x30'
+      - series: 'up{job="feature-flags",instance="10.0.1.11:4242"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FeatureFlagServiceDown
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: FeatureFlagServiceDegraded
+        exp_alerts: []
+
+  # One replica down for 20 minutes: degraded, not down.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="feature-flags",instance="10.0.1.10:4242"}'
+        values: '1x30'
+      - series: 'up{job="feature-flags",instance="10.0.1.11:4242"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: FeatureFlagServiceDegraded
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: FeatureFlagServiceDegraded
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: platform
+            exp_annotations:
+              summary: Feature-flag service runs on fewer than two replicas
+              description: Only 1 Unleash replica is healthy for 15 minutes; one more failure takes the admin panel down. Check task placement on the two stable nodes.
+      - eval_time: 20m
+        alertname: FeatureFlagServiceDown
+        exp_alerts: []
+
+  # Both replicas down: down fires after 3 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="feature-flags",instance="10.0.1.10:4242"}'
+        values: '0x10'
+      - series: 'up{job="feature-flags",instance="10.0.1.11:4242"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: FeatureFlagServiceDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: FeatureFlagServiceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              tier: platform
+            exp_annotations:
+              summary: Feature-flag service has no healthy replica
+              description: No Unleash replica answers its metrics endpoint for 3 minutes. Clients evaluate from their last-known-good snapshot; flag changes do not reach them and the admin panel is down. Check main-feature-flags_unleash tasks and the unleash database, then the break-glass runbook in the ADR.
+
+  # Scrape target missing entirely (service removed or DNS empty): down fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="other",instance="x:1"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: FeatureFlagServiceDown
+        exp_alerts:
+          - exp_labels:
+              job: feature-flags
+              severity: critical
+              tier: platform
+            exp_annotations:
+              summary: Feature-flag service has no healthy replica
+              description: No Unleash replica answers its metrics endpoint for 3 minutes. Clients evaluate from their last-known-good snapshot; flag changes do not reach them and the admin panel is down. Check main-feature-flags_unleash tasks and the unleash database, then the break-glass runbook in the ADR.

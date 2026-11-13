@@ -232,6 +232,29 @@ groups:
   - record: volcano_node_uname_info
     expr: node_uname_info{job="node-exporter"}
 
+- name: feature-flags
+  rules:
+  # Evaluation keeps working from client caches while these fire; see docs/adr/feature_flags_service_adr.md
+  - alert: FeatureFlagServiceDown
+    expr: sum(up{job="feature-flags"}) == 0 or absent(up{job="feature-flags"})
+    for: 3m
+    labels:
+      severity: critical
+      tier: platform
+    annotations:
+      summary: "Feature-flag service has no healthy replica"
+      description: "No Unleash replica answers its metrics endpoint for 3 minutes. Clients evaluate from their last-known-good snapshot; flag changes do not reach them and the admin panel is down. Check main-feature-flags_unleash tasks and the unleash database, then the break-glass runbook in the ADR."
+
+  - alert: FeatureFlagServiceDegraded
+    expr: count(up{job="feature-flags"} == 1) < 2
+    for: 15m
+    labels:
+      severity: warning
+      tier: platform
+    annotations:
+      summary: "Feature-flag service runs on fewer than two replicas"
+      description: "Only {{ $value }} Unleash replica is healthy for 15 minutes; one more failure takes the admin panel down. Check task placement on the two stable nodes."
+
 - name: postgres-backups
   rules:
   # Stale and Missing cover the active backup services only. authelia-db-backup runs at 0 replicas;
