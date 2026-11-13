@@ -44,7 +44,9 @@ def test_health_resources_and_rollback() -> None:
     limits = service["deploy"]["resources"]["limits"]
     assert limits["memory"] == "512M" and limits["cpus"] == "0.5"
     assert service["deploy"]["update_config"]["failure_action"] == "rollback"
-    assert service["deploy"]["update_config"]["order"] == "start-first"
+    # start-first deadlocks with max_replicas_per_node 1 on two eligible nodes (seen live 2026-11-13)
+    assert service["deploy"]["update_config"]["order"] == "stop-first"
+    assert service["deploy"]["update_config"]["parallelism"] == 1
 
 
 def test_secrets_are_files_not_environment() -> None:

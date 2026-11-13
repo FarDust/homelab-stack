@@ -66,14 +66,16 @@ services:
         condition: any
         delay: 10s
         window: 120s
+      # stop-first: with one replica per node on exactly two eligible nodes, start-first cannot place the new task;
+      # parallelism 1 keeps the other replica serving during the update.
       update_config:
         parallelism: 1
-        order: start-first
+        order: stop-first
         failure_action: rollback
         monitor: 60s
       rollback_config:
         parallelism: 1
-        order: start-first
+        order: stop-first
       labels:
         - traefik.enable=true
         - traefik.swarm.network=traefik-public
@@ -121,6 +123,8 @@ networks:
     external: true
 secrets:
   feature_flags_db_url:
+    # Versioned name so a rotated password ships as a new secret; see docs/adr/feature_flags_service_adr.md
     external: true
+    name: ${FLAGS_DB_URL_SECRET:?FLAGS_DB_URL_SECRET names the Swarm secret holding the database URL}
   feature_flags_admin_password:
     external: true

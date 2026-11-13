@@ -499,6 +499,14 @@ variables:
   default: 'false'
   description: Unleash DATABASE_SSL setting for the connection to the shared PostgreSQL over the internal overlay.
   example: 'false'
+- name: FLAGS_DB_URL_SECRET
+  kind: literal
+  owner: main/feature-flags
+  used_by:
+  - main/feature-flags
+  required: true
+  description: Name of the Swarm secret with the Unleash database URL; a rotation creates a new versioned secret.
+  example: feature_flags_db_url_v1
 - name: FLAGS_FRONTEND_HOSTNAME
   kind: literal
   owner: main/feature-flags

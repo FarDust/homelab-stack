@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+
+- Add `main/feature-flags`: the cluster feature-flag service (Unleash OSS 8.3.1 pinned by digest, two replicas on two stable nodes, database through `cluster-utils db create-service-db`, covered by the existing `postgres-backup` job), its admin panel behind Keycloak through the shared oauth2-proxy, a token-only API route for SDKs and break-glass, and a same-origin frontend route for applications. See `docs/adr/feature_flags_service_adr.md`.
+- Add: Prometheus job `feature-flags` with `FeatureFlagServiceDown` and `FeatureFlagServiceDegraded` (promtool tests), the Grafana "Errors by feature flag" dashboard and `FeatureFlagRaisesErrorRate` alert definitions, and the `tools/flags-breakglass` uv package (admin API with read-back, database fallback when the service is down).
+
 ## 0.1.8
 
 - Fix `main/traefik`: the `HOMELAB_PRIVATE_DIR` required-variable messages contained hyphens, which `docker stack deploy` reads as the default operator, so the Prometheus ingress probe targets and five Grafana dashboards resolved to a wrong path and the services could not be redeployed. Messages are hyphen-free and guarded by a test. See `docs/adr/swarm_interpolation_required_message_adr.md`.

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path as FilePath
+from pathlib import Path
 from typing import Annotated
 
 import httpx
 import typer
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, FilePath
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FLAGS_BREAKGLASS_")
 
     url: AnyHttpUrl
-    token_file: FilePath
+    token_file: FilePath  # must exist: a missing file is a configuration error, not a traceback
     dsn_file: FilePath | None = None
     project: str = "default"
     environment: str = "production"
@@ -81,7 +81,7 @@ def enable(flag: Annotated[str, typer.Argument(help="Flag key, e.g. trail.record
 
 
 @app.command()
-def export(out: Annotated[FilePath, typer.Option(help="File to write the snapshot JSON to")]) -> None:
+def export(out: Annotated[Path, typer.Option(help="File to write the snapshot JSON to")]) -> None:
     """Write every flag of the project with its strategies to a JSON file (import it in the admin panel)."""
     settings = _settings()
     try:

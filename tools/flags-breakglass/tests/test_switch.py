@@ -34,8 +34,8 @@ def test_switch_off_through_admin_api_reads_back() -> None:
     state = {"enabled": True}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/health":
-            return httpx.Response(200, json={"health": "GOOD"})
+        if request.url.path == "/api/admin/ui-config":
+            return httpx.Response(200, json={})
         if request.url.path.endswith("/environments/production/off"):
             assert request.method == "POST"
             state["enabled"] = False
@@ -76,7 +76,7 @@ def test_unknown_flag_in_database_is_an_explicit_failure() -> None:
 
 def test_admin_api_refusal_is_not_hidden_by_the_fallback() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/health":
+        if request.url.path == "/api/admin/ui-config":
             return httpx.Response(200)
         return httpx.Response(403)
 
@@ -87,3 +87,23 @@ def test_admin_api_refusal_is_not_hidden_by_the_fallback() -> None:
 def test_flag_key_must_be_dotted_lowercase() -> None:
     with pytest.raises(BreakGlassError):
         FlagTarget("Trail Recording", "default", "production")
+
+
+def test_missing_token_file_is_a_configuration_error(monkeypatch, tmp_path) -> None:
+    from typer.testing import CliRunner
+
+    from flags_breakglass.cli.main import app
+
+    monkeypatch.setenv("FLAGS_BREAKGLASS_URL", "http://unleash")
+    monkeypatch.setenv("FLAGS_BREAKGLASS_TOKEN_FILE", str(tmp_path / "absent"))
+    result = CliRunner().invoke(app, ["kill", "trail.recording"])
+    assert result.exit_code == 2
+
+
+def test_database_errors_never_echo_the_dsn() -> None:
+    from flags_breakglass.adapters import UnleashDatabase
+
+    database = UnleashDatabase("postgresql://unleash:s3cret-value@unresolvable.invalid:1/unleash?connect_timeout=1")
+    with pytest.raises(BreakGlassError) as caught:
+        database.set_enabled(TARGET, False)
+    assert "s3cret-value" not in str(caught.value) and caught.value.__cause__ is None

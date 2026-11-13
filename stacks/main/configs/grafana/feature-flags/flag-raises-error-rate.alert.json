@@ -1,0 +1,33 @@
+{
+  "uid": "flag-raises-error-rate",
+  "title": "FeatureFlagRaisesErrorRate",
+  "folderUID": "feature-flags",
+  "ruleGroup": "feature-flag-errors",
+  "condition": "C",
+  "for": "5m",
+  "noDataState": "OK",
+  "execErrState": "Alerting",
+  "labels": { "severity": "warning", "tier": "platform", "component": "feature-flags" },
+  "annotations": {
+    "summary": "Errors under enabled flag {{ $labels.flag }}",
+    "description": "{{ $values.B }} errors in 15 minutes carried {{ $labels.flag }} switched on. Kill-switch recommendation: switch {{ $labels.flag }} off in the admin panel (or `flags-breakglass kill {{ $labels.flag }}`) and compare the error rate; dashboard /d/feature-flag-errors. See docs/adr/feature_flags_service_adr.md."
+  },
+  "data": [
+    {
+      "refId": "A",
+      "datasourceUid": "${LOKI_DATASOURCE_UID}",
+      "relativeTimeRange": { "from": 900, "to": 0 },
+      "model": {
+        "refId": "A",
+        "queryType": "instant",
+        "expr": "sum by (flag) (count_over_time({job=\"docker\", service_name=~\"apps-japan-trip.*\"} |= \"error_flag\" | json | line_format \"{{.message}}\" | json | event=\"error_flag\" | variant!=\"off\" [15m]))"
+      }
+    },
+    { "refId": "B", "datasourceUid": "__expr__", "model": { "refId": "B", "type": "reduce", "expression": "A", "reducer": "last" } },
+    {
+      "refId": "C",
+      "datasourceUid": "__expr__",
+      "model": { "refId": "C", "type": "threshold", "expression": "B", "conditions": [{ "evaluator": { "type": "gt", "params": [5] } }] }
+    }
+  ]
+}

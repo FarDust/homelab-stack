@@ -18,7 +18,8 @@ class UnleashAdminApi:
         return f"/api/admin/projects/{target.project}/features/{target.key}"
 
     def health(self) -> bool:
-        return self._client.get("/health").status_code == 200
+        # A token-authenticated admin endpoint: proves the replica, its routing and the token in one call.
+        return self._client.get("/api/admin/ui-config").status_code == 200
 
     def set_enabled(self, target: FlagTarget, enabled: bool) -> None:
         state = "on" if enabled else "off"
@@ -50,25 +51,38 @@ class UnleashAdminApi:
 
 
 class UnleashDatabase:
-    """Direct access to Unleash's own tables, for when every Unleash replica is down but the database is up."""
+    """Direct access to Unleash's own tables, for when every Unleash replica is down but the database is up.
+
+    psycopg error texts can echo the DSN (password included), so failures surface only the error class.
+    """
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
 
+    @staticmethod
+    def _failure(operation: str, error: psycopg.Error) -> BreakGlassError:
+        return BreakGlassError(f"database {operation} failed ({type(error).__name__}); check the DSN file and the route to PostgreSQL")
+
     def set_enabled(self, target: FlagTarget, enabled: bool) -> int:
-        with psycopg.connect(self._dsn, connect_timeout=10) as connection:
-            cursor = connection.execute(
-                "UPDATE feature_environments SET enabled = %s WHERE feature_name = %s AND environment = %s",
-                (enabled, target.key, target.environment),
-            )
-            return cursor.rowcount
+        try:
+            with psycopg.connect(self._dsn, connect_timeout=10) as connection:
+                cursor = connection.execute(
+                    "UPDATE feature_environments SET enabled = %s WHERE feature_name = %s AND environment = %s",
+                    (enabled, target.key, target.environment),
+                )
+                return cursor.rowcount
+        except psycopg.Error as error:
+            raise self._failure("update", error) from None
 
     def is_enabled(self, target: FlagTarget) -> bool:
-        with psycopg.connect(self._dsn, connect_timeout=10) as connection:
-            row = connection.execute(
-                "SELECT enabled FROM feature_environments WHERE feature_name = %s AND environment = %s",
-                (target.key, target.environment),
-            ).fetchone()
+        try:
+            with psycopg.connect(self._dsn, connect_timeout=10) as connection:
+                row = connection.execute(
+                    "SELECT enabled FROM feature_environments WHERE feature_name = %s AND environment = %s",
+                    (target.key, target.environment),
+                ).fetchone()
+        except psycopg.Error as error:
+            raise self._failure("read", error) from None
         if row is None:
             raise BreakGlassError(f"database has no row for {target.key} in {target.environment}")
         return bool(row[0])

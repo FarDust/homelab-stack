@@ -27,7 +27,9 @@ def switch(target: FlagTarget, enabled: bool, api: AdminApi, database: FlagDatab
     """
     api_error: Exception | None = None
     try:
-        if api.health():
+        if not api.health():
+            api_error = BreakGlassError("admin API health check did not answer 200")
+        else:
             api.set_enabled(target, enabled)
             if api.is_enabled(target) != enabled:
                 raise BreakGlassError(f"admin API accepted the change of {target.key} but reads it back unchanged")

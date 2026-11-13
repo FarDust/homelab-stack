@@ -56,12 +56,13 @@ Clients standardise on the OpenFeature API; replacing Unleash later changes one 
 - Image `unleashorg/unleash-server:8.3.1@sha256:025cd8b003a70cceb88427ca393c377ca6503a210d95fdee54d21610d51f7ed0`
   (index digest; amd64 `sha256:0af0f53b…`, arm64 `sha256:37352fbe…`), set through `FLAGS_UNLEASH_IMAGE`.
 - Two replicas, `max_replicas_per_node: 1`, constraint `node.labels.node.ephemeral != true` (today the two stable nodes),
-  `start-first` updates with automatic rollback, health check on `/health`, 512M / 0.5 CPU limit, 192M reservation. Swap
+  `stop-first` updates one task at a time with automatic rollback (`start-first` deadlocked live on 2026-11-13: with one
+  replica per node and exactly two eligible nodes the new task had no node; the other replica serves during the update), health check on `/health`, 512M / 0.5 CPU limit, 192M reservation. Swap
   budget: the implicit host allowance; Swarm has no per-task swap knob (docs/adr/2026-10-11-memory-swap-budgeting.md).
 - Database `unleash`, role `unleash`, created with `cluster-utils db create-service-db --service feature-flags --db-name
   unleash --db-user unleash --no-push-to-gcp` (no Secret Manager spend). The password lives in `secrets/feature-flags/`
   (git-ignored) and in OpenBao `secret/feature-flags/api`; the service reads `DATABASE_URL_FILE` from the Swarm secret
-  `feature_flags_db_url`. The local admin password comes from the Swarm secret `feature_flags_admin_password` (exported by a
+  named by `FLAGS_DB_URL_SECRET` (versioned, so a rotation ships as a new secret). The local admin password comes from the Swarm secret `feature_flags_admin_password` (exported by a
   shell wrapper, never in the service spec).
 - Backups: the database sits on the shared PostgreSQL, whose `postgres-backup` job dumps every connectable database it finds
   (`stacks/main/configs/maintenance/postgres-backup.sh` inventories `pg_database`), so `unleash` is in the nightly dump and
@@ -78,7 +79,14 @@ Clients standardise on the OpenFeature API; replacing Unleash later changes one 
 - Observability: Prometheus job `feature-flags` scrapes `/internal-backstage/prometheus` on both tasks; alerts
   `FeatureFlagServiceDown` (no replica, 3 min, critical) and `FeatureFlagServiceDegraded` (fewer than two, 15 min).
   Container logs reach Loki through the existing Vector pipeline. The application-side dashboard "Errors by flag" and the
-  alert on errors under an enabled flag are Grafana-managed (definitions under `stacks/main/configs/grafana/feature-flags/`).
+  alert on errors under an enabled flag are Grafana-managed in the folder "Feature flags" (dashboard uid
+  `feature-flag-errors`, rule `FeatureFlagRaisesErrorRate`: more than 5 `error_flag` lines with the flag on in 15
+  minutes for 5 minutes, annotation recommends the kill switch); their definitions are kept in
+  `stacks/main/configs/grafana/feature-flags/` and re-applied with the Grafana API after a Grafana rebuild.
+- Tokens, created through the admin API after the first start and kept in `secrets/feature-flags/` and OpenBao:
+  frontend `japan-route-app-pwa` (production; injected by Traefik), client `japan-route-app-server` (production; Swarm
+  secret `feature_flags_client_token` for the MCP server and backend), and a one-year personal access token of the
+  local admin for break-glass (expires 2027-11-13; renew it in the admin panel before then).
 - Environments: `production` only is used by clients. QA is production; a flag starts targeted to the owner's Keycloak
   subject and widens by segment or sticky percentage.
 
@@ -130,6 +138,30 @@ owner always has one documented path to change a flag while the database is up.
 - `tests/prometheus/feature-flags-alerts.test.yml`: both alerts with promtool.
 - `tools/flags-breakglass/tests`: admin API path with read-back, database fallback, explicit failures.
 - Live failure tests and results: section "Failure tests 2026-11-13" below.
+
+## Failure tests 2026-11-13
+
+Run on the manager against the live stack (UTC). "frontend" is the same-origin frontend route asked for the owner's
+subject (5 flags on for the owner); "admin API" is a token call to `/api/admin/projects/default/features` through the
+token route (the panel's backend); the browser route answered its oauth2-proxy redirect (302) throughout.
+
+| Test | What was done | Frontend evaluation | Admin API | Recovery |
+| --- | --- | --- | --- | --- |
+| Kill one replica | `docker kill` of the manager task, 09:54:50 | 200 with 5 flags every 6 s | not measured in this run | 2/2 after 31 s |
+| Database cut | role `unleash` set NOLOGIN and its 6 backends terminated, 09:55:38 to 09:57:57 | 200 with 5 flags for 2 min 20 s | | the replicas crashed in turn (exit 1) and restarted while the other served; 2/2 21 s after LOGIN was restored |
+| Whole service down | scale to 0, 09:59:57 and 10:08:37 | 502 (clients use their snapshot or defaults) | 502 | scale 2: 200 again after about 40 s |
+| Break-glass, API path | `flags-breakglass kill flags.selftest` then `enable`, 10:08:26 | 4 flags, then 5 | verified read-back | immediate |
+| Break-glass, database path | same `kill` with every replica down, 10:09:13 | after the restart 4 flags (the kill took effect) | | `enable` restored 5 |
+
+Grafana path: a synthetic `jra.error/1` `error_flag` line (code `FLAGS_SELFTEST`) emitted at 10:10:14 was counted by the
+"Errors per flag and variant" query in Loki.
+
+Not tested live: the browser login through Keycloak to the Unleash UI (needs the owner's credential), PostgreSQL itself
+stopped (shared by every service; the role cut reproduces the same loss for Unleash only), a node lost.
+
+Incident during the tests: the first database-path run printed a fragment of the database password in a psycopg DSN
+parse error inside the agent transcript. The password was rotated at 10:02 (new secret `feature_flags_db_url_v2`,
+OpenBao updated, old secret removed) and the CLI now reports database failures by error class only, with a test.
 
 ## Rollback
 
