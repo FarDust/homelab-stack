@@ -6,7 +6,7 @@ Start throwaway databases with the data directory in memory:
 
 ```bash
 docker run --rm --name my-test-pg \
-  --tmpfs /var/lib/postgresql/data:rw,size=2g \
+  --tmpfs /var/lib/postgresql/data:rw,size=256m \
   -e POSTGRES_PASSWORD="$TEST_PG_PASSWORD" \
   postgres:17-alpine -c fsync=off -c synchronous_commit=off -c full_page_writes=off
 ```
@@ -15,6 +15,6 @@ docker run --rm --name my-test-pg \
 - The three settings are safe only because the data is disposable. Keep them away from any database whose contents matter.
 - Use `--rm` (or `docker rm -v`) so no anonymous volume survives the run.
 
-The same holds for job scratch: a checkout, a dependency install and browser profiles under a hard-disk-backed `/tmp` were 66 % of the disk's write operations in a second sample. Give each job its own directory on a memory-backed filesystem (`/dev/shm/<job>`), admit jobs by available memory, and delete the directory when the job ends.
+The same holds for job scratch: a checkout, a dependency install and browser profiles under a hard-disk-backed `/tmp` were 66 % of the disk's write operations in a second sample. Give each job its own directory off the hard disk and delete it when the job ends. Memory-backed scratch (`/dev/shm/<job>`) is swap-backed: several gigabytes of it turned into swap-out within minutes, so keep only small hot data there, put large trees on an SSD-backed directory, and admit jobs on memory pressure and the swap-out rate rather than on `MemAvailable`.
 
 Decision record: [HDD-backed node I/O budget](../adr/hdd_node_io_budget_adr.md).
