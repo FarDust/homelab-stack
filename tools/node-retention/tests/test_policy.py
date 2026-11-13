@@ -16,6 +16,7 @@ from tests.fakes import (
     FakeClock,
     FakeDocker,
     FakeFs,
+    FakeJobs,
     FakeLedger,
     FakeProcs,
     FakePublisher,
@@ -24,10 +25,21 @@ from tests.fakes import (
 
 
 def _planner(
-    tmp_path: Path, fs: FakeFs, procs: FakeProcs | None = None, docker: FakeDocker | None = None, **kw: object
+    tmp_path: Path,
+    fs: FakeFs,
+    procs: FakeProcs | None = None,
+    docker: FakeDocker | None = None,
+    jobs: FakeJobs | None = None,
+    **kw: object,
 ):
     settings = make_settings(tmp_path, **kw)
-    ports = Ports(fs=fs, procs=procs or FakeProcs(), docker=docker or FakeDocker(), clock=FakeClock())
+    ports = Ports(
+        fs=fs,
+        procs=procs or FakeProcs(),
+        docker=docker or FakeDocker(),
+        clock=FakeClock(),
+        jobs=jobs or FakeJobs(FakeLedger()),
+    )
     return settings, ports, Planner(settings, ports)
 
 
@@ -167,7 +179,7 @@ def test_apply_writes_manifest_before_deleting_and_records_ledger_and_metrics(tm
     assert manifest.freed_bytes == 3 * GIB and manifest.entries[0].outcome is Outcome.DELETED
     assert [r["event"] for r in ledger.rows] == ["start", "end"]
     assert ledger.rows[1]["who"] == "retention" and ledger.rows[1]["freed_bytes"] == 3 * GIB
-    prom = pub.files["node_retention.prom"]
+    prom = pub.files["node_retention_run.prom"]
     assert f'node_retention_last_run_freed_bytes{{host="node-a"}} {3 * GIB}' in prom
     assert 'node_retention_last_run_success{host="node-a"} 1' in prom
 
@@ -194,7 +206,7 @@ def test_failed_removal_is_recorded_and_flags_the_run_as_failed(tmp_path: Path) 
     assert outcomes["/h/ci/dashboard-a"] is Outcome.FAILED
     assert outcomes["/h/ci/dashboard-b"] is Outcome.DELETED
     assert ledger.rows[-1]["result"] == "exit=1"
-    assert 'node_retention_last_run_success{host="node-a"} 0' in pub.files["node_retention.prom"]
+    assert 'node_retention_last_run_success{host="node-a"} 0' in pub.files["node_retention_run.prom"]
 
 
 def test_guard_metrics_omit_run_gauges(tmp_path: Path) -> None:

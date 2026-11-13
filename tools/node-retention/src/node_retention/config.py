@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+import posixpath
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from node_retention.domain.errors import UnsafeRootError
+from node_retention.domain.rules import is_within
+
 GIB = 1024**3
+
+# System trees and Docker/Pterodactyl data are never pruned, whatever the configuration says. `/dev/shm`
+# job scratch is the one allowed path under `/dev`.
+FORBIDDEN_ROOTS = (
+    "/bin",
+    "/boot",
+    "/etc",
+    "/lib",
+    "/lib64",
+    "/proc",
+    "/sbin",
+    "/sys",
+    "/usr",
+    "/var/lib",
+    "/srv/docker",
+    "/run",
+)
 
 
 class Settings(BaseSettings):
@@ -54,10 +75,48 @@ class Settings(BaseSettings):
         "*/journey-rollback*",
         "*/jt-dumps*",
         "*/ledger.jsonl*",
+        "*/pterodactyl",
         "*/pterodactyl/*",
         "*/olympus*",
         "*/queue-archives*",
     ]
+
+    @model_validator(mode="after")
+    def _deletion_roots_are_safe(self) -> Settings:
+        """Every root the policy deletes under is absolute, normalized and outside the forbidden trees."""
+        for root in self.deletion_roots():
+            text = root.as_posix()
+            if not text.startswith("/") or posixpath.normpath(text) != text or text == "/":
+                raise UnsafeRootError(f"retention root {text!r} must be an absolute, normalized path other than /")
+            if text.startswith("/dev/") and not is_within(text, "/dev/shm"):
+                raise UnsafeRootError(f"retention root {text!r} lies under /dev outside /dev/shm")
+            for forbidden in FORBIDDEN_ROOTS:
+                if is_within(text, forbidden):
+                    raise UnsafeRootError(f"retention root {text!r} lies under the forbidden tree {forbidden}")
+        return self
+
+    def deletion_roots(self) -> list[Path]:
+        """Directories whose children may be removed, plus the cache units that may be pruned themselves."""
+        return [
+            self.home,
+            self.ci_root,
+            self.ci_root / "jra",
+            self.tmp_root,
+            self.shm_jobs_root,
+            *self.cache_roots,
+            *self.ci_scratch_roots,
+            *self.cache_units,
+            *self.stale_file_units,
+        ]
+
+    def is_allowed_target(self, path: str) -> bool:
+        """True when `path` is a cache unit or lies strictly below one of the deletion roots."""
+        units = {u.as_posix() for u in (*self.cache_units, *self.stale_file_units)}
+        if path in units:
+            return True
+        parents = (self.home, self.ci_root, self.ci_root / "jra", self.tmp_root, self.shm_jobs_root)
+        roots = [r.as_posix() for r in (*parents, *self.cache_roots, *self.ci_scratch_roots)]
+        return any(is_within(path, r) and path != r for r in roots)
 
     @property
     def floor_bytes(self) -> int:

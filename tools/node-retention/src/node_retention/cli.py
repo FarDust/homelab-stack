@@ -20,7 +20,7 @@ from node_retention.adapters.local import (
 )
 from node_retention.adapters.textfile import TextfilePublisher
 from node_retention.application.applying import Applier
-from node_retention.application.metrics import render_metrics
+from node_retention.application.metrics import CHECK_FILE, RUN_FILE, render_metrics, render_run_metrics
 from node_retention.application.planning import Planner, Ports
 from node_retention.config import Settings
 from node_retention.domain.models import Plan
@@ -30,12 +30,13 @@ err = Console(stderr=True)
 JsonFlag = Annotated[bool, typer.Option("--json", help="Print the machine-readable result on stdout.")]
 
 
-def _ports() -> Ports:
+def _ports(settings: Settings) -> Ports:
     return Ports(
         fs=LocalFileSystem(),
         procs=ProcProcesses(),
-        docker=DockerCli(_settings().textfile_helper_image),
+        docker=DockerCli(settings.textfile_helper_image),
         clock=SystemClock(),
+        jobs=JsonlLedger(settings.ledger_path),
     )
 
 
@@ -64,7 +65,8 @@ def _render(plan: Plan) -> None:
 @app.command()
 def plan(as_json: JsonFlag = False) -> None:
     """Dry run: print what the policy would delete. Nothing is changed."""
-    result = Planner(_settings(), _ports()).build()
+    settings = _settings()
+    result = Planner(settings, _ports(settings)).build()
     _render(result)
     if as_json:
         sys.stdout.write(result.model_dump_json(indent=2) + "\n")
@@ -73,17 +75,21 @@ def plan(as_json: JsonFlag = False) -> None:
 @app.command()
 def apply(as_json: JsonFlag = False) -> None:
     """Plan, write the manifest, delete, record the run in the ledger and publish metrics."""
-    settings, ports = _settings(), _ports()
-    result = Planner(settings, ports).build()
-    _render(result)
-    run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{os.getpid()}"
-    applier = Applier(
-        settings,
-        ports,
-        JsonlLedger(settings.ledger_path),
-        TextfilePublisher(settings.textfile_dir, settings.textfile_helper_image),
-    )
-    manifest = applier.apply(result, run_id, os.getpid())
+    settings = _settings()
+    ports = _ports(settings)
+    publisher = TextfilePublisher(settings.textfile_dir, settings.textfile_helper_image)
+    try:
+        result = Planner(settings, ports).build()
+        _render(result)
+        run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{os.getpid()}"
+        applier = Applier(settings, ports, JsonlLedger(settings.ledger_path), publisher)
+        manifest = applier.apply(result, run_id, os.getpid())
+    except Exception:
+        # A run that aborts (unreadable ledger, df or docker failure) is a failed run: the alert must see it.
+        publisher.publish(
+            RUN_FILE, render_run_metrics(settings, now=ports.clock.now(), freed_bytes=0, success=False, planned_bytes=0)
+        )
+        raise
     err.print(
         f"freed {_gib(manifest.freed_bytes)}; root free {_gib(manifest.root_free_before)} -> {_gib(manifest.root_free_after or 0)}; "
         f"manifest {applier.manifest_path(run_id)}"
@@ -97,10 +103,11 @@ def apply(as_json: JsonFlag = False) -> None:
 @app.command()
 def guard(as_json: JsonFlag = False) -> None:
     """Publish the free-space metric; run `apply` when the root filesystem is under its floor."""
-    settings, ports = _settings(), _ports()
+    settings = _settings()
+    ports = _ports(settings)
     free = ports.fs.free_bytes(settings.root_mount.as_posix())
     publisher = TextfilePublisher(settings.textfile_dir, settings.textfile_helper_image)
-    publisher.publish("node_retention.prom", render_metrics(settings, free_bytes=free, now=ports.clock.now()))
+    publisher.publish(CHECK_FILE, render_metrics(settings, free_bytes=free, now=ports.clock.now()))
     if free >= settings.floor_bytes:
         err.print(f"root free {_gib(free)} is above the floor {_gib(settings.floor_bytes)}; nothing to do")
         if as_json:

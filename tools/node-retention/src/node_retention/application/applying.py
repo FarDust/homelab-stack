@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from node_retention.application.metrics import render_metrics
+from node_retention.application.metrics import CHECK_FILE, RUN_FILE, render_metrics, render_run_metrics
 from node_retention.application.planning import Ports
+from node_retention.application.safety import running_jobs, unsafe_reason
 from node_retention.config import Settings
 from node_retention.domain.models import (
     Candidate,
@@ -53,11 +54,11 @@ class Applier:
         self._write(manifest, run_id)
         failed = any(e.outcome is Outcome.FAILED for e in manifest.entries)
         self._ledger.append(self._row("end", run_id, pid, manifest, failed=failed))
+        self._pub.publish(CHECK_FILE, render_metrics(s, free_bytes=manifest.root_free_after, now=manifest.finished_at))
         self._pub.publish(
-            "node_retention.prom",
-            render_metrics(
+            RUN_FILE,
+            render_run_metrics(
                 s,
-                free_bytes=manifest.root_free_after,
                 now=manifest.finished_at,
                 freed_bytes=manifest.freed_bytes,
                 success=not failed,
@@ -79,6 +80,8 @@ class Applier:
                 entry.freed_bytes = self._p.docker.prune_dangling_images()
                 entry.outcome = Outcome.DELETED
             elif c.action == "prune_stale_files":
+                if self._unsafe(entry, c, whole_path_resolves=True):
+                    return
                 cutoff = self._p.clock.now() - c.min_idle_seconds
                 entry.freed_bytes = self._p.fs.prune_stale_files(c.path, cutoff, self._p.procs.open_paths())
                 entry.outcome = Outcome.DELETED
@@ -96,9 +99,14 @@ class Applier:
         if not p.fs.exists(c.path):
             entry.outcome = Outcome.SKIPPED_MISSING
             return
+        if self._unsafe(entry, c):
+            return
         st = p.fs.stats(c.path)
         if p.clock.now() - st.newest_ts < c.min_idle_seconds:
             entry.outcome, entry.detail = Outcome.SKIPPED_RECENT, "used since the plan was made"
+            return
+        if st.has_socket:
+            entry.outcome, entry.detail = Outcome.SKIPPED_OPEN, "holds a Unix socket"
             return
         if in_use(c.path, p.procs.open_paths()):
             entry.outcome = Outcome.SKIPPED_OPEN
@@ -116,6 +124,16 @@ class Applier:
             entry.outcome, entry.detail = Outcome.FAILED, "path still exists after removal"
             return
         entry.outcome, entry.freed_bytes = Outcome.DELETED, st.size_bytes
+
+    def _unsafe(self, entry: ManifestEntry, c: Candidate, *, whole_path_resolves: bool = False) -> bool:
+        """Re-check path safety just before deleting, re-reading the job ledger (an unreadable one raises)."""
+        p = self._p
+        jobs = running_jobs(self._s, p.jobs, p.procs)
+        found = unsafe_reason(self._s, p.fs, c.path, jobs, p.fs.mount_points(), whole_path_resolves=whole_path_resolves)
+        if found is None:
+            return False
+        entry.outcome, entry.detail = found
+        return True
 
     def _row(self, event: str, run_id: str, pid: int, manifest: Manifest, failed: bool = False) -> dict[str, object]:
         row: dict[str, object] = {

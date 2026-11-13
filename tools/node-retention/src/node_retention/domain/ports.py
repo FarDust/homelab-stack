@@ -17,10 +17,18 @@ class FileSystem(Protocol):
     def owned_by_current_user(self, path: str) -> bool: ...
     def free_bytes(self, path: str) -> int: ...
 
+    def resolve(self, path: str) -> str:
+        """Canonical path with every symlink resolved (`os.path.realpath`)."""
+        ...
+
+    def mount_points(self) -> set[str]:
+        """Every mount point of this mount namespace (`/proc/self/mountinfo`)."""
+        ...
+
 
 class Processes(Protocol):
     def open_paths(self) -> set[str]:
-        """Paths held open (file descriptors, cwd) by processes visible to this user."""
+        """Paths held by processes visible to this user: file descriptors, cwd, executable and mapped files."""
         ...
 
     def is_alive(self, pid: int) -> bool: ...
@@ -40,6 +48,16 @@ class Docker(Protocol):
 
 class Ledger(Protocol):
     def append(self, row: dict[str, object]) -> None: ...
+
+
+class JobLedger(Protocol):
+    def rows(self) -> list[dict[str, object]]:
+        """Every row of the node's job ledger.
+
+        Raises `LedgerUnreadableError` when the ledger is missing, unreadable or holds a malformed row, so the
+        caller deletes nothing (fail closed).
+        """
+        ...
 
 
 class Publisher(Protocol):

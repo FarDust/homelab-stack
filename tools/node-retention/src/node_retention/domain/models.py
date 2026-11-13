@@ -28,6 +28,9 @@ class TreeStats(BaseModel):
     size_bytes: int = Field(ge=0)
     newest_mtime: float
     newest_atime: float
+    # A Unix socket is a live IPC endpoint (tmux, ssh-agent, language servers): its holder is not visible as an
+    # open path in /proc/<pid>/fd, so a tree that contains one is treated as in use.
+    has_socket: bool = False
 
     @property
     def newest_ts(self) -> float:
@@ -88,6 +91,8 @@ class Outcome(StrEnum):
     SKIPPED_MOUNTED = "skipped-mounted-by-container"
     SKIPPED_RECENT = "skipped-recently-used"
     SKIPPED_MISSING = "skipped-missing"
+    SKIPPED_RUNNING_JOB = "skipped-running-job"
+    SKIPPED_UNSAFE = "skipped-unsafe-path"
     FAILED = "failed"
 
 

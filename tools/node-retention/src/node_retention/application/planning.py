@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
+from node_retention.application.safety import running_jobs, unsafe_reason
 from node_retention.config import Settings
 from node_retention.domain.models import Candidate, Category, Plan, Skipped
-from node_retention.domain.ports import Clock, Docker, FileSystem, Processes
+from node_retention.domain.ports import Clock, Docker, FileSystem, JobLedger, Processes
 from node_retention.domain.rules import in_use, job_pid, matches_any, name_matches_any
 
 HOUR = 3600.0
@@ -20,6 +21,7 @@ class Ports:
     procs: Processes
     docker: Docker
     clock: Clock
+    jobs: JobLedger
 
 
 class Planner:
@@ -28,6 +30,8 @@ class Planner:
         self._p = ports
         self._open: set[str] = set()
         self._mounts: set[str] = set()
+        self._mount_points: set[str] = set()
+        self._jobs: set[str] = set()
         self._now = 0.0
         self.candidates: list[Candidate] = []
         self.skipped: list[Skipped] = []
@@ -37,6 +41,9 @@ class Planner:
         self._now = p.clock.now()
         self._open = p.procs.open_paths()
         self._mounts = p.docker.mount_sources()
+        self._mount_points = p.fs.mount_points()
+        # Fails closed: an unreadable ledger raises here, before any candidate exists.
+        self._jobs = running_jobs(s, p.jobs, p.procs)
         self.candidates, self.skipped = [], []
 
         self._evidence()
@@ -84,6 +91,13 @@ class Planner:
         idle = max(0.0, self._now - st.newest_ts)
         if matches_any(path, s.protected_globs):
             self.skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason="protected path"))
+            return None
+        unsafe = unsafe_reason(s, p.fs, path, self._jobs, self._mount_points)
+        if unsafe is not None:
+            self.skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason=unsafe[1]))
+            return None
+        if st.has_socket:
+            self.skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason="holds a Unix socket"))
             return None
         if age < min_age_s:
             reason_text = f"written {age / HOUR:.1f} h ago, gate {min_age_s / HOUR:.0f} h"
@@ -180,6 +194,10 @@ class Planner:
             if gained >= need:
                 break
             if matches_any(path, s.protected_globs) or in_use(path, self._mounts):
+                continue
+            unsafe = unsafe_reason(s, p.fs, path, self._jobs, self._mount_points, whole_path_resolves=True)
+            if unsafe is not None:
+                self.skipped.append(Skipped(path=path, size_bytes=0, reason=unsafe[1]))
                 continue
             found = p.fs.stale_files(path, cutoff)
             if found.size_bytes > 0:

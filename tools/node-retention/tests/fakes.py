@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from node_retention.config import GIB, Settings
+from node_retention.domain.errors import LedgerUnreadableError
 from node_retention.domain.models import StaleFiles, TreeStats
 
 NOW = 2_000_000_000.0
@@ -22,6 +23,10 @@ class FakeFs:
         self.stale: dict[str, int] = {}
         self.pruned_stale: list[str] = []
         self.refuse_removal: set[str] = set()
+        self.symlinks: dict[str, str] = {}  # path prefix -> where it really points
+        self.mounts: set[str] = set()
+        self.sockets: set[str] = set()  # trees that contain a Unix socket
+        self.on_stats = lambda path: None  # hook: runs before each stats() call
 
     def add(self, path: str, size: int, age_s: float, owned: bool = True, read_age_s: float | None = None) -> None:
         """`age_s` is the age of the newest write; `read_age_s` the age of the newest read (default: same)."""
@@ -32,8 +37,18 @@ class FakeFs:
         return sorted(p for p in self.nodes if p.startswith(prefix) and "/" not in p[len(prefix) :])
 
     def stats(self, path: str) -> TreeStats:
+        self.on_stats(path)
         size, mtime, atime, _ = self.nodes[path]
-        return TreeStats(size_bytes=size, newest_mtime=mtime, newest_atime=atime)
+        return TreeStats(size_bytes=size, newest_mtime=mtime, newest_atime=atime, has_socket=path in self.sockets)
+
+    def resolve(self, path: str) -> str:
+        for link, target in self.symlinks.items():
+            if path == link or path.startswith(link + "/"):
+                return target + path[len(link) :]
+        return path
+
+    def mount_points(self) -> set[str]:
+        return set(self.mounts)
 
     def exists(self, path: str) -> bool:
         return path in self.nodes
@@ -105,11 +120,30 @@ class FakeDocker:
 
 
 class FakeLedger:
-    def __init__(self) -> None:
+    """Records appended rows; `job_rows` is what the job-ledger reader returns."""
+
+    def __init__(self, job_rows: list[dict[str, object]] | None = None) -> None:
         self.rows: list[dict[str, object]] = []
+        self.job_rows: list[dict[str, object]] = job_rows or []
+        self.unreadable = False
 
     def append(self, row: dict[str, object]) -> None:
         self.rows.append(row)
+
+    def read_rows(self) -> list[dict[str, object]]:
+        if self.unreadable:
+            raise LedgerUnreadableError("ledger unreadable (test)")
+        return list(self.job_rows)
+
+
+class FakeJobs:
+    """JobLedger port backed by a FakeLedger."""
+
+    def __init__(self, ledger: FakeLedger) -> None:
+        self.ledger = ledger
+
+    def rows(self) -> list[dict[str, object]]:
+        return self.ledger.read_rows()
 
 
 class FakePublisher:
@@ -149,6 +183,7 @@ __all__ = [
     "FakeClock",
     "FakeDocker",
     "FakeFs",
+    "FakeJobs",
     "FakeLedger",
     "FakeProcs",
     "FakePublisher",
