@@ -4,6 +4,7 @@
 
 - [Cluster feature-flag service](adr/feature_flags_service_adr.md): Unleash OSS as stack `main-feature-flags` (two replicas, Keycloak through oauth2-proxy on the panel, token route for SDKs and break-glass, same-origin frontend route), what "never fails" means, live failure tests, the `tools/flags-breakglass` CLI, Prometheus alerts and the Grafana "Errors by feature flag" dashboard (tests in `tests/test_feature_flags_service.py`, `tests/prometheus/feature-flags-alerts.test.yml`, `tools/flags-breakglass/tests`).
 - [LiteLLM local text-only fallback](adr/litellm_local_text_fallback_adr.md): local Gemma 3 4B as the last hop of text-only aliases, the no-tools rule, node-local weights (no GCS egress), placement, rollback (tests in `tests/test_litellm_local_text_fallback.py`).
+- [Low-end Ollama CPU budget](adr/ollama_low_end_cpu_budget_adr.md): the 2026-11-13 CPU saturation of the GPU worker, the alert-formatter caller, the CPU limit and the `HostCpuPressureSustained` alert (config in `stacks/llms/governance.yml`, rule in `stacks/main/configs/prometheus/alert.rules`).
 - [vLLM Gemma read routes](adr/vllm_gemma4_read_routes_adr.md): `GET`/`HEAD` reach the scale-to-zero engine without waking it; every other method, inference included, can start a Sablier session (tests in `tests/test_vllm_gemma4_read_routes.py`).
 - [STT runtime and credential decision](adr/cluster_stt_adr.md): official serving runtime, LiteLLM alias, exact-path custody, acceptance gates and rollback.
 

@@ -1,0 +1,34 @@
+rule_files:
+  - /rules/alert.rules
+evaluation_interval: 1m
+tests:
+  # 20% of the time waiting for a CPU: busy, below the threshold.
+  - interval: 1m
+    input_series:
+      - series: 'node_pressure_cpu_waiting_seconds_total{job="node-exporter",instance="busy:9100"}'
+        values: '0+12x120'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: HostCpuPressureSustained
+        exp_alerts: []
+
+  # 50% of the time waiting for a CPU: pending for 30 minutes, then firing.
+  - interval: 1m
+    input_series:
+      - series: 'node_pressure_cpu_waiting_seconds_total{job="node-exporter",instance="worker:9100"}'
+        values: '0+30x120'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HostCpuPressureSustained
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: HostCpuPressureSustained
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              instance: worker:9100
+            exp_annotations:
+              summary: Host worker:9100 under sustained CPU pressure
+              description: Runnable tasks on worker:9100 waited for a CPU more than 30% of the time for 30 minutes. Name the top consumer (per container and per process), find who calls it, and give it a CPU budget; a lock or a lower concurrency is not the fix.

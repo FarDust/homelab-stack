@@ -62,6 +62,9 @@ services:
         - node.labels.gpu.class == low-end
       resources:
         limits:
+          # CPU budget so a model that spills to the CPU cannot starve the Minecraft server and the build jobs that
+          # share this node (docs/adr/ollama_low_end_cpu_budget_adr.md); same budget as ollama-text-fallback.
+          cpus: '2'
           memory: 8G
         reservations:
           memory: 2G
