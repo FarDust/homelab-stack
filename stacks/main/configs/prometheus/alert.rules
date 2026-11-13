@@ -203,6 +203,19 @@ groups:
       summary: "Host {{ $labels.instance }} under sustained I/O pressure"
       description: "Tasks on {{ $labels.instance }} waited on I/O more than 30% of the time for 30 minutes. Name the writer from per-cgroup io.stat and remove the cause; a lock or a lower concurrency is not the fix."
 
+  # CPU contention on a shared node delays every job on it (builds, game server, inference). Name the consumer
+  # with `ps -eo pid,pcpu,args --sort=-pcpu` and `docker stats`, then give it a CPU budget through the compose repo.
+  # See docs/adr/ollama_low_end_cpu_budget_adr.md.
+  - alert: HostCpuPressureSustained
+    expr: rate(node_pressure_cpu_waiting_seconds_total[15m]) > 0.30
+    for: 30m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Host {{ $labels.instance }} under sustained CPU pressure"
+      description: "Runnable tasks on {{ $labels.instance }} waited for a CPU more than 30% of the time for 30 minutes. Name the top consumer (per container and per process), find who calls it, and give it a CPU budget; a lock or a lower concurrency is not the fix."
+
   - alert: HostDiskSaturated
     expr: rate(node_disk_io_time_seconds_total{device=~"sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+"}[15m]) > 0.90
     for: 30m
