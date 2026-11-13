@@ -5,8 +5,9 @@ from __future__ import annotations
 import posixpath
 
 from node_retention.config import Settings
+from node_retention.domain.errors import ProtectedImageError
 from node_retention.domain.models import Outcome
-from node_retention.domain.ports import FileSystem, JobLedger, Processes
+from node_retention.domain.ports import Docker, FileSystem, JobLedger, Processes
 from node_retention.domain.rules import contains_mount, is_within, overlaps, running_job_paths
 
 
@@ -52,3 +53,24 @@ def unsafe_reason(
     if job is not None:
         return Outcome.SKIPPED_RUNNING_JOB, f"a running job of the ledger uses {job}"
     return None
+
+
+def protected_image_violations(settings: Settings, docker: Docker) -> list[str]:
+    """One line per protected image that is missing or resolves to another id; empty when all hold.
+
+    Run before any image prune, as decided in docs/adr/node_disk_retention_adr.md. A failed lookup raises, so
+    an unknown state is never read as intact.
+    """
+    found: list[str] = []
+    for ref, expected in sorted(settings.protected_image_refs.items()):
+        observed = docker.image_id(ref)
+        if observed != expected:
+            found.append(f"protected image {ref}: expected {expected}, observed {observed or 'missing'}")
+    return found
+
+
+def require_protected_images(settings: Settings, docker: Docker) -> None:
+    """Raise `ProtectedImageError` naming every ref, expected id and observed id that drifted."""
+    found = protected_image_violations(settings, docker)
+    if found:
+        raise ProtectedImageError(found)

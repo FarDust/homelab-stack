@@ -7,6 +7,7 @@ import re
 from collections.abc import Callable
 from fnmatch import fnmatch
 
+IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 PID_DIR = re.compile(r"^\d{8}T\d{6}Z-(?P<pid>\d+)$")
 
 

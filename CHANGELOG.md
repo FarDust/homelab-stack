@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Add to `tools/node-retention` 0.3.0: a `protected_image_refs` setting (reference to expected image id, JSON in `NODE_RETENTION_PROTECTED_IMAGE_REFS`, empty by default) that guards a CI helper image that jobs run with `--pull=never`. Before any image prune, `plan` and `apply` check every protected reference; a missing reference or another id refuses the prune, makes `plan` and `apply` exit 1 with the reference, expected id and observed id, and marks the run failed in the manifest, ledger row and metrics. A new `verify-images` command applies the same rule for scripts that prune on their own. The Docker adapter refuses any prune subcommand with `-a` in any spelling, `--all` or `--volumes`. Expected ids are validated as `sha256:<64 hex>` and an image lookup that fails, times out, finds no docker binary or answers empty aborts the run and leaves a failed ledger row. See `docs/adr/node_disk_retention_adr.md`.
+
 ## 0.2.0
 
 - Add `main/feature-flags`: the cluster feature-flag service (Unleash OSS 8.3.1 pinned by digest, two replicas on two stable nodes, database through `cluster-utils db create-service-db`, covered by the existing `postgres-backup` job), its admin panel behind Keycloak through the shared oauth2-proxy, a token-only API route for SDKs and break-glass, and a same-origin frontend route for applications. See `docs/adr/feature_flags_service_adr.md`.

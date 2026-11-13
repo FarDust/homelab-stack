@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from node_retention.domain.errors import UnsafeRootError
-from node_retention.domain.rules import is_within
+from node_retention.domain.rules import IMAGE_ID, is_within
 
 GIB = 1024**3
 
@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     # Directories whose children are CI job scratch (logs, build contexts, archives).
     ci_scratch_roots: list[Path] = []
     ci_scratch_days: float = 14.0
+    # Images that must never be pruned, as reference -> expected image id (`sha256:...`). Empty by default: the
+    # real mapping comes from the node's private settings (JSON in NODE_RETENTION_PROTECTED_IMAGE_REFS).
+    protected_image_refs: dict[str, str] = {}
     # Never touched, whatever their age (matched against the full path).
     protected_globs: list[str] = [
         "*/journey-rollback*",
@@ -80,6 +83,16 @@ class Settings(BaseSettings):
         "*/olympus*",
         "*/queue-archives*",
     ]
+
+    @model_validator(mode="after")
+    def _protected_images_are_well_formed(self) -> Settings:
+        """An expected id is a full `sha256:<64 hex>` id, so an empty or short value can never match an answer."""
+        for ref, expected in self.protected_image_refs.items():
+            if not ref.strip():
+                raise ValueError("protected_image_refs holds an empty reference")
+            if not IMAGE_ID.match(expected):
+                raise ValueError(f"protected image {ref!r}: expected id must match sha256:<64 hex>, got {expected!r}")
+        return self
 
     @model_validator(mode="after")
     def _deletion_roots_are_safe(self) -> Settings:

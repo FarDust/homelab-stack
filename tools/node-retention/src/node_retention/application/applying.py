@@ -7,8 +7,9 @@ from pathlib import Path
 
 from node_retention.application.metrics import CHECK_FILE, RUN_FILE, render_metrics, render_run_metrics
 from node_retention.application.planning import Ports
-from node_retention.application.safety import running_jobs, unsafe_reason
+from node_retention.application.safety import protected_image_violations, running_jobs, unsafe_reason
 from node_retention.config import Settings
+from node_retention.domain.errors import ImageLookupError
 from node_retention.domain.models import (
     Candidate,
     Manifest,
@@ -47,12 +48,22 @@ class Applier:
         # The manifest exists on disk, with path, size, age and reason, before anything is deleted.
         self._write(manifest, run_id)
         self._ledger.append(self._row("start", run_id, pid, manifest))
-        for entry in manifest.entries:
-            self._run_entry(entry)
+        try:
+            # Checked again here: the planner's answer may be minutes old. The start row exists first, so a lookup
+            # error (fail closed) still leaves a start and a failed end row in the ledger.
+            manifest.protected_image_violations = protected_image_violations(s, p.docker)
+            for entry in manifest.entries:
+                self._run_entry(entry)
+        except ImageLookupError:
+            # Fail closed: the image state is unknown, so the run ends as failed and the error reaches the caller.
+            manifest.finished_at = p.clock.now()
+            self._write(manifest, run_id)
+            self._ledger.append(self._row("end", run_id, pid, manifest, failed=True))
+            raise
         manifest.finished_at = p.clock.now()
         manifest.root_free_after = p.fs.free_bytes(s.root_mount.as_posix())
         self._write(manifest, run_id)
-        failed = any(e.outcome is Outcome.FAILED for e in manifest.entries)
+        failed = bool(manifest.protected_image_violations) or any(e.outcome is Outcome.FAILED for e in manifest.entries)
         self._ledger.append(self._row("end", run_id, pid, manifest, failed=failed))
         self._pub.publish(CHECK_FILE, render_metrics(s, free_bytes=manifest.root_free_after, now=manifest.finished_at))
         self._pub.publish(
@@ -77,6 +88,8 @@ class Applier:
         c = entry.candidate
         try:
             if c.action == "docker_image_prune":
+                if self._image_guard_failed(entry):
+                    return
                 entry.freed_bytes = self._p.docker.prune_dangling_images()
                 entry.outcome = Outcome.DELETED
             elif c.action == "prune_stale_files":
@@ -90,9 +103,19 @@ class Applier:
                 entry.outcome = Outcome.DELETED
             else:
                 self._remove_path(entry, c)
+        except ImageLookupError:
+            raise
         except Exception as exc:
             entry.outcome = Outcome.FAILED
             entry.detail = f"{type(exc).__name__}: {exc}"
+
+    def _image_guard_failed(self, entry: ManifestEntry) -> bool:
+        """Fail the image prune when a protected image drifted since the manifest was written."""
+        found = protected_image_violations(self._s, self._p.docker)
+        if not found:
+            return False
+        entry.outcome, entry.detail = Outcome.FAILED, "image prune refused: " + "; ".join(found)
+        return True
 
     def _remove_path(self, entry: ManifestEntry, c: Candidate) -> None:
         p = self._p
