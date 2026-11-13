@@ -26,7 +26,8 @@ Evidence:
 
 ## Consequences
 
-- Alert bursts are slower on the local model (queueing already dominates); the fallback chain still answers through Vertex when a call times out.
+- Alert bursts are slower on the local model (queueing already dominates). The `n8n-chat-low-end` deployment sets no `timeout`, so LiteLLM moves to the Vertex fallback when the call fails or its default timeout expires, not after a short wait: alerts are delayed, not dropped. A per-deployment `timeout` is a follow-up in the LiteLLM config. The Alertmanager receiver is the n8n webhook, which formats with a model; a non-LLM path inside that workflow is not defined in this repository and was not verified in this review.
+- The alert reads the real saturation of every node. In the seven days to 2026-11-13 the manager `fardustdev` was above the 0.30 threshold for about 157 of 168 hours, so `HostCpuPressureSustained` fires for it when the rule loads: one alert per node, grouped by alert name, repeated every four hours. Investigate that consumer as its own saturation case rather than raising the threshold.
 - The task is replaced once when the change is deployed, so in-flight requests fall back to the next model of their chain.
 - Rollback: remove the `cpus` line or raise it and redeploy the stack; the previous service spec is recorded in the deployment report.
 
