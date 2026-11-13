@@ -1,0 +1,27 @@
+[project]
+name = "flags-breakglass"
+version = "0.2.0"
+description = "Break-glass control of the cluster feature-flag service when its admin panel is unavailable."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.2.3",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "rich>=13.9",
+    "typer>=0.15",
+]
+
+[project.scripts]
+flags-breakglass = "flags_breakglass.cli.main:app"
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flags_breakglass"]

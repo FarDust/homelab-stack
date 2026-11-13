@@ -1,0 +1,201 @@
+{
+  "uid": "feature-flag-errors",
+  "title": "Errors by feature flag",
+  "tags": [
+    "feature-flags",
+    "errors"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "description": "Which flags were on when something failed. Source: jra.error/1 envelopes logged by the Japan Route App backend and MCP server (docs/adr/feature_flags_service_adr.md).",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "loki",
+        "type": "datasource",
+        "query": "loki",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Errors per flag and variant",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "expr": "sum by (flag, variant) (count_over_time({job=\"docker\", service_name=~\"apps-japan-trip.*|main-feature-flags.*\"} |= \"error_flag\" | json | line_format \"{{.message}}\" | json | event=\"error_flag\" [$__auto]))",
+          "legendFormat": "{{flag}}={{variant}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Errors by code under an enabled flag",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "expr": "sum by (flag, code) (count_over_time({job=\"docker\", service_name=~\"apps-japan-trip.*|main-feature-flags.*\"} |= \"error_flag\" | json | line_format \"{{.message}}\" | json | event=\"error_flag\" | variant!=\"off\" [$__auto]))",
+          "legendFormat": "{{flag}} {{code}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Errors by client and path",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "expr": "sum by (clientKind, path_module) (count_over_time({job=\"docker\", service_name=~\"apps-japan-trip.*\"} |~ \"client_error|service_error\" | json | line_format \"{{.message}}\" | json | event=~\"client_error|service_error\" [$__auto]))",
+          "legendFormat": "{{clientKind}} {{path_module}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "logs",
+      "title": "Latest error envelopes",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "expr": "{job=\"docker\", service_name=~\"apps-japan-trip.*\"} |~ \"client_error|service_error\" | json | line_format \"{{.message}}\" | json | event=~\"client_error|service_error\" | line_format \"{{.code}} {{.path_module}} {{.path_handler}}{{.path_tool}} flags={{.flags}} trace={{.traceId}} v={{.appVersion}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}
