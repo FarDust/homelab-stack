@@ -50,3 +50,8 @@ jobs:
             --entrypoint promtool \
             prom/prometheus:v3.10.0 \
             check rules /etc/prometheus/alert.rules
+
+      - name: 🔍 promtool – alert rule unit tests
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD/stacks/main/configs/prometheus:/rules:ro" -v "$PWD/tests/prometheus:/tests:ro" --entrypoint sh prom/prometheus:v3.10.0 -c 'promtool test rules /tests/*.test.yml'

@@ -22,6 +22,16 @@ tests:
             exp_annotations:
               summary: PostgreSQL backup metrics stale for postgres-backup
               description: Textfile metrics for postgres-backup have not been refreshed for more than 15 minutes. The backup container, observer loop, status command, or node textfile path may be stuck while old green metrics remain scraped.
+  # A retired service (0 replicas) leaves its last textfile behind; it must stay silent.
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{file="/rootfs/var/lib/node_exporter/textfile_collector/postgres_backup_authelia-db-backup.prom",job="node-exporter",instance="node-b:9100"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PostgreSQLBackupMetricsStale
+        exp_alerts: []
+  # The three active services report: nothing is missing, the retired service is not expected.
   - interval: 1m
     input_series:
       - series: 'postgres_backup_status_ok{service="postgres-backup",reason="fresh-mounted-receipt",job="node-exporter",instance="node-a:9100"}'
@@ -33,11 +43,22 @@ tests:
     alert_rule_test:
       - eval_time: 20m
         alertname: PostgreSQLBackupMetricsMissing
+        exp_alerts: []
+  # An active service without a series still raises Missing.
+  - interval: 1m
+    input_series:
+      - series: 'postgres_backup_status_ok{service="postgres-backup",reason="fresh-mounted-receipt",job="node-exporter",instance="node-a:9100"}'
+        values: '1x40'
+      - series: 'postgres_backup_status_ok{service="supabase-db-backup",reason="fresh-mounted-receipt",job="node-exporter",instance="node-a:9100"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: PostgreSQLBackupMetricsMissing
         exp_alerts:
           - exp_labels:
               severity: warning
               tier: maintenance
-              service: authelia-db-backup
+              service: keycloak-db-backup
             exp_annotations:
-              summary: PostgreSQL backup metrics missing for authelia-db-backup
-              description: Prometheus has no postgres_backup_status_ok series for expected backup service authelia-db-backup. This detects missing textfiles, stopped observers, stopped backup containers, or scrape coverage gaps.
+              summary: PostgreSQL backup metrics missing for keycloak-db-backup
+              description: Prometheus has no postgres_backup_status_ok series for expected backup service keycloak-db-backup. This detects missing textfiles, stopped observers, stopped backup containers, or scrape coverage gaps.
