@@ -15,7 +15,19 @@ OVERRIDE = ROOT / "stacks/main/configs/clickhouse/system-logs.xml"
 RULES = ROOT / "stacks/main/configs/prometheus/alert.rules"
 ADR = ROOT / "docs/adr/hdd_node_io_budget_adr.md"
 # The tables that produced the constant background writes.
-REMOVED = {"trace_log", "text_log", "metric_log", "asynchronous_metric_log", "part_log"}
+REMOVED = {
+    "trace_log",
+    "text_log",
+    "metric_log",
+    "asynchronous_metric_log",
+    "part_log",
+    "latency_log",
+    "error_log",
+    "query_metric_log",
+    "query_thread_log",
+    "processors_profile_log",
+    "background_schedule_pool_log",
+}
 KEPT = {"query_log", "crash_log"}
 
 

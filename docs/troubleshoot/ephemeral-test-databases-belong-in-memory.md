@@ -15,4 +15,6 @@ docker run --rm --name my-test-pg \
 - The three settings are safe only because the data is disposable. Keep them away from any database whose contents matter.
 - Use `--rm` (or `docker rm -v`) so no anonymous volume survives the run.
 
+The same holds for job scratch: a checkout, a dependency install and browser profiles under a hard-disk-backed `/tmp` were 66 % of the disk's write operations in a second sample. Give each job its own directory on a memory-backed filesystem (`/dev/shm/<job>`), admit jobs by available memory, and delete the directory when the job ends.
+
 Decision record: [HDD-backed node I/O budget](../adr/hdd_node_io_budget_adr.md).
