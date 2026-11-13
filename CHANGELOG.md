@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9
+
+- Add `tools/node-retention` 0.2.0, the standing disk retention policy for the build worker: plan (dry run), apply and guard commands, manifest before every deletion, ledger rows `who=retention`, textfile metrics and two systemd user timers. Deletion is fail-closed: an unreadable job ledger stops the run, paths of running ledger jobs, trees with a mount point or a Unix socket, symlinked ancestors and roots under system or Docker trees are never deleted, and safety is re-checked just before each delete. See `docs/adr/node_disk_retention_adr.md`.
+- Prometheus: `NodeRootFreeBelowRetentionFloor`, `NodeRetentionStale`, `NodeRetentionRunFailed` and `MinecraftServerMemoryNear16G` alerts with rule tests. See `docs/adr/minecraft_memory_budget_adr.md`.
+- CI: the node-retention test suite runs in the pre-commit workflow.
+
 ## 0.1.8
 
 - Fix `main/traefik`: the `HOMELAB_PRIVATE_DIR` required-variable messages contained hyphens, which `docker stack deploy` reads as the default operator, so the Prometheus ingress probe targets and five Grafana dashboards resolved to a wrong path and the services could not be redeployed. Messages are hyphen-free and guarded by a test. See `docs/adr/swarm_interpolation_required_message_adr.md`.

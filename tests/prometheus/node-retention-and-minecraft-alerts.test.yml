@@ -1,0 +1,105 @@
+rule_files:
+  - /rules/alert.rules
+evaluation_interval: 1m
+tests:
+  # Free space above the floor: quiet.
+  - interval: 1m
+    input_series:
+      - series: 'node_retention_root_free_bytes{job="node-exporter",host="worker"}'
+        values: '9000000000x120'
+      - series: 'node_retention_root_floor_bytes{job="node-exporter",host="worker"}'
+        values: '8589934592x120'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: NodeRootFreeBelowRetentionFloor
+        exp_alerts: []
+
+  # Under the floor for more than an hour: the guard failed to restore it.
+  - interval: 1m
+    input_series:
+      - series: 'node_retention_root_free_bytes{job="node-exporter",host="worker"}'
+        values: '5000000000x120'
+      - series: 'node_retention_root_floor_bytes{job="node-exporter",host="worker"}'
+        values: '8589934592x120'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeRootFreeBelowRetentionFloor
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: NodeRootFreeBelowRetentionFloor
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              host: worker
+            exp_annotations:
+              summary: Root filesystem of worker stayed under its free-space floor
+              description: worker has had less free space on / than the retention floor for an hour although the guard prunes every 10 minutes. Read the last manifest in the retention state directory and the ledger row who=retention, then find what keeps filling the disk.
+
+  # A guard that stopped writing its check timestamp.
+  - interval: 1m
+    input_series:
+      - series: 'node_retention_last_check_timestamp_seconds{job="node-exporter",host="worker"}'
+        values: '0x120'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeRetentionStale
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: NodeRetentionStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              host: worker
+            exp_annotations:
+              summary: Retention guard on worker has not run
+              description: No retention guard or prune run was recorded for more than an hour on worker. Check the systemd user timers node-retention-guard and node-retention-apply.
+
+  - interval: 1m
+    input_series:
+      - series: 'node_retention_last_run_success{job="node-exporter",host="worker"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: NodeRetentionRunFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              job: node-exporter
+              host: worker
+            exp_annotations:
+              summary: Last retention prune on worker had failed entries
+              description: At least one entry of the last retention manifest on worker has outcome failed. Read the manifest for the path and error.
+
+  # Game server: 14 GiB resident is quiet, 15.5 GiB for five minutes fires.
+  - interval: 1m
+    input_series:
+      - series: 'netdata_cgroup_mem_MiB_average{job="netdata",instance="worker",cgroup_name="a807fa13-7cf3-4127-8ee1-7b4ae59179eb",dimension="anon"}'
+        values: '14336x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: MinecraftServerMemoryNear16G
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'netdata_cgroup_mem_MiB_average{job="netdata",instance="worker",cgroup_name="a807fa13-7cf3-4127-8ee1-7b4ae59179eb",dimension="anon"}'
+        values: '15872x30'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: MinecraftServerMemoryNear16G
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: MinecraftServerMemoryNear16G
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              tier: maintenance
+              cgroup_name: a807fa13-7cf3-4127-8ee1-7b4ae59179eb
+            exp_annotations:
+              summary: Minecraft server resident memory above 15 GiB
+              description: The game server container holds 15872 MiB of anonymous memory; the agreed ceiling is 16 GiB with no hard cgroup limit. Check heap, direct buffers and swap, and plan a zero-player restart with a lower -Xmx.
