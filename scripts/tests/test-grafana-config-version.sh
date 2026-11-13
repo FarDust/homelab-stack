@@ -168,7 +168,7 @@ for artifact in "${dashboard_artifacts[@]}"; do
   expect_count 1 "  $config_name:" "$compose"
   expect_count 1 "    - source: $config_name" "$compose"
   expect_count 1 "      target: /etc/grafana/provisioning/dashboards/custom/$artifact.json" "$compose"
-  printf -v expected_file '    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout holding grafana-dashboards/ (docs/homelab-private.md)}/grafana-dashboards/dist/%s.json' "$artifact"
+  printf -v expected_file '    file: ${HOMELAB_PRIVATE_DIR:?HOMELAB_PRIVATE_DIR must point at the private deployment checkout (see the private deployment directory page in docs)}/grafana-dashboards/dist/%s.json' "$artifact"
   expect_count 1 "$expected_file" "$compose"
 done
 

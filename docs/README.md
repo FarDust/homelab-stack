@@ -32,6 +32,7 @@
 ## Configuration and secrets
 
 - [Private deployment directory](homelab-private.md): `HOMELAB_PRIVATE_DIR`, the files each stack expects there, and the templates in `examples/homelab-private/`.
+- [Required-variable messages in stack files](adr/swarm_interpolation_required_message_adr.md): `docker stack deploy` reads a hyphen in a `${VAR:?message}` as the default operator; messages stay hyphen-free, guarded by `tests/test_stack_interpolation_messages.py`.
 - [PR-Agent CI review](adr/pr_agent_ci_adr.md): A2A review server behind LiteLLM, the `scripts/pr-agent-review.py` client, tailnet-only reachability and key renewal.
 - [Environment-variable contract](adr/env_contract_adr.md): typed contract in `config/env-contract.yaml`, `scripts/env_contract.py` (tests in `tests/test_env_contract.py`), the layered shell-script `.env`, and the secret-source recommendation (OpenBao via the Trust Agent, SOPS and Infisical compared).
 

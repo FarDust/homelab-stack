@@ -13,6 +13,9 @@ render and deploy time with a message naming the variable when it is unset. The 
 (`config/env-contract.yaml`, owner `main/storage`; see [the contract ADR](adr/env_contract_adr.md)). Relative paths inside
 the private repository mirror this repository's layout.
 
+Keep hyphens out of the message of a `${VAR:?message}`: `docker stack deploy` reads the first hyphen as the default operator and
+resolves the expression to the text after it (see [the ADR](adr/swarm_interpolation_required_message_adr.md)).
+
 ## Files each stack expects
 
 | Stack | File under `${HOMELAB_PRIVATE_DIR}` | What it must do | Template |
