@@ -95,6 +95,7 @@ class FakeDocker:
         self.dangling = dangling
         self.cache = cache
         self.calls: list[str] = []
+        self.images: dict[str, str] = {}  # reference -> image id
         self.on_root_remove = lambda path: None
 
     def mount_sources(self) -> set[str]:
@@ -109,6 +110,9 @@ class FakeDocker:
     def remove_path_as_root(self, path: str) -> None:
         self.calls.append(f"root-rm:{path}")
         self.on_root_remove(path)
+
+    def image_id(self, ref: str) -> str | None:
+        return self.images.get(ref)
 
     def prune_dangling_images(self) -> int:
         self.calls.append("image")

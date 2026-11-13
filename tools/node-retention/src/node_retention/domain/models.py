@@ -79,6 +79,7 @@ class Plan(BaseModel):
     floor_violated: bool
     candidates: list[Candidate]
     skipped: list[Skipped]
+    protected_image_violations: list[str] = []
 
     @property
     def total_bytes(self) -> int:
@@ -111,6 +112,7 @@ class Manifest(BaseModel):
     root_free_before: int
     root_free_after: int | None = None
     entries: list[ManifestEntry]
+    protected_image_violations: list[str] = []
 
     @property
     def freed_bytes(self) -> int:

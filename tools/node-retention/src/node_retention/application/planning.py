@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
-from node_retention.application.safety import running_jobs, unsafe_reason
+from node_retention.application.safety import protected_image_violations, running_jobs, unsafe_reason
 from node_retention.config import Settings
 from node_retention.domain.models import Candidate, Category, Plan, Skipped
 from node_retention.domain.ports import Clock, Docker, FileSystem, JobLedger, Processes
@@ -32,6 +32,7 @@ class Planner:
         self._mounts: set[str] = set()
         self._mount_points: set[str] = set()
         self._jobs: set[str] = set()
+        self._image_violations: list[str] = []
         self._now = 0.0
         self.candidates: list[Candidate] = []
         self.skipped: list[Skipped] = []
@@ -70,6 +71,7 @@ class Planner:
             floor_violated=free < s.floor_bytes,
             candidates=self.candidates,
             skipped=self.skipped,
+            protected_image_violations=self._image_violations,
         )
 
     # -- selection helpers -------------------------------------------------------------
@@ -226,8 +228,13 @@ class Planner:
 
     def _docker(self) -> None:
         d, days = self._p.docker, self._s.docker_build_cache_days
+        # A drifted or missing protected image blocks every image prune and is reported as a failure.
+        self._image_violations = protected_image_violations(self._s, d)
         dangling = d.dangling_images_reclaimable()
-        if dangling > 0:
+        if self._image_violations:
+            for line in self._image_violations:
+                self.skipped.append(Skipped(path="docker:dangling-images", size_bytes=dangling, reason=line))
+        elif dangling > 0:
             self.candidates.append(
                 Candidate(
                     category=Category.DOCKER_IMAGES,

@@ -9,6 +9,8 @@ import subprocess
 _UNITS = {"B": 1, "KB": 1000, "MB": 1000**2, "GB": 1000**3, "TB": 1000**4, "KIB": 1024, "MIB": 1024**2, "GIB": 1024**3}
 _SIZE = re.compile(r"(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>[KMGT]?i?B)", re.IGNORECASE)
 
+_FORBIDDEN_PRUNE_FLAGS = frozenset({"-a", "--all", "-af", "-fa", "--volumes"})
+
 
 def parse_size(text: str) -> int:
     """Parse a Docker human size such as `6.298GB` or `0B`; raises ValueError when there is none."""
@@ -25,6 +27,10 @@ class DockerCli:
         self._timeout = timeout_s
 
     def _run(self, *args: str) -> str:
+        # Pruning is limited to dangling images and aged build cache; `-a/--all` would also remove every unused
+        # tagged image, and `--volumes` named data. Refuse them whatever the caller passes.
+        if "prune" in args and any(a in _FORBIDDEN_PRUNE_FLAGS or a.startswith("--all=") for a in args):
+            raise ValueError(f"refusing a prune with -a/--all/--volumes: {args!r}")
         done = subprocess.run([self._bin, *args], capture_output=True, text=True, timeout=self._timeout, check=True)
         return done.stdout
 
@@ -48,6 +54,20 @@ class DockerCli:
             if row["Type"] == "Build Cache":
                 return parse_size(row["Reclaimable"])
         raise RuntimeError("docker system df reported no Build Cache row")
+
+    def image_id(self, ref: str) -> str | None:
+        done = subprocess.run(
+            [self._bin, "image", "inspect", "--format", "{{.Id}}", ref],
+            capture_output=True,
+            text=True,
+            timeout=self._timeout,
+            check=False,
+        )
+        if done.returncode == 0:
+            return done.stdout.strip()
+        if "no such image" in done.stderr.lower():
+            return None
+        raise RuntimeError(f"docker image inspect {ref!r} failed ({done.returncode}): {done.stderr.strip()[-200:]}")
 
     def prune_dangling_images(self) -> int:
         return self._reclaimed(self._run("image", "prune", "--force"))

@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     # Directories whose children are CI job scratch (logs, build contexts, archives).
     ci_scratch_roots: list[Path] = []
     ci_scratch_days: float = 14.0
+    # Images that must never be pruned, as reference -> expected image id (`sha256:...`). Empty by default: the
+    # real mapping comes from the node's private settings (JSON in NODE_RETENTION_PROTECTED_IMAGE_REFS).
+    protected_image_refs: dict[str, str] = {}
     # Never touched, whatever their age (matched against the full path).
     protected_globs: list[str] = [
         "*/journey-rollback*",

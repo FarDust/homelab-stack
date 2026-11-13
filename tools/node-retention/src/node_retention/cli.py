@@ -22,6 +22,7 @@ from node_retention.adapters.textfile import TextfilePublisher
 from node_retention.application.applying import Applier
 from node_retention.application.metrics import CHECK_FILE, RUN_FILE, render_metrics, render_run_metrics
 from node_retention.application.planning import Planner, Ports
+from node_retention.application.safety import protected_image_violations
 from node_retention.config import Settings
 from node_retention.domain.models import Plan
 
@@ -57,6 +58,8 @@ def _render(plan: Plan) -> None:
     for c in plan.candidates:
         table.add_row(c.category.value, _gib(c.size_bytes), f"{c.age_seconds / 3600:.0f}", c.path, c.reason)
     err.print(table)
+    for line in plan.protected_image_violations:
+        err.print(f"[bold red]image guard failed, image prune refused: {line}[/]")
     err.print(
         f"[bold]plan frees up to {_gib(plan.total_bytes)}[/] in {len(plan.candidates)} entries; {len(plan.skipped)} skipped"
     )
@@ -70,6 +73,20 @@ def plan(as_json: JsonFlag = False) -> None:
     _render(result)
     if as_json:
         sys.stdout.write(result.model_dump_json(indent=2) + "\n")
+    if result.protected_image_violations:
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def verify_images() -> None:
+    """Exit 1 naming each protected image that is missing or has another id; for scripts that prune images."""
+    settings = _settings()
+    found = protected_image_violations(settings, _ports(settings).docker)
+    for line in found:
+        err.print(f"[bold red]{line}[/]")
+    if found:
+        raise typer.Exit(code=1)
+    err.print(f"{len(settings.protected_image_refs)} protected image(s) intact")
 
 
 @app.command()
@@ -96,7 +113,9 @@ def apply(as_json: JsonFlag = False) -> None:
     )
     if as_json:
         sys.stdout.write(manifest.model_dump_json(indent=2) + "\n")
-    if any(e.outcome and e.outcome.value == "failed" for e in manifest.entries):
+    for line in manifest.protected_image_violations:
+        err.print(f"[bold red]image guard failed: {line}[/]")
+    if manifest.protected_image_violations or any(e.outcome and e.outcome.value == "failed" for e in manifest.entries):
         raise typer.Exit(code=1)
 
 
