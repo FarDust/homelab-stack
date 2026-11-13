@@ -1,0 +1,10 @@
+[Unit]
+Description=Node retention guard: publish free-space metric, prune when / is under its floor
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/node-retention.env
+WorkingDirectory=%h/node-retention
+ExecStart=%h/.local/bin/uv run --python 3.13 --project %h/node-retention node-retention guard
+Nice=10
+IOSchedulingClass=idle

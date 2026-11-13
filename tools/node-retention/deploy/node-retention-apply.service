@@ -1,0 +1,10 @@
+[Unit]
+Description=Node retention: plan, manifest, prune, ledger row and metrics
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/node-retention.env
+WorkingDirectory=%h/node-retention
+ExecStart=%h/.local/bin/uv run --python 3.13 --project %h/node-retention node-retention apply
+Nice=10
+IOSchedulingClass=idle
