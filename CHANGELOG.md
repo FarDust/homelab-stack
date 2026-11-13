@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Docs: the HDD-backed node record now covers memory. Job scratch moved to tmpfs became swap-out; adds the admission signal, the per-job footprint, the node budget and the runtime zswap change. No stack configuration changes.
+
 ## 0.1.6
 
 - ClickHouse: pin the exact running release by digest and remove the self-telemetry tables (`trace_log`, `text_log`, `metric_log`, `asynchronous_metric_log`, `part_log` and related) that wrote to the data disk around the clock; `query_log` and `crash_log` stay. Existing tables are kept.

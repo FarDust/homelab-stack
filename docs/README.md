@@ -27,7 +27,7 @@
 - [Staggered start of GPU and AI services](adr/gpu_node_staggered_start_adr.md): uptime-slot startup gate and ordered restart delays so the ephemeral node's services come up one at a time after a VM start (tests in `tests/test_gpu_node_staggered_start.py`).
 - [Redis database IDs](redis-db-ids.md): per-service Redis database allocation.
 - [Netdata parent image and memory budget](adr/netdata_parent_memory_budget_adr.md): parent metadata growth from container churn fixed by v2.12.2+, 6G limit with 4G reservation, implicit swap allowance, rollback (tests in `tests/test_netdata_parent_budget.py`).
-- [HDD-backed node I/O budget](adr/hdd_node_io_budget_adr.md): what saturated a worker's hard disk, ClickHouse self-telemetry tables off with the image pinned, sustained I/O pressure and disk saturation alerts, operator decisions left open (tests in `tests/test_clickhouse_system_logs.py` and `tests/prometheus/io-pressure-alerts.test.yml`).
+- [HDD-backed node I/O and memory budget](adr/hdd_node_io_budget_adr.md): what saturated a worker's hard disk, ClickHouse self-telemetry tables off with the image pinned, sustained I/O pressure and disk saturation alerts, operator decisions left open (tests in `tests/test_clickhouse_system_logs.py` and `tests/prometheus/io-pressure-alerts.test.yml`).
 
 ## Configuration and secrets
 

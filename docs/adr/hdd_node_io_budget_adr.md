@@ -1,4 +1,4 @@
-# ADR: I/O budget of a worker whose Docker root sits on a hard disk
+# ADR: I/O and memory budget of a worker whose Docker root sits on a hard disk
 
 Date: 2026-11-12 23:50 UTC
 
@@ -32,6 +32,34 @@ Root cause of the saturation, by proof level:
 - Add two alerts: `HostIoPressureSustained` (tasks waiting on I/O more than 30 % of the time for 30 minutes) and `HostDiskSaturated` (a physical disk more than 90 % busy for 30 minutes). On 2026-11-12 the first would have fired during the 11:00 hour (58 % against a 30 % threshold). The second is a backstop for a disk pinned for half an hour; that morning's hourly average was 88 %. Busy time is a saturation signal for rotating disks; on solid-state disks read it together with the pressure alert.
 - Keep job scratch (checkouts, dependency trees, caches, browser profiles) on a memory-backed filesystem such as `/dev/shm`, sized against available memory, and run throwaway test databases in memory; see [ephemeral test databases belong in memory](../troubleshoot/ephemeral-test-databases-belong-in-memory.md).
 - Host change applied outside this repository on the same day: daemon debug logging off (`"debug": false`, applied with a configuration reload, no daemon restart; 2,224 to 7 journal lines per minute).
+
+### Amendment 2026-11-13 00:25 UTC: the bottleneck moved to memory
+
+The jobs moved their scratch to `/dev/shm` at about 00:05 UTC. The hard disk went quiet, and within minutes the node was swapping out instead:
+
+| Signal | 23:58 UTC (scratch on `/tmp`) | 00:08-00:20 UTC (scratch on tmpfs) | 00:22 UTC (settled) |
+|---|---|---|---|
+| Hard disk busy | 105 % | quiet (2 MB/s written) | quiet |
+| Shmem | 0.1 GB | 2.7 GB | 1.2 GB |
+| Swap used | 6.5 GB | 6.5 to 11.8 GB | 10.8 GB |
+| Swap-out to the SSD | 0 | 6-10 MB/s over 5 minutes, bursts of 42-76 MB/s | 0 |
+| `memory some` pressure | 0.3 % | 32-35 % over 5 minutes, 42-60 % peaks | 1 % |
+| `io some` pressure | 74 % | 86-92 % (swap I/O) | 14 % |
+| `cpu some` pressure | 16 % | 5 % | 44 % |
+
+- Consumers of the burst (proven): tmpfs scratch (4.2 GB in the job directory, 1.7 GB of it already swapped, because tmpfs pages are swap-backed), each job's own memory (one measured job cgroup: 1.2 GB) and a 2 GB language-model runner that loaded at 00:13 UTC. No service was near its limit. The largest standing claim is the game server's JVM, started with a 12 GB maximum heap and no cgroup limit (4.8 GB resident plus 2.5 GB swapped at the time).
+- Why the kernel swapped with "10 GB available" (proven from `/proc/meminfo`): `MemAvailable` included 5.3 GB of reclaimable slab that stayed flat for two hours, and the droppable file cache was about 5.8 GB. With free memory at zero, reclaim took cold anonymous and tmpfs pages. No compressed swap existed, so every page went to the SSD volume that also holds the root filesystem.
+- The earlier admission rule ("start while `MemAvailable` is at least 4 GB") used the wrong signal.
+
+Decision for agent jobs on this node:
+
+- **Admission**, measured at job start, all terms required: `memory some avg10 < 10`, `cpu some avg10 < 25`, swap-out below 1 MB/s (`pswpout` delta over 5 s under 1,280 pages), `MemAvailable - SReclaimable >= job footprint + 3 GB`, `SwapFree >= 4 GB`. No lock: a job that is not admitted retries on the signal.
+- **Budget:** 8 GB for agent jobs, which is three concurrent jobs with scratch on tmpfs (about 2.5 GB each: 1.2 GB of processes, up to 1.1 GB of scratch, a small database).
+- **Footprint per job:** throwaway PostgreSQL on a 256 MB tmpfs (measured use 0.05 GB), `NODE_OPTIONS=--max-old-space-size=1536` for compilers and bundlers, one browser, `--memory 3g --memory-swap 3g` on job containers, and the scratch directory deleted when the job ends.
+- **Where scratch belongs:** small hot data (database files, browser profiles) on tmpfs; large trees (checkouts, dependency directories, package caches) on an SSD-backed directory once the root volume has room. It had 6.9 GB free; about 24 GB of it is CI caches and old build directories in the job user's home that their owners can prune.
+- **Compressed swap:** zswap enabled at runtime at 00:20:48 UTC (`zstd`, `zsmalloc`, pool at most 20 % of memory) so cold pages are compressed in memory before any is written to the SSD. Runtime only; it reverts at reboot. Rollback: `echo 0 > /sys/module/zswap/parameters/enabled`. Making it persistent (kernel command line or a boot-time unit) is the operator's decision. Its effect is not measured yet: no swap-out happened between enabling it and the end of this record; compare `zswpout` with `pswpout` in `/proc/vmstat` on the next burst.
+
+Left to the operator: a memory limit or a smaller heap for the game server (12 GB maximum heap of 31 GB; needs a server restart with no players online), and an idle-unload time for the model runner that has none configured.
 
 ## Alternatives
 
