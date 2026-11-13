@@ -19,5 +19,9 @@ class ProtectedImageError(RetentionError):
         self.violations = violations
 
 
+class ImageLookupError(RetentionError):
+    """The state of an image could not be determined (daemon error, empty or malformed answer): fail closed."""
+
+
 class UnsafeRootError(RetentionError, ValueError):
     """A configured root lies outside what the policy may ever prune (system trees, Docker data, `/`)."""

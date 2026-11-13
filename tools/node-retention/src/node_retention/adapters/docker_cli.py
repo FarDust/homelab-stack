@@ -6,10 +6,31 @@ import json
 import re
 import subprocess
 
+from node_retention.domain.errors import ImageLookupError
+from node_retention.domain.rules import IMAGE_ID
+
 _UNITS = {"B": 1, "KB": 1000, "MB": 1000**2, "GB": 1000**3, "TB": 1000**4, "KIB": 1024, "MIB": 1024**2, "GIB": 1024**3}
 _SIZE = re.compile(r"(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>[KMGT]?i?B)", re.IGNORECASE)
 
-_FORBIDDEN_PRUNE_FLAGS = frozenset({"-a", "--all", "-af", "-fa", "--volumes"})
+_FORBIDDEN_LONG_FLAGS = frozenset({"--all", "--volumes"})
+_SHORT_FLAGS = re.compile(r"^-[A-Za-z]+(?:=.*)?$")
+
+
+def forbidden_prune_flag(args: tuple[str, ...]) -> str | None:
+    """The first argument that widens a prune beyond dangling images and aged build cache, or None.
+
+    Applies to every argument list that contains `prune` (image, builder, system, container, volume, network):
+    `--all` and `--volumes` with or without `=value`, and any short-flag cluster that contains `a` (`-a`, `-af`,
+    `-fa`, `-a=true`). A flag value such as `until=24h` does not start with a dash and is not inspected.
+    """
+    if "prune" not in args:
+        return None
+    for arg in args:
+        if arg.split("=", 1)[0] in _FORBIDDEN_LONG_FLAGS:
+            return arg
+        if _SHORT_FLAGS.match(arg) and "a" in arg.split("=", 1)[0][1:].lower():
+            return arg
+    return None
 
 
 def parse_size(text: str) -> int:
@@ -29,8 +50,11 @@ class DockerCli:
     def _run(self, *args: str) -> str:
         # Pruning is limited to dangling images and aged build cache; `-a/--all` would also remove every unused
         # tagged image, and `--volumes` named data. Refuse them whatever the caller passes.
-        if "prune" in args and any(a in _FORBIDDEN_PRUNE_FLAGS or a.startswith("--all=") for a in args):
-            raise ValueError(f"refusing a prune with -a/--all/--volumes: {args!r}")
+        flag = forbidden_prune_flag(args)
+        if flag is not None:
+            raise ValueError(
+                f"refusing a prune with {flag!r}: only dangling images and aged build cache may go: {args!r}"
+            )
         done = subprocess.run([self._bin, *args], capture_output=True, text=True, timeout=self._timeout, check=True)
         return done.stdout
 
@@ -64,10 +88,13 @@ class DockerCli:
             check=False,
         )
         if done.returncode == 0:
-            return done.stdout.strip()
+            observed = done.stdout.strip()
+            if not IMAGE_ID.match(observed):
+                raise ImageLookupError(f"docker image inspect {ref!r} returned {observed!r}, not a sha256 image id")
+            return observed
         if "no such image" in done.stderr.lower():
             return None
-        raise RuntimeError(f"docker image inspect {ref!r} failed ({done.returncode}): {done.stderr.strip()[-200:]}")
+        raise ImageLookupError(f"docker image inspect {ref!r} failed ({done.returncode}): {done.stderr.strip()[-200:]}")
 
     def prune_dangling_images(self) -> int:
         return self._reclaimed(self._run("image", "prune", "--force"))

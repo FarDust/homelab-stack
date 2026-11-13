@@ -9,6 +9,7 @@ from node_retention.application.metrics import CHECK_FILE, RUN_FILE, render_metr
 from node_retention.application.planning import Ports
 from node_retention.application.safety import protected_image_violations, running_jobs, unsafe_reason
 from node_retention.config import Settings
+from node_retention.domain.errors import ImageLookupError
 from node_retention.domain.models import (
     Candidate,
     Manifest,
@@ -49,8 +50,15 @@ class Applier:
         # The manifest exists on disk, with path, size, age and reason, before anything is deleted.
         self._write(manifest, run_id)
         self._ledger.append(self._row("start", run_id, pid, manifest))
-        for entry in manifest.entries:
-            self._run_entry(entry)
+        try:
+            for entry in manifest.entries:
+                self._run_entry(entry)
+        except ImageLookupError:
+            # Fail closed: the image state is unknown, so the run ends as failed and the error reaches the caller.
+            manifest.finished_at = p.clock.now()
+            self._write(manifest, run_id)
+            self._ledger.append(self._row("end", run_id, pid, manifest, failed=True))
+            raise
         manifest.finished_at = p.clock.now()
         manifest.root_free_after = p.fs.free_bytes(s.root_mount.as_posix())
         self._write(manifest, run_id)
@@ -94,6 +102,8 @@ class Applier:
                 entry.outcome = Outcome.DELETED
             else:
                 self._remove_path(entry, c)
+        except ImageLookupError:
+            raise
         except Exception as exc:
             entry.outcome = Outcome.FAILED
             entry.detail = f"{type(exc).__name__}: {exc}"
