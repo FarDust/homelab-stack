@@ -78,6 +78,9 @@ jobs:
       - name: Test quota failure boundaries
         run: uv run --python 3.12 --no-project --with pytest==8.4.2 --with pydantic==2.12.5 --with pyyaml==6.0.3 pytest -q tests/test_secret_scan_guard.py tests/test_secret_scan_ci.py tests/test_gpu_node_staggered_start.py tests/test_local_secret_hooks.py tests/test_secret_scan_credentials.py tests/test_check_private_indicators.py tests/test_minecraft_chat_gateway.py tests/test_litellm_local_text_fallback.py tests/test_stack_interpolation_messages.py
 
+      - name: Test the node retention tool
+        run: uv run --python 3.13 --project tools/node-retention pytest -q tools/node-retention/tests
+
       - name: Scan the whole tracked tree for generic private indicators
         run: uv run --python 3.12 --script scripts/check_private_indicators.py scan-tree
 

@@ -213,6 +213,50 @@ groups:
       summary: "Disk {{ $labels.device }} on {{ $labels.instance }} saturated"
       description: "{{ $labels.device }} on {{ $labels.instance }} was busy more than 90% of the time for 30 minutes. Attribute the I/O per container and fix the consumer."
 
+  # Node retention policy (tools/node-retention). See docs/adr/node_disk_retention_adr.md.
+  - alert: NodeRootFreeBelowRetentionFloor
+    expr: node_retention_root_free_bytes < node_retention_root_floor_bytes
+    for: 1h
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Root filesystem of {{ $labels.host }} stayed under its free-space floor"
+      description: "{{ $labels.host }} has had less free space on / than the retention floor for an hour although the guard prunes every 10 minutes. Read the last manifest in the retention state directory and the ledger row who=retention, then find what keeps filling the disk."
+
+  - alert: NodeRetentionStale
+    expr: time() - node_retention_last_check_timestamp_seconds > 3600
+    for: 10m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Retention guard on {{ $labels.host }} has not run"
+      description: "No retention guard or prune run was recorded for more than an hour on {{ $labels.host }}. Check the systemd user timers node-retention-guard and node-retention-apply."
+
+  - alert: NodeRetentionRunFailed
+    expr: node_retention_last_run_success == 0
+    for: 5m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Last retention prune on {{ $labels.host }} had failed entries"
+      description: "At least one entry of the last retention manifest on {{ $labels.host }} has outcome failed. Read the manifest for the path and error."
+
+  # Game server rule (2026-11-13): no hard memory limit, but never above 16 GB. Resident anonymous
+  # memory (heap, metaspace, code cache, direct buffers, native) of the Pterodactyl game container,
+  # from the Netdata cgroup chart. See docs/adr/minecraft_memory_budget_adr.md.
+  - alert: MinecraftServerMemoryNear16G
+    expr: max by (cgroup_name) (netdata_cgroup_mem_MiB_average{cgroup_name="a807fa13-7cf3-4127-8ee1-7b4ae59179eb",dimension="anon"}) > 15 * 1024
+    for: 5m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Minecraft server resident memory above 15 GiB"
+      description: "The game server container holds {{ $value }} MiB of anonymous memory; the agreed ceiling is 16 GiB with no hard cgroup limit. Check heap, direct buffers and swap, and plan a zero-player restart with a lower -Xmx."
+
 - name: monitoring-path
   rules:
   - alert: PrometheusVipPathDivergence
