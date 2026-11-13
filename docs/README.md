@@ -27,6 +27,7 @@
 - [Staggered start of GPU and AI services](adr/gpu_node_staggered_start_adr.md): uptime-slot startup gate and ordered restart delays so the ephemeral node's services come up one at a time after a VM start (tests in `tests/test_gpu_node_staggered_start.py`).
 - [Redis database IDs](redis-db-ids.md): per-service Redis database allocation.
 - [Netdata parent image and memory budget](adr/netdata_parent_memory_budget_adr.md): parent metadata growth from container churn fixed by v2.12.2+, 6G limit with 4G reservation, implicit swap allowance, rollback (tests in `tests/test_netdata_parent_budget.py`).
+- [HDD-backed node I/O budget](adr/hdd_node_io_budget_adr.md): what saturated a worker's hard disk, ClickHouse self-telemetry tables off with the image pinned, sustained I/O pressure and disk saturation alerts, operator decisions left open (tests in `tests/test_clickhouse_system_logs.py` and `tests/prometheus/io-pressure-alerts.test.yml`).
 
 ## Configuration and secrets
 
@@ -50,6 +51,7 @@ Small, generic notes in [troubleshoot/](troubleshoot/); the vault sync turns the
 - Secrets in output: [`docker stack config` prints resolved secrets](troubleshoot/docker-stack-config-prints-resolved-secrets.md), [scrubbing a leaked secret](troubleshoot/scrubbing-a-leaked-secret-from-transcripts.md).
 - Docker networking: [published ports unreachable from containers (Docker 29.8)](troubleshoot/docker-29-8-published-ports-unreachable-from-containers.md), [gwbridge ingress DNAT remediation](troubleshoot/gwbridge-ingress-dnat-remediation.md), [gwbridge return routing](troubleshoot/docker-gwbridge-return-routing.md), [reversible live network changes](troubleshoot/dead-man-switch-for-live-network-changes.md).
 - LiteLLM local fallback: [design](troubleshoot/litellm-local-text-only-fallback-design.md), [tool requests excluded](troubleshoot/litellm-tool-requests-excluded-from-local-fallback.md), [testing egress cost](troubleshoot/litellm-fallback-testing-egress-cost.md), [config version rollback](troubleshoot/litellm-config-version-rollback.md), [cold start versus caller timeout](troubleshoot/local-model-cold-start-versus-caller-timeout.md).
+- Disk I/O: [ephemeral test databases belong in memory](troubleshoot/ephemeral-test-databases-belong-in-memory.md).
 - Node loss and the WSL node: [node loss with a retained boot volume](troubleshoot/node-loss-with-retained-boot-volume.md), [capacity retry loops](troubleshoot/capacity-retry-loops-need-caps-and-fail-closed-state.md), [data disk after a WSL VM rebuild](troubleshoot/wsl-ephemeral-node-data-disk-after-vm-rebuild.md), [exec failure is not guest down](troubleshoot/wsl-exec-failure-is-not-guest-down.md), [WSL and Tailscale MTU black hole](troubleshoot/wsl-tailscale-mtu-black-hole.md).
 
 ## Examples
