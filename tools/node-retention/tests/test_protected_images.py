@@ -280,3 +280,58 @@ def test_cli_apply_reports_failure_metric_on_lookup_error(tmp_path: Path, monkey
     result = CliRunner().invoke(cli.app, ["apply"])
     assert result.exit_code != 0 and isinstance(result.exception, ImageLookupError)
     assert "node_retention_run.prom" in pub.files
+
+
+@pytest.mark.parametrize("exc", [subprocess.TimeoutExpired(cmd="docker", timeout=1), FileNotFoundError("docker")])
+def test_timeout_or_missing_binary_is_an_image_lookup_error(monkeypatch: pytest.MonkeyPatch, exc: Exception) -> None:
+    def boom(argv: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+        raise exc
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    with pytest.raises(ImageLookupError):
+        DockerCli("busybox:1.37").image_id(REF)
+
+
+class _TimeoutOnRecheck(FakeDocker):
+    """Real adapter failure type on the per-entry recheck (third lookup): the run must abort, not mark FAILED."""
+
+    def __init__(self, **kw: int) -> None:
+        super().__init__(**kw)
+        self.lookups = 0
+
+    def image_id(self, ref: str) -> str | None:
+        self.lookups += 1
+        if self.lookups >= 3:
+            raise ImageLookupError("docker timed out (test)")
+        return GOOD
+
+
+def test_per_entry_recheck_failure_aborts_with_ledger_rows(tmp_path: Path) -> None:
+    docker = _TimeoutOnRecheck(dangling=GIB, cache=GIB)
+    settings = make_settings(tmp_path, protected_image_refs={REF: GOOD})
+    ports = _ports(docker)
+    plan = Planner(settings, ports).build()
+    ledger = FakeLedger()
+    with pytest.raises(ImageLookupError):
+        Applier(settings, ports, ledger, FakePublisher()).apply(plan, "run", 1)
+    assert docker.calls == []  # neither the image prune nor the build cache prune ran
+    assert [r["event"] for r in ledger.rows] == ["start", "end"] and ledger.rows[-1]["result"] == "exit=1"
+
+
+def test_lookup_failure_at_start_of_apply_still_leaves_ledger_rows(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path, protected_image_refs={REF: GOOD})
+    ports = _ports(_BrokenDocker(ok_lookups=1, dangling=GIB))
+    plan = Planner(settings, ports).build()
+    ledger = FakeLedger()
+    with pytest.raises(ImageLookupError):
+        Applier(settings, ports, ledger, FakePublisher()).apply(plan, "run", 1)
+    assert [r["event"] for r in ledger.rows] == ["start", "end"] and ledger.rows[-1]["result"] == "exit=1"
+
+
+def test_verify_images_exits_nonzero_on_lookup_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = make_settings(tmp_path, protected_image_refs={REF: GOOD})
+    monkeypatch.setattr(cli, "_settings", lambda: settings)
+    monkeypatch.setattr(cli, "_ports", lambda _s: _ports(_BrokenDocker(ok_lookups=0)))
+    result = CliRunner().invoke(cli.app, ["verify-images"])
+    assert result.exit_code != 0
+    assert isinstance(result.exception, ImageLookupError)

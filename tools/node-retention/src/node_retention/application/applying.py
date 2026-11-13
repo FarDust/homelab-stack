@@ -44,13 +44,14 @@ class Applier:
             root_free_before=p.fs.free_bytes(s.root_mount.as_posix()),
             entries=[ManifestEntry(candidate=c) for c in plan.candidates],
         )
-        # Checked again here: the planner's answer may be minutes old. A lookup error aborts the run (fail closed).
-        manifest.protected_image_violations = protected_image_violations(s, p.docker)
         s.state_dir.mkdir(parents=True, exist_ok=True)
         # The manifest exists on disk, with path, size, age and reason, before anything is deleted.
         self._write(manifest, run_id)
         self._ledger.append(self._row("start", run_id, pid, manifest))
         try:
+            # Checked again here: the planner's answer may be minutes old. The start row exists first, so a lookup
+            # error (fail closed) still leaves a start and a failed end row in the ledger.
+            manifest.protected_image_violations = protected_image_violations(s, p.docker)
             for entry in manifest.entries:
                 self._run_entry(entry)
         except ImageLookupError:

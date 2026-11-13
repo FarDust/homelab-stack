@@ -80,13 +80,16 @@ class DockerCli:
         raise RuntimeError("docker system df reported no Build Cache row")
 
     def image_id(self, ref: str) -> str | None:
-        done = subprocess.run(
-            [self._bin, "image", "inspect", "--format", "{{.Id}}", ref],
-            capture_output=True,
-            text=True,
-            timeout=self._timeout,
-            check=False,
-        )
+        try:
+            done = subprocess.run(
+                [self._bin, "image", "inspect", "--format", "{{.Id}}", ref],
+                capture_output=True,
+                text=True,
+                timeout=self._timeout,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            raise ImageLookupError(f"docker image inspect {ref!r} could not run: {type(exc).__name__}: {exc}") from exc
         if done.returncode == 0:
             observed = done.stdout.strip()
             if not IMAGE_ID.match(observed):
