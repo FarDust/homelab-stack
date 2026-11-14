@@ -62,3 +62,5 @@ Small, generic notes in [troubleshoot/](troubleshoot/); the vault sync turns the
 ## Examples
 
 Review-only compose fragments in [examples/](examples/): Pterodactyl DB rotation, panel v1 upgrade overlay, Wings GCS backup volume and native GCS S3 settings. Merge them into the reconciled live stack; never deploy them alone.
+
+- [Docker daemon diagnostic logging](adr/docker_daemon_diagnostic_logging_adr.md): validated reload, verification and rollback for manager logging.
