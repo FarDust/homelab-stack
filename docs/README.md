@@ -22,6 +22,7 @@
 
 ## Capacity and scheduling decisions
 
+- [Rsyslog retention schedule](adr/rsyslog_retention_schedule_adr.md): restore daily/weekly rotation alongside the 5 GiB size limit, native debug regression checks, diagnostic preservation and activation/rollback requirements; source candidate only.
 - [Memory and swap budgeting](adr/2026-10-11-memory-swap-budgeting.md): every memory budget states its swap budget.
 - [Node-local state pinning](adr/node_local_state_pinning_adr.md): which volumes are node-local and how consumers are pinned.
 - [Ephemeral rebalance Rust rollout](adr/ephemeral_rebalance_rust_rollout_adr.md): controller rollout and gates.

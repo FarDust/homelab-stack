@@ -1,6 +1,6 @@
 [project]
 name = "node-retention"
-version = "0.3.0"
+version = "0.3.1"
 description = "Standing disk retention policy for CI/build worker nodes: plan, apply, ledger and Prometheus textfile metrics."
 requires-python = ">=3.12"
 dependencies = [

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix: add reviewed host rsyslog source using `maxsize 5G` so the daily and weekly schedules remain effective. Node-retention 0.3.1 adds native debug regression checks using its existing Python 3.13 pin. Activation remains separate and requires preservation of diagnostic history; see `docs/adr/rsyslog_retention_schedule_adr.md`.
+
 ## 0.3.0
 
 - Add to `tools/node-retention` 0.3.0: a `protected_image_refs` setting (reference to expected image id, JSON in `NODE_RETENTION_PROTECTED_IMAGE_REFS`, empty by default) that guards a CI helper image that jobs run with `--pull=never`. Before any image prune, `plan` and `apply` check every protected reference; a missing reference or another id refuses the prune, makes `plan` and `apply` exit 1 with the reference, expected id and observed id, and marks the run failed in the manifest, ledger row and metrics. A new `verify-images` command applies the same rule for scripts that prune on their own. The Docker adapter refuses any prune subcommand with `-a` in any spelling, `--all` or `--volumes`. Expected ids are validated as `sha256:<64 hex>` and an image lookup that fails, times out, finds no docker binary or answers empty aborts the run and leaves a failed ledger row. See `docs/adr/node_disk_retention_adr.md`.

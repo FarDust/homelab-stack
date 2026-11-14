@@ -23,3 +23,12 @@ Layout: `domain` (types, ports, rules; no I/O), `application` (planner, applier,
 filesystem, `/proc`, Docker CLI, JSONL ledger, textfile publisher), `cli` (composition root).
 
 Run the tests with `uv run --project tools/node-retention pytest`.
+
+The host rsyslog schedule candidate is source at `host-config/logrotate/rsyslog.conf`,
+governed by the [activation and rollback decision](../../docs/adr/rsyslog_retention_schedule_adr.md).
+It is not installed by this CLI. Native regression checks require Linux's installed
+`logrotate` and use synthetic logs in debug mode only:
+
+```bash
+uv run --python 3.13 --project tools/node-retention pytest -q tools/node-retention/tests/test_logrotate_policy.py
+```
