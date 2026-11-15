@@ -148,7 +148,7 @@ def test_file_touched_mid_run_is_kept(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("field", ["cache_units", "cache_roots", "ci_scratch_roots", "stale_file_units"])
-@pytest.mark.parametrize("bad", ["/var/lib/docker/volumes", "/", "/etc", "/home/../var/lib/x", "/dev/sda1"])
+@pytest.mark.parametrize("bad", ["/var/lib/docker/volumes", "/", "/etc", "/srv/../var/lib/x", "/dev/sda1"])
 def test_settings_refuse_roots_in_system_or_docker_trees(tmp_path: Path, field: str, bad: str) -> None:
     with pytest.raises(ValidationError, match="retention root"):
         make_settings(tmp_path, **{field: [Path(bad)]})
@@ -182,12 +182,18 @@ def test_jsonl_ledger_fails_closed_on_missing_or_malformed_rows_and_tolerates_a_
 
 
 @linux_only
-def test_local_fs_reports_sockets_mounts_and_symlinked_ancestors(tmp_path: Path) -> None:
-    tree = tmp_path / "tree"
+@pytest.mark.parametrize("tree_name", ["tree", "deep-" * 24])
+def test_local_fs_reports_sockets_mounts_and_symlinked_ancestors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tree_name: str
+) -> None:
+    tree = tmp_path / tree_name
     tree.mkdir()
     sock = socket.socket(socket.AF_UNIX)
     try:
-        sock.bind(str(tree / "s"))
+        # AF_UNIX bounds the supplied address, independently of the fixture root length.
+        with monkeypatch.context() as cwd:
+            cwd.chdir(tree)
+            sock.bind("s")
         assert LocalFileSystem().stats(str(tree)).has_socket
     finally:
         sock.close()

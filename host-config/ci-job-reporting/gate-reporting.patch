@@ -1,0 +1,71 @@
+--- a/gate-lib.sh
++++ b/gate-lib.sh
+@@ -221,0 +222,2 @@
++      unset _LANES_REPORT_RUN_KEY _LANES_REPORT_RUN_RC
++      LANES_REPORT_START_EPOCH=$(date +%s); LANES_REPORT_EXPECTED_S=$expected
+@@ -234 +236,5 @@
+-  [ "$class" = light ] && { lanes_ledger start "$class" "$what" "$where" "\"expected_s\":$expected,\"expected_min\":$(( (expected + 59) / 60 )),\"waited_s\":0" || return 1; }
++  if [ "$class" = light ]; then
++    unset _LANES_REPORT_RUN_KEY _LANES_REPORT_RUN_RC
++    LANES_REPORT_START_EPOCH=$(date +%s); LANES_REPORT_EXPECTED_S=$expected
++    lanes_ledger start "$class" "$what" "$where" "\"expected_s\":$expected,\"expected_min\":$(( (expected + 59) / 60 )),\"waited_s\":0" || return 1
++  fi
+@@ -248 +252 @@
+-  ( lanes_gc_hook ) >/dev/null 2>&1   # end hook: the lane removes its own superseded head trees (tree gc, 2026-11-13); never changes the exit status
++  ( lanes_gc_hook )   # end hook: the lane removes its own superseded head trees (tree gc, 2026-11-13); never changes the exit status
+@@ -393,22 +397 @@
+-_lanes_gc_report() {
+-  local d b o r w known tmp; tmp=$(mktemp) || return 0
+-  known=$(tail -n 4000 "$LANES_LEDGER" 2>/dev/null | jq -R -r 'fromjson? | .who? // empty' 2>/dev/null | sort -u)
+-  unset _LANES_GC_MOUNTS
+-  while IFS= read -r d; do
+-    [ -d "$d" ] && [ ! -L "$d" ] || continue; b=${d##*/}; o=""
+-    [ -e "$d/.agent-job" ] && o=$(sed -n '1s/^who=\([^ ]*\) .*/\1/p' "$d/.agent-job" 2>/dev/null)
+-    if [ -z "$o" ]; then
+-      while IFS= read -r w; do [ -n "$w" ] && [[ $b == "$w-"* ]] && [ "${#w}" -gt "${#o}" ] && o=$w; done <<< "$known"
+-    fi
+-    [ -n "$o" ] && [ "$o" != unspecified ] || continue
+-    tail -n 4000 "$LANES_LEDGER" 2>/dev/null | grep -F '"kind":"stale-tree-report"' | grep -qF "[$b]" && continue
+-    _lanes_tree_live "$d" && continue
+-    [ "$(_lanes_tree_idle_min "$d")" -ge $(( LANES_GC_REPORT_AGE_H * 60 )) ] || continue
+-    r=""; [ -n "$(find "$d" -not -user "$(id -un)" -print -quit 2>/dev/null)" ] && r=root-owned
+-    echo "$o $b $(du -sm "$d" 2>/dev/null | cut -f1) $(( $(_lanes_tree_idle_min "$d") / 60 )) ${r:-ok}" >> "$tmp"
+-  done < <(find "$LANES_JOBS_ROOT" -mindepth 1 -maxdepth 1 -type d -mmin +$(( LANES_GC_REPORT_AGE_H * 60 )) 2>/dev/null)
+-  for o in $(cut -d' ' -f1 "$tmp" | sort -u); do
+-    lanes_ledger note light "stale trees of $o older than ${LANES_GC_REPORT_AGE_H}h with no live process (reported, not deleted; the owner removes them): $(awk -v o="$o" '$1==o{printf "[%s] %s MB idle %s h%s; ", $2, $3, $4, ($5=="root-owned" ? " ROOT-OWNED (needs the owner'"'"'s gc container: lanes_gc_own_trees remove)" : "")}' "$tmp")" "$LANES_JOBS_ROOT" "\"kind\":\"stale-tree-report\",\"owner\":\"$o\",\"review\":\"owner next job end\""
+-  done
+-  rm -f "$tmp"
+-}
++_lanes_gc_report() { lanes_report_stale_once; }
+@@ -430,17 +413 @@
+-_lanes_gc_report_containers() {
+-  command -v docker >/dev/null 2>&1 || return 0
+-  local tmp name who created age o; tmp=$(mktemp) || return 0
+-  while IFS='|' read -r name who created; do
+-    [ -n "$name" ] || continue
+-    [ -n "$who" ] || case "$name" in cif-*|jt-*) who="unknown owner" ;; *) continue ;; esac
+-    age=$(( ($(date +%s) - $(date -d "${created% UTC}" +%s 2>/dev/null || date +%s)) / 3600 ))
+-    [ "$age" -ge "$LANES_GC_REPORT_AGE_H" ] || continue
+-    tail -n 4000 "$LANES_LEDGER" 2>/dev/null | grep -F '"kind":"stale-container-report"' | grep -qF "[$name]" && continue
+-    echo "$who|$name|$age" >> "$tmp"
+-  done < <(timeout 20 docker ps --format '{{.Names}}|{{.Label "jra-who"}}|{{.CreatedAt}}' 2>/dev/null)
+-  while IFS= read -r o; do
+-    [ -n "$o" ] || continue
+-    lanes_ledger note light "containers of $o running longer than ${LANES_GC_REPORT_AGE_H}h (reported, not removed; the owner removes them): $(awk -F'|' -v o="$o" '$1==o{printf "[%s] up %s h; ", $2, $3}' "$tmp")" "$LANES_JOBS_ROOT" "\"kind\":\"stale-container-report\",\"owner\":\"$(_lanes_json "$o")\",\"review\":\"owner next job end\""
+-  done < <(cut -d'|' -f1 "$tmp" | sort -u)
+-  rm -f "$tmp"
+-}
++_lanes_gc_report_containers() { lanes_report_stale_once; }
+@@ -457,2 +424,2 @@
+-  _lanes_gc_report
+-  _lanes_gc_report_containers
++  _lanes_gc_report || echo "gc reporting incomplete; inspect structured report outcome" >&2
++  _lanes_gc_report_containers || echo "gc reporting incomplete; inspect structured report outcome" >&2
+@@ -496,0 +464,7 @@
++
++# Bounded reporting is a versioned Python package; see the canonical reporting ADR.
++LANES_REPORT_PROFILE=${LANES_REPORT_PROFILE:-$LANES_HOME/reporting/profile.sh}
++[ -r "$LANES_REPORT_PROFILE" ] || { echo "gate: required reporting profile is unreadable" >&2; return 2; }
++. "$LANES_REPORT_PROFILE"
++[ -r "${LANES_REPORT_SHIM:-}" ] || { echo "gate: required reporting shim is unreadable" >&2; return 2; }
++. "$LANES_REPORT_SHIM"
