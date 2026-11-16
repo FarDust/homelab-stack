@@ -43,12 +43,21 @@ an admission override, another ledger store, or a larger CI timeout.
    observed device/inode and terminal job references; these are bounded snapshot
    facts, never proof of future non-use or authorization to delete. Every finding
    explicitly carries `retention_authorized=false`.
+   Tree identity is checked before and after measurement. Complete absolute argv
+   values, including spaces, retain their observed and conservative lexical path
+   spellings. Structured report names are authoritative; only legacy rows without
+   that field use bracket-text deduplication. Invalid structured names and external
+   container identities remain explicit incomplete evidence.
 5. Before publishing START, the legacy entry point captures the admission epoch
    and expected duration. Typed settings require both; the reporter checks the
    resulting deadline against the persisted aware START timestamp and duration.
-   The report worker and imports get at most four seconds, with up to one second
-   for the native outer termination grace and a two-second original-budget
-   cushion. No report receives a later deadline than the original job. No fresh timeout is granted after bootstrap, END or worker creation.
+   When invoked through the host wrapper, the report worker and imports get at
+   most four seconds, with up to one second for the native outer termination
+   grace and a two-second original-budget cushion. No report receives a later
+   deadline than the original job. No fresh timeout is granted after bootstrap,
+   END or worker creation. Direct CLI invocation has no outer import/configuration
+   timeout; its worker budget begins after those steps. Canonical adoption uses
+   the host wrapper.
 6. A supervisor owns a fresh process group for blocking observations. Its outer
    timeout includes worker startup, observations and publication, with a small
    cleanup reserve. On exhaustion it terminates only that owned group and returns
@@ -64,6 +73,9 @@ an admission override, another ledger store, or a larger CI timeout.
    [Native parent-death interface](https://man7.org/linux/man-pages/man1/setpriv.1.html).
 7. Reuse the configured existing ledger-publisher executable and its validated
    atomic append contract. Notes are bounded chunks of at most two findings;
+   the current flow publishes each verified finding before starting another
+   observation, so a later blocked read cannot discard prior ledger progress.
+   Independently verifiable containers are published before tree traversal.
    serialization uses JSON. No direct writer or parallel durable state is added.
    The reporter emits a typed outcome even when it publishes no note. The shim
    routes it to the existing job diagnostic stream instead of hiding failures.

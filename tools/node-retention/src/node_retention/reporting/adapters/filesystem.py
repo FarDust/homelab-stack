@@ -88,6 +88,13 @@ class TreeInventory:
                         for entry in entries:
                             budget.remaining()
                             pending.append((Path(entry.path), depth + 1))
+            budget.remaining()
+            final_stat = path.lstat()
+            if not stat.S_ISDIR(final_stat.st_mode) or (final_stat.st_dev, final_stat.st_ino) != (
+                root_stat.st_dev,
+                root_stat.st_ino,
+            ):
+                raise ReportError("tree identity changed during measurement; retained as unknown")
             return TreeEvidence(size, newest, root_owned, root_stat.st_dev, root_stat.st_ino)
         except OSError as error:
             raise ReportError("tree changed or is unreadable; retained as unknown") from error

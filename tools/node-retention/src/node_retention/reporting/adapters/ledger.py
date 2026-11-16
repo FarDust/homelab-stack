@@ -97,11 +97,15 @@ class TailLedger:
                 continue
             target = trees if kind == "stale-tree-report" else containers
             names = row.get("reported_names")
-            if isinstance(names, list) and all(isinstance(name, str) for name in names):
-                target.update(names)
-            what = row.get("what")
-            if isinstance(what, str):
-                target.update(_BRACKET.findall(what))
+            if "reported_names" in row:
+                if isinstance(names, list) and all(isinstance(name, str) for name in names):
+                    target.update(names)
+                else:
+                    malformed += 1
+            else:
+                what = row.get("what")
+                if isinstance(what, str):
+                    target.update(_BRACKET.findall(what))
         if deadline is None:
             raise ReportError("own persisted start row absent from bounded ledger window")
         active = frozenset(path for event, path in lifecycle.values() if event == "start")

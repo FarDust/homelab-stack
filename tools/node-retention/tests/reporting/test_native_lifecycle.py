@@ -15,6 +15,14 @@ import pytest
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Linux native lifecycle tools")
 
 
+def owned_process_exited(pid: int, birth: float) -> bool:
+    try:
+        process = psutil.Process(pid)
+        return process.create_time() != birth or process.status() == psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return True
+
+
 def executable(path: Path, body: str) -> Path:
     path.write_text(f"#!{sys.executable}\n" + body)
     path.chmod(0o700)
@@ -192,8 +200,7 @@ def test_kernel_parent_death_guard_terminates_only_its_owned_child(tmp_path):
         process.wait(timeout=1)
         finish = time.monotonic() + 2
         while time.monotonic() < finish:
-            stat_path = Path(f"/proc/{child_pid}/stat")
-            if not stat_path.exists() or stat_path.read_text().rsplit(")", 1)[1].split()[0] == "Z":
+            if owned_process_exited(child_pid, child_identity["birth"]):
                 break
             time.sleep(0.01)
         else:
@@ -250,10 +257,7 @@ def test_native_command_watchdog_survives_worker_death_and_bounds_grandchild(tmp
         worker.wait(timeout=1)
         finish = started + 2
         while time.monotonic() < finish:
-            if all(
-                not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
-                for pid, _ in identities
-            ):
+            if all(owned_process_exited(pid, birth) for pid, birth in identities):
                 break
             time.sleep(0.01)
         else:

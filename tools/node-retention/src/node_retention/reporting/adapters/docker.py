@@ -30,10 +30,17 @@ class MountObservation(BaseModel):
 
 class ContainerObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1)
-    owner: str | None
+    name: str = Field(min_length=1, max_length=256)
+    owner: str | None = Field(max_length=128)
     created: AwareDatetime
     mounts: list[MountObservation]
+
+    @model_validator(mode="after")
+    def resource_name(self) -> ContainerObservation:
+        normalized = self.name.lstrip("/")
+        if not normalized or len(normalized) > 255:
+            raise ValueError("container name has no valid report identity")
+        return self
 
 
 class DockerSnapshot:

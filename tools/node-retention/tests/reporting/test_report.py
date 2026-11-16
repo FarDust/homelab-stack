@@ -116,7 +116,7 @@ def test_large_inventory_takes_one_process_and_container_snapshot():
     assert result.status == ReportStatus.COMPLETE
     assert len(result.findings) == 10_000
     assert procs.calls == containers.calls == 1
-    assert len(publisher.notes) == 5000
+    assert len(publisher.notes) == 10_000
     assert all(len(note) <= 2 for note in publisher.notes)
 
 
@@ -155,7 +155,8 @@ def test_deadline_reports_partial_and_never_claims_remaining_inventory_complete(
     assert result.status == ReportStatus.PARTIAL
     assert result.trees_examined < 10
     assert procs.calls == 1
-    assert publisher.notes == []
+    assert len(publisher.notes) == result.published_notes > 0
+    assert [note[0].name for note in publisher.notes] == [finding.name for finding in result.findings]
     assert "whole-report deadline" in result.reasons[0]
 
 
@@ -175,6 +176,56 @@ def test_publisher_failure_is_explicit_and_cannot_report_success():
     assert result.status == ReportStatus.UNKNOWN
     assert result.published_notes == 0
     assert result.reasons == ("canonical publisher write failed",)
+
+
+def test_later_tree_error_preserves_earlier_published_finding():
+    reporter, _, inventory, _, _, _, publisher = setup(
+        [make_tree("/scratch/lane-first", "lane-first", None), make_tree("/scratch/lane-bad", "lane-bad", None)]
+    )
+    original = inventory.evidence
+
+    def evidence(tree, budget):
+        if tree.name == "lane-bad":
+            assert [note[0].name for note in publisher.notes] == ["lane-first"]
+            raise ReportError("tree evidence unavailable")
+        return original(tree, budget)
+
+    inventory.evidence = evidence
+    result = run(reporter)
+    assert result.status == ReportStatus.PARTIAL
+    assert result.published_notes == 1
+    assert result.reasons == ("tree evidence unavailable",)
+    assert [f.name for f in result.findings] == ["lane-first"]
+
+
+def test_later_publisher_failure_keeps_prior_receipt_and_reports_failure():
+    reporter, _, _, _, _, _, publisher = setup(
+        [make_tree("/scratch/lane-first", "lane-first", None), make_tree("/scratch/lane-second", "lane-second", None)]
+    )
+    original = publisher.publish
+
+    def publish(findings, budget):
+        if publisher.notes:
+            raise ReportError("second publication failed")
+        original(findings, budget)
+
+    publisher.publish = publish
+    result = run(reporter)
+    assert result.status == ReportStatus.PARTIAL
+    assert result.published_notes == 1
+    assert result.reasons == ("second publication failed",)
+    assert [note[0].name for note in publisher.notes] == ["lane-first"]
+
+
+def test_container_is_published_before_tree_traversal_expires():
+    reporter, _, inventory, _, containers, _, publisher = setup([make_tree("/scratch/lane-old", "lane-old", None)])
+    containers.entries = (Container("jt-old", None, 1000, ()),)
+    inventory.advance = 5
+    result = run(reporter)
+    assert result.status == ReportStatus.PARTIAL
+    assert result.published_notes == 1
+    assert [note[0].name for note in publisher.notes] == ["jt-old"]
+    assert inventory.evidence_calls == []
 
 
 def test_requested_deadline_cannot_extend_the_original_persisted_deadline():

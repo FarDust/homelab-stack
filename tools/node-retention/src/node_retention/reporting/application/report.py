@@ -67,13 +67,37 @@ class Reporter:
             containers = self.containers.snapshot(budget)
             mounted = frozenset(ancestor for c in containers for path in c.mounts for ancestor in path_ancestors(path))
             mount_sources = frozenset(path for container in containers for path in container.mounts)
+            now = self.clock.wall()
+            # Publish each verified finding before another observation can consume the budget.
+            for container in containers:
+                budget.remaining()
+                if container.name in ledger.reported_containers:
+                    continue
+                owner = container.owner
+                if owner is None:
+                    if not container.name.startswith(("cif-", "jt-")):
+                        continue
+                    owner = "unknown owner"
+                age = now - container.created_epoch
+                if age >= stale_seconds:
+                    finding = Finding(
+                        kind="stale-container-report",
+                        owner=owner,
+                        name=container.name,
+                        age_hours=age / 3600,
+                        allocated_bytes=None,
+                        root_owned=None,
+                        lifecycle="running-observed",
+                    )
+                    findings.append(finding)
+                    self.publisher.publish((finding,), budget)
+                    published += 1
             active = frozenset(ancestor for path in ledger.active_paths for ancestor in path_ancestors(path))
             terminal: dict[str, set[str]] = {}
             for path, identity in ledger.terminal_paths:
                 budget.remaining()
                 for ancestor in path_ancestors(path):
                     terminal.setdefault(ancestor, set()).add(identity)
-            now = self.clock.wall()
             trees = () if processes.inaccessible_processes else self.inventory.trees(budget)
             for tree in trees:
                 budget.remaining()
@@ -91,53 +115,20 @@ class Reporter:
                 evidence = self.inventory.evidence(tree, budget)
                 age = now - evidence.newest_mtime
                 if age >= stale_seconds:
-                    findings.append(
-                        Finding(
-                            kind="stale-tree-report",
-                            owner=owner,
-                            name=tree.name,
-                            age_hours=age / 3600,
-                            allocated_bytes=evidence.allocated_bytes,
-                            root_owned=evidence.root_owned,
-                            device=evidence.device,
-                            inode=evidence.inode,
-                            lifecycle="terminal-observed" if tree.path in terminal else "unverified",
-                            related_terminal_job_ids=tuple(sorted(terminal[tree.path]))
-                            if tree.path in terminal
-                            else (),
-                        )
+                    finding = Finding(
+                        kind="stale-tree-report",
+                        owner=owner,
+                        name=tree.name,
+                        age_hours=age / 3600,
+                        allocated_bytes=evidence.allocated_bytes,
+                        root_owned=evidence.root_owned,
+                        device=evidence.device,
+                        inode=evidence.inode,
+                        lifecycle="terminal-observed" if tree.path in terminal else "unverified",
+                        related_terminal_job_ids=tuple(sorted(terminal[tree.path])) if tree.path in terminal else (),
                     )
-            for container in containers:
-                budget.remaining()
-                if container.name in ledger.reported_containers:
-                    continue
-                owner = container.owner
-                if owner is None:
-                    if not container.name.startswith(("cif-", "jt-")):
-                        continue
-                    owner = "unknown owner"
-                age = now - container.created_epoch
-                if age >= stale_seconds:
-                    findings.append(
-                        Finding(
-                            kind="stale-container-report",
-                            owner=owner,
-                            name=container.name,
-                            age_hours=age / 3600,
-                            allocated_bytes=None,
-                            root_owned=None,
-                            lifecycle="running-observed",
-                        )
-                    )
-            groups: dict[tuple[str, str], list[Finding]] = {}
-            for finding in findings:
-                budget.remaining()
-                groups.setdefault((finding.kind, finding.owner), []).append(finding)
-            for key in sorted(groups):
-                grouped = tuple(groups[key])
-                for offset in range(0, len(grouped), 2):
-                    budget.remaining()
-                    self.publisher.publish(grouped[offset : offset + 2], budget)
+                    findings.append(finding)
+                    self.publisher.publish((finding,), budget)
                     published += 1
             if status == ReportStatus.UNKNOWN and published:
                 status = ReportStatus.PARTIAL  # Independently verified container reports remain useful.

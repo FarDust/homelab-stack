@@ -131,6 +131,9 @@ def test_docker_batches_inventory_and_understands_tmpfs_without_host_source(monk
         {"mounts": [{"Type": "bind"}]},
         {"mounts": [{"Type": "volume", "Source": "relative"}]},
         {"name": ""},
+        {"name": "/"},
+        {"name": "/" + "n" * 256},
+        {"owner": "o" * 129},
     ],
 )
 def test_malformed_required_container_evidence_fails_instead_of_reporting_absent(monkeypatch, changes):
@@ -171,6 +174,59 @@ def test_process_snapshot_indexes_ancestors_once_and_retains_no_raw_arguments():
     assert snapshot.observed_processes == 2
     assert calls == ["clear"]
     assert "DO-NOT-DISCLOSE" not in repr(snapshot)
+
+
+@pytest.mark.parametrize(
+    ("argument", "protected"),
+    [
+        ("/scratch/lane old/work", "/scratch/lane old"),
+        ("--project=/scratch/lane old/work", "/scratch/lane old"),
+        ("--project=/scratch/base/../lane/work", "/scratch/lane"),
+        ("--project=//scratch/lane/work", "/scratch/lane"),
+    ],
+)
+def test_complete_option_paths_and_lexical_equivalents_protect_the_actual_tree(argument, protected):
+    class ArgumentProcess(Process):
+        def cwd(self):
+            return "/unrelated"
+
+        def cmdline(self):
+            return ["python", argument]
+
+    snapshot = IndexedProcesses(lambda: iter([ArgumentProcess()]), lambda: None).snapshot(Budget())
+    assert snapshot.holds(protected)
+    if ".." in argument:
+        assert snapshot.holds("/scratch/base/../lane")
+
+
+@pytest.mark.parametrize(
+    ("names", "expected", "malformed"),
+    [(["lane-target] [lane-other"], {"lane-target] [lane-other"}, 0), ([], set(), 0), (None, set(), 1)],
+)
+def test_structured_report_names_are_authoritative_and_invalid_values_are_explicit(
+    tmp_path, names, expected, malformed
+):
+    path = tmp_path / "ledger"
+    start = {
+        "id": "job",
+        "event": "start",
+        "ts": "2026-11-15T01:00:00Z",
+        "expected_s": 300,
+        "who": "caller",
+        "host": "worker",
+        "pid": 123,
+        "where": "/scratch/caller",
+    }
+    note = {
+        "kind": "stale-tree-report",
+        "who": "lane",
+        "reported_names": names,
+        "what": "reported [lane-target] [lane-other]",
+    }
+    path.write_text(json.dumps(start) + "\n" + json.dumps(note) + "\n")
+    result = TailLedger(path, "job", Path("/scratch"), owner="caller", host="worker", pid=123).snapshot(Budget())
+    assert result.reported_trees == expected
+    assert result.malformed_rows == malformed
 
 
 def test_ledger_notes_do_not_close_active_scope_and_terminal_rows_record_related_paths(tmp_path):

@@ -88,3 +88,28 @@ def test_foreign_non_root_owner_retains_historical_permission_warning(tmp_path):
     adapter = TreeInventory(jobs, os.getuid() + 1, lambda: frozenset({"/"}))
     observed = next(iter(adapter.trees(Budget())))
     assert adapter.evidence(observed, Budget()).root_owned is True
+
+
+def test_tree_replaced_after_initial_identity_read_is_not_returned_with_old_inode(tmp_path):
+    jobs = tmp_path / "jobs"
+    jobs.mkdir()
+    tree = jobs / "lane-old"
+    tree.mkdir()
+    (tree / "original").write_text("preserved")
+    adapter = TreeInventory(jobs, os.getuid(), lambda: frozenset({"/"}))
+    observed = next(iter(adapter.trees(Budget())))
+
+    class ReplacingBudget(Budget):
+        changed = False
+
+        def remaining(self):
+            if not self.changed:
+                self.changed = True
+                tree.rename(jobs / "preserved-original")
+                tree.mkdir()
+                (tree / "replacement").write_text("different observation")
+            return super().remaining()
+
+    with pytest.raises(ReportError, match="identity changed during measurement"):
+        adapter.evidence(observed, ReplacingBudget())
+    assert (jobs / "preserved-original" / "original").read_text() == "preserved"
