@@ -7,6 +7,8 @@ version: '3.9'
 # obtained by OAuth 2.0 token exchange with the confidential client japan-trip-assistant. The service holds no credential
 # for trip data. Its own database role (schema assistant only: Maps cache, spend ledger, budget) is jt_assistant.
 # Google Maps spend is reserved in assistant.maps_ledger before each paid call and refused past the budget stop.
+# docker stack deploy ignores security_opt, so no-new-privileges is not set here; the image runs as uid 10001 with every
+# capability dropped and a read-only root filesystem.
 # Tailnet only: the router sits on the private application host under /assistant (prefix stripped), with its own rate
 # limit; no public route.
 #
@@ -24,7 +26,6 @@ services:
     networks: [traefik, traefik-public]
     read_only: true
     cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
     volumes:
       - type: tmpfs
         target: /tmp
