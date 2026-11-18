@@ -8,6 +8,7 @@ Homelab-owned compose for application-style services.
 - **Add a compose file here** when you are deploying an **application** or **multi-service app bundle** as its own Swarm stack, separate from edge routing and shared databases in **`main-*`**.
 
 - **[supabase.yml](supabase.yml)**: Supabase on Docker Swarm for this environment.
+- **[dist.yml](dist.yml)**: internal app-distribution origin (`apps-dist`), see [the ADR](../../docs/adr/app_distribution_internal_adr.md).
 - **[web.yml](web.yml)**: Web frontends or related apps as defined in compose.
 
 Upstream Supabase **reference** material (docker templates, etc.) is vendored as a git submodule at [`../main/configs/supabase`](../main/configs/supabase) (`supabase/supabase` upstream). **Do not commit edits inside that submodule path** here; bump the submodule pointer when you intentionally upgrade vendor content.

@@ -27,6 +27,38 @@ variables:
   required: true
   description: Can be same as OPENAI_API_KEY
   example: your_anythingllm_openai_api_key
+- name: APPS_DIST_CONFIG_VERSION
+  kind: literal
+  owner: apps/dist
+  used_by:
+  - apps/dist
+  required: true
+  description: Version of the apps-dist nginx config and publisher secret names; bump to roll them.
+  example: '1'
+- name: APPS_DIST_HOSTNAME
+  kind: literal
+  owner: apps/dist
+  used_by:
+  - apps/dist
+  required: true
+  description: Read hostname of the internal app-distribution origin (signed F-Droid-style repository).
+  example: apps.${LOCAL_DOMAIN}
+- name: APPS_DIST_PUBLISHER_HTPASSWD_FILE
+  kind: literal
+  owner: apps/dist
+  used_by:
+  - apps/dist
+  required: true
+  description: Path to the htpasswd file of the add-only publisher credential, in the private secrets directory.
+  example: /path/to/secrets/apps-dist/publisher_htpasswd
+- name: APPS_DIST_PUBLISH_HOSTNAME
+  kind: literal
+  owner: apps/dist
+  used_by:
+  - apps/dist
+  required: true
+  description: Write (add-only WebDAV) hostname of the internal app-distribution origin.
+  example: apps-publish.${LOCAL_DOMAIN}
 - name: ARTIFACTS_GCS_BUCKET
   kind: literal
   owner: main/logging
@@ -300,6 +332,7 @@ variables:
   kind: literal
   owner: apps/supabase
   used_by:
+  - apps/dist
   - apps/supabase
   - devtools/notebooks
   - devtools/pr-agent
