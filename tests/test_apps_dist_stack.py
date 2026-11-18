@@ -74,9 +74,10 @@ def test_read_server_allows_only_get_and_head_and_no_dav() -> None:
 
 def test_publish_server_is_add_only_and_authenticated() -> None:
     publish = _server(8081)
+    assert 'auth_basic "apps-dist publisher";' in publish
     assert "auth_basic_user_file /run/secrets/apps_dist_publisher_htpasswd;" in publish
     assert "dav_methods PUT;" in publish
-    assert "limit_except GET HEAD PUT { deny all; }" in publish
+    assert publish.count("limit_except GET HEAD PUT { deny all; }") == 2
     assert "DELETE" not in publish and "MOVE" not in publish
 
 
@@ -84,3 +85,26 @@ def test_request_temp_files_share_the_data_volume() -> None:
     assert "client_body_temp_path /var/cache/nginx/tmp/client" in NGINX.read_text()
     volumes = _service()["volumes"]
     assert "apps_dist_data:/var/cache/nginx" in volumes
+
+
+def test_publish_server_refuses_to_overwrite_an_apk() -> None:
+    publish = _server(8081)
+    block = publish[publish.index(r'location ~ "\.apk$"'):]
+    assert 'if (-f $request_filename) { set $apk_put "exists"; }' in block
+    assert 'if ($apk_put = "exists-put") { return 409; }' in block
+
+
+def test_apk_cache_policy_applies_only_to_successful_responses() -> None:
+    read = _server(8080)
+    assert "add_header Cache-Control 'private, max-age=31536000, immutable';" in read
+    assert "immutable' always" not in read
+
+
+def test_mutable_index_files_carry_no_weak_validator() -> None:
+    read = _server(8080)
+    index_block = read[read.index('location ~ "^/(repo|archive)/" {'):]
+    assert "etag off;" in index_block and "if_modified_since off;" in index_block
+
+
+def test_no_plain_environment_secrets() -> None:
+    assert "environment" not in _service()
