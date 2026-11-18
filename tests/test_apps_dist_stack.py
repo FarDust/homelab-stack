@@ -72,7 +72,7 @@ def test_read_server_allows_only_get_and_head_and_no_dav() -> None:
     assert "location / { return 404; }" in read
 
 
-def test_publish_server_is_add_only_and_authenticated() -> None:
+def test_publish_server_is_put_only_and_authenticated() -> None:
     publish = _server(8081)
     assert 'auth_basic "apps-dist publisher";' in publish
     assert "auth_basic_user_file /run/secrets/apps_dist_publisher_htpasswd;" in publish
@@ -89,7 +89,7 @@ def test_request_temp_files_share_the_data_volume() -> None:
 
 def test_publish_server_refuses_to_overwrite_an_apk() -> None:
     publish = _server(8081)
-    block = publish[publish.index(r'location ~ "\.apk$"'):]
+    block = publish[publish.index(r'location ~* "\.apk$"'):]  # case-insensitive: .APK too
     assert 'if (-f $request_filename) { set $apk_put "exists"; }' in block
     assert 'if ($apk_put = "exists-put") { return 409; }' in block
 

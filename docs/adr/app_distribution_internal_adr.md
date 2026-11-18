@@ -31,7 +31,7 @@ origin, which every circle writes and which is the only channel of circle 0.
      policy. Index, icon and signature files are `no-cache` with ETag and conditional requests disabled: nginx validators
      are mtime plus size, which two equal-size indexes written within one second could share, and these files are small.
    - `APPS_DIST_PUBLISH_HOSTNAME` (write): nginx WebDAV `PUT` plus a JSON directory listing (`GET`); every other method
-     is denied (no `DELETE`, `MOVE` or `COPY`). APKs are create-only: a `PUT` over an existing `*.apk` returns 409. Index,
+     is denied (no `DELETE`, `MOVE` or `COPY`). APKs are create-only: a `PUT` over an existing `*.apk` (any letter case) returns 409. Index,
      icon and publisher-state files may be replaced, which is how a publish or a rollback updates the signed index. The
      existence check and the rename are two steps, so two simultaneous first uploads of the same new APK name are not
      excluded at the server; the single-publisher rule below covers that. Both are behind basic
@@ -42,7 +42,9 @@ origin, which every circle writes and which is the only channel of circle 0.
    attached, because update clients cannot follow a login redirect; the network boundary is the access control for reads,
    and integrity does not depend on the origin (see Consequences). The edge listener is published in Swarm ingress mode, so
    the proxy sees ingress-translated source addresses and an address allow-list on the router cannot tell private clients
-   from others; a client-network restriction at the edge is tracked in issue #130 as defence in depth.
+   from others; a client-network restriction at the edge is tracked in issue #130 as defence in depth. Until then the
+   privacy of circle 0 rests on the names having no public DNS record while 443 is published on the nodes (ingress SNAT),
+   the same as every other `${LOCAL_DOMAIN}` service; whether to harden is the owner's decision.
 4. **Storage.** A named local volume `apps_dist_data` on the storage-manager node class, off the control-plane leader and
    never on an ephemeral node (`docs/node-labels.md`). The volume is mounted on the image directory owned by UID 101 so it
    inherits that owner. Docker's data root on that class sits on the large data disk, not the crowded root filesystem.
