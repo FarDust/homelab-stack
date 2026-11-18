@@ -9,6 +9,7 @@ Homelab-owned compose for application-style services.
 
 - **[supabase.yml](supabase.yml)**: Supabase on Docker Swarm for this environment.
 - **[dist.yml](dist.yml)**: internal app-distribution origin (`apps-dist`), see [the ADR](../../docs/adr/app_distribution_internal_adr.md).
+- **[japan-trip-api.yml](japan-trip-api.yml)**, **[japan-trip-realtime.yml](japan-trip-realtime.yml)**, **[japan-trip-mcp.yml](japan-trip-mcp.yml)**, **[japan-trip-assistant.yml](japan-trip-assistant.yml)**: the shared trip application's API (PostgREST), realtime events (Centrifugo), MCP server and trip assistant (place lookup only), all tailnet-only on the private application host; decisions live in the application repository's ADRs.
 - **[web.yml](web.yml)**: Web frontends or related apps as defined in compose.
 
 Upstream Supabase **reference** material (docker templates, etc.) is vendored as a git submodule at [`../main/configs/supabase`](../main/configs/supabase) (`supabase/supabase` upstream). **Do not commit edits inside that submodule path** here; bump the submodule pointer when you intentionally upgrade vendor content.

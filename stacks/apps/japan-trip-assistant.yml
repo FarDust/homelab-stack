@@ -78,7 +78,7 @@ services:
         - traefik.enable=true
         - traefik.swarm.network=traefik-public
         - traefik.swarm.lbswarm=true
-        - traefik.http.routers.japan-trip-assistant.rule=Host(`${JOURNEY_HOSTNAME?err}`) && PathPrefix(`/assistant`)
+        - traefik.http.routers.japan-trip-assistant.rule=Host(`${JOURNEY_HOSTNAME?err}`) && (Path(`/assistant`) || PathPrefix(`/assistant/`))
         - traefik.http.routers.japan-trip-assistant.priority=100
         - traefik.http.routers.japan-trip-assistant.entrypoints=websecure
         - traefik.http.routers.japan-trip-assistant.tls=true
