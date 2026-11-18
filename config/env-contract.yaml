@@ -988,6 +988,7 @@ variables:
   owner: productivity/static-journey
   used_by:
   - apps/japan-trip-api
+  - apps/japan-trip-assistant
   - apps/japan-trip-mcp
   - apps/japan-trip-realtime
   - productivity/static-journey
@@ -1548,6 +1549,7 @@ variables:
   owner: main/bridges
   used_by:
   - admin/dashboards
+  - apps/japan-trip-assistant
   - apps/japan-trip-mcp
   - apps/supabase
   - apps/web
@@ -4011,6 +4013,40 @@ variables:
   description: Version suffix of the Swarm secret jt_mcp_client_secret-<version> holding the token-exchange client secret; bump when the secret changes.
   example: '1'
   default: '1'
+- name: JT_ASSISTANT_IMAGE
+  kind: literal
+  owner: apps/japan-trip-assistant
+  used_by:
+  - apps/japan-trip-assistant
+  required: true
+  description: Trip assistant image of the shared trip (tag and digest); this stack runs its place lookup only.
+  example: your_trip_assistant_image_reference
+- name: JT_ASSISTANT_BUDGET_UNTIL
+  kind: literal
+  owner: apps/japan-trip-assistant
+  used_by:
+  - apps/japan-trip-assistant
+  required: true
+  description: Last Asia/Tokyo date (YYYY-MM-DD) the Google Maps budget must cover; the daily spend cap spreads the remainder to this date.
+  example: '2030-01-31'
+- name: JT_ASSISTANT_PLACES_PER_MEMBER_PER_DAY
+  kind: literal
+  owner: apps/japan-trip-assistant
+  used_by:
+  - apps/japan-trip-assistant
+  required: false
+  description: Paid place lookups allowed per member and Asia/Tokyo day.
+  example: '60'
+  default: '60'
+- name: JT_ASSISTANT_PLACES_DAILY_CEILING_USD
+  kind: literal
+  owner: apps/japan-trip-assistant
+  used_by:
+  - apps/japan-trip-assistant
+  required: false
+  description: Upper bound in USD of the place lookup's daily Google Maps spend cap.
+  example: '2.00'
+  default: '2.00'
 - name: JT_CENTRIFUGO_IMAGE
   kind: literal
   owner: apps/japan-trip-realtime

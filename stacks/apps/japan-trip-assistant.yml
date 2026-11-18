@@ -1,0 +1,102 @@
+version: '3.9'
+# Trip assistant of the shared trip (japan-route-app assistant/, docs/adr/trip_assistant_adr.md and gpx_import_adr.md D10
+# there), first rollout: the GPX import's place lookup only (JT_ASSISTANT_FEATURES=places, routes /assistant/v1/places/*).
+# The chat is not enabled here; it needs LiteLLM, MCP and SearXNG settings that this file does not carry.
+# Every request carries the member's bearer token of the trip realm (audience japan-trip-assistant, realm role jt_member),
+# verified against the realm's JWKS; membership of the trip is checked through the trip API with the caller's own token,
+# obtained by OAuth 2.0 token exchange with the confidential client japan-trip-assistant. The service holds no credential
+# for trip data. Its own database role (schema assistant only: Maps cache, spend ledger, budget) is jt_assistant.
+# Google Maps spend is reserved in assistant.maps_ledger before each paid call and refused past the budget stop.
+# Tailnet only: the router sits on the private application host under /assistant (prefix stripped), with its own rate
+# limit; no public route.
+#
+# Environment (.env, see config/env-contract.yaml):
+#   JT_ASSISTANT_IMAGE        image reference with digest
+#   JT_ASSISTANT_BUDGET_UNTIL last Asia/Tokyo date (YYYY-MM-DD) the Maps budget must cover
+#   JOURNEY_HOSTNAME          private application host; LOCAL_DOMAIN for the identity provider
+# Swarm secrets (created through trust-agent and the cluster tooling, never printed):
+#   jt_assistant_client_secret  secret of the confidential client japan-trip-assistant (token exchange)
+#   jt_assistant_db_url         DSN of the jt_assistant login role
+#   jt_assistant_maps_key       Google Maps key restricted to Places API (New)
+services:
+  assistant:
+    image: ${JT_ASSISTANT_IMAGE?err}
+    networks: [traefik, traefik-public]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    secrets:
+      - source: jt_assistant_client_secret
+        target: jt_assistant_client_secret
+        uid: '10001'
+        mode: 0400
+      - source: jt_assistant_db_url
+        target: jt_assistant_db_url
+        uid: '10001'
+        mode: 0400
+      - source: jt_assistant_maps_key
+        target: jt_assistant_maps_key
+        uid: '10001'
+        mode: 0400
+    environment:
+      JT_ASSISTANT_FEATURES: places
+      JT_ASSISTANT_ISSUER: https://idp.${LOCAL_DOMAIN?err}/realms/japan-trip
+      JT_ASSISTANT_API_BASE_URL: http://apps-japan-trip-api_api:3000
+      JT_ASSISTANT_DOWNSTREAM_TOKEN: exchange
+      JT_ASSISTANT_CLIENT_ID: japan-trip-assistant
+      JT_ASSISTANT_CLIENT_SECRET_FILE: /run/secrets/jt_assistant_client_secret
+      JT_ASSISTANT_DATABASE_URL_FILE: /run/secrets/jt_assistant_db_url
+      JT_ASSISTANT_MAPS_KEY_FILE: /run/secrets/jt_assistant_maps_key
+      JT_ASSISTANT_PLACES_PER_MEMBER_PER_DAY: ${JT_ASSISTANT_PLACES_PER_MEMBER_PER_DAY:-60}
+      JT_ASSISTANT_PLACES_DAILY_CEILING_USD: ${JT_ASSISTANT_PLACES_DAILY_CEILING_USD:-2.00}
+      JT_ASSISTANT_BUDGET_UNTIL: ${JT_ASSISTANT_BUDGET_UNTIL?err}
+      JT_ASSISTANT_LOG_LEVEL: INFO
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 96M
+        limits:
+          memory: 384M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.japan-trip-assistant.rule=Host(`${JOURNEY_HOSTNAME?err}`) && PathPrefix(`/assistant`)
+        - traefik.http.routers.japan-trip-assistant.priority=100
+        - traefik.http.routers.japan-trip-assistant.entrypoints=websecure
+        - traefik.http.routers.japan-trip-assistant.tls=true
+        - traefik.http.routers.japan-trip-assistant.tls.certresolver=le-dns
+        - traefik.http.routers.japan-trip-assistant.middlewares=japan-trip-assistant-strip@swarm,japan-trip-assistant-rate@swarm
+        - traefik.http.middlewares.japan-trip-assistant-strip.stripprefix.prefixes=/assistant
+        - traefik.http.middlewares.japan-trip-assistant-rate.ratelimit.average=5
+        - traefik.http.middlewares.japan-trip-assistant-rate.ratelimit.burst=20
+        - traefik.http.services.japan-trip-assistant.loadbalancer.server.port=8080
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  jt_assistant_client_secret:
+    external: true
+  jt_assistant_db_url:
+    external: true
+  jt_assistant_maps_key:
+    external: true
