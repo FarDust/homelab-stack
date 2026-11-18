@@ -8,6 +8,10 @@
 - [vLLM Gemma read routes](adr/vllm_gemma4_read_routes_adr.md): `GET`/`HEAD` reach the scale-to-zero engine without waking it; every other method, inference included, can start a Sablier session (tests in `tests/test_vllm_gemma4_read_routes.py`).
 - [STT runtime and credential decision](adr/cluster_stt_adr.md): official serving runtime, LiteLLM alias, exact-path custody, acceptance gates and rollback.
 
+## App distribution
+
+- [Internal app-distribution origin](adr/app_distribution_internal_adr.md): circle 0 origin of the distribution circles, a signed F-Droid-style repository on a read-only host with Range/ETag and an add-only WebDAV publish host, rollback by republishing, no deletion by the publisher, index-key custody (tests in `tests/test_apps_dist_stack.py`).
+
 ## Placement and operations
 
 - [Node labels](node-labels.md): approved placement groups.

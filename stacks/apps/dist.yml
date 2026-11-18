@@ -1,0 +1,90 @@
+version: '3.9'
+# Internal app-distribution origin (circle 0, canonical for every circle): a signed F-Droid-style
+# repository served read-only, plus a separate authenticated WebDAV write host for the publisher.
+# Decision record: docs/adr/app_distribution_internal_adr.md.
+services:
+  web:
+    image: nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
+    user: '101:101'
+    entrypoint: [sh, -c]
+    command: ['mkdir -p /var/cache/nginx/www /var/cache/nginx/tmp && exec nginx -g "daemon off;"']
+    read_only: true
+    cap_drop: [ALL]
+    networks: [traefik-public]
+    volumes:
+      # Mounted on the image directory owned by UID 101 so the new volume inherits that owner.
+      - apps_dist_data:/var/cache/nginx
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    labels:
+      owner: lira
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+    secrets:
+      - source: publisher_htpasswd
+        target: apps_dist_publisher_htpasswd
+        uid: '101'
+        gid: '101'
+        mode: 0400
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/healthz']
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          # Stateful, node-local volume: storage-manager class, off the control-plane leader, never ephemeral.
+          - node.labels.storage.manager == true
+          - node.labels.swarm.leader != true
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 16M
+        limits:
+          memory: 64M
+          cpus: '1.0'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      labels:
+        - owner=lira
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.apps-dist.rule=Host(`${APPS_DIST_HOSTNAME?err}`)
+        - traefik.http.routers.apps-dist.entrypoints=websecure
+        - traefik.http.routers.apps-dist.tls=true
+        - traefik.http.routers.apps-dist.tls.certresolver=le-dns
+        - traefik.http.routers.apps-dist.service=apps-dist
+        - traefik.http.services.apps-dist.loadbalancer.server.port=8080
+        - traefik.http.routers.apps-dist-publish.rule=Host(`${APPS_DIST_PUBLISH_HOSTNAME?err}`)
+        - traefik.http.routers.apps-dist-publish.entrypoints=websecure
+        - traefik.http.routers.apps-dist-publish.tls=true
+        - traefik.http.routers.apps-dist-publish.tls.certresolver=le-dns
+        - traefik.http.routers.apps-dist-publish.service=apps-dist-publish
+        - traefik.http.services.apps-dist-publish.loadbalancer.server.port=8081
+volumes:
+  apps_dist_data:
+    driver: local
+    labels:
+      owner: lira
+networks:
+  traefik-public:
+    external: true
+configs:
+  nginx:
+    name: apps_dist_nginx-${APPS_DIST_CONFIG_VERSION?err}-${CONFIG_VERSION:-0}
+    file: ./configs/apps-dist/nginx.conf
+secrets:
+  publisher_htpasswd:
+    name: apps_dist_publisher_htpasswd-${APPS_DIST_CONFIG_VERSION?err}
+    file: ${APPS_DIST_PUBLISHER_HTPASSWD_FILE?err}
