@@ -79,7 +79,14 @@ origin, which every circle writes and which is the only channel of circle 0.
    listed except withdrawn ones (newer than a rolled-back-to version). Removing files is an administrator operation on the
    node with its own manifest, never reachable with the publisher credential, and it never removes the only copy of an APK.
    Free space on the node's Docker data disk is the limit to watch: at about 50 MB per release, 100 releases are 5 GB.
-8. **Custody.** The repository index keystore and its password, and the publisher password with its htpasswd hash, are
+8. **Clients.** The repository URL is `https://${APPS_DIST_HOSTNAME}/repo`.
+   - *F-Droid client*: add the repository as `https://${APPS_DIST_HOSTNAME}/repo?fingerprint=<index key SHA-256>`; the
+     client verifies the signed index against that fingerprint.
+   - *Obtainium*: add the app with the source overridden to "F-Droid Third-Party Repo" and the URL
+     `https://${APPS_DIST_HOSTNAME}/repo?appId=<application id>`. Obtainium keeps only `appId` from the query (a
+     `fingerprint` parameter is dropped and the default HTML source finds no release), so it does not check the index
+     key; integrity on that path rests on Android's same-signing-key rule and the SHA-256 in the index.
+9. **Custody.** The repository index keystore and its password, and the publisher password with its htpasswd hash, are
    created once and held in the deployment's private secrets directory on the manager (the canonical channel for this
    cluster's deploy secrets, mode 0600, never in the public repository), with a mode 0600 working copy on the publisher
    host. Recovery from the manager copy alone is verified (keystore opens with the recorded password and yields the
