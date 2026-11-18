@@ -49,7 +49,7 @@ variables:
   used_by:
   - apps/dist
   required: true
-  description: Path to the htpasswd file of the add-only publisher credential, in the private secrets directory.
+  description: Path to the htpasswd file of the publisher credential (PUT only, no delete), in the private secrets directory.
   example: /path/to/secrets/apps-dist/publisher_htpasswd
 - name: APPS_DIST_PUBLISH_HOSTNAME
   kind: literal
@@ -57,7 +57,7 @@ variables:
   used_by:
   - apps/dist
   required: true
-  description: Write (add-only WebDAV) hostname of the internal app-distribution origin.
+  description: Write (WebDAV PUT, no delete, APKs create-only) hostname of the internal app-distribution origin.
   example: apps-publish.${LOCAL_DOMAIN}
 - name: ARTIFACTS_GCS_BUCKET
   kind: literal
