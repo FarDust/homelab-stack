@@ -1,0 +1,42 @@
+[project]
+name = "node-memory-probe"
+version = "0.1.0"
+description = "Read-only swap residency probe: process x memory region (java heap, class metadata, code cache, stacks, files, native), kernel reclaim rates, Prometheus textfile and trigger snapshots."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "typer>=0.12",
+    "rich>=13.9",
+    "psutil>=7.2.2,<8",
+    "prometheus-client>=0.21,<1",
+]
+
+[project.scripts]
+node-memory-probe = "node_memory_probe.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/node_memory_probe"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.py" }]
+
+[tool.ruff]
+line-length = 120
+[tool.ruff.lint]
+select = ["E","F","I","UP","B","RUF"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+line-ending = "lf"

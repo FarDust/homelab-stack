@@ -1,0 +1,24 @@
+[Unit]
+Description=Node memory probe: swap residency by process and region, kernel reclaim rates, Prometheus textfile
+Documentation=https://github.com/FarDust/homelab-stack/blob/main/docs/adr/node_memory_probe_adr.md
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/node-memory-probe.env
+ExecStart=/opt/node-memory-probe/.venv/bin/node-memory-probe run --quiet
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+TimeoutStartSec=90
+# Read-only probe: root is needed only to read /proc/<pid>/smaps of other users; nothing leaves the host.
+User=root
+StateDirectory=node-memory-probe
+PrivateNetwork=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
