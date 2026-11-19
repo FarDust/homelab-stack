@@ -59,6 +59,7 @@ class ShmTreePolicy:
                 trees.append((path, p.fs.stats(path)))
         total = sum(st.size_bytes for _, st in trees)
         chosen: list[Candidate] = []
+        self._kept_for_lane = kept_for_lane = set()
         waiting: list[tuple[str, TreeStats]] = []  # not collectable by rules 1-3, still eligible for rule 4
         for path, st in trees:
             cand, evictable = self._judge(path, st, known, active)
@@ -69,7 +70,7 @@ class ShmTreePolicy:
         remaining = total - sum(c.size_bytes for c in chosen)
         if remaining > s.shm_cap_bytes:
             reason = f"{s.shm_jobs_root.as_posix()} holds {total / 1024**3:.1f} GiB, cap {s.shm_cap_gib:g} GiB: oldest idle first"
-            for path, _ in sorted(waiting, key=lambda item: item[1].newest_ts):
+            for path, _ in sorted(waiting, key=lambda item: (item[0] in kept_for_lane, item[1].newest_ts)):
                 if remaining <= s.shm_cap_bytes:
                     break
                 cand = self._gate(path, Category.SHM, 0.0, reason, s.shm_cap_min_idle_minutes * MINUTE)
@@ -93,15 +94,23 @@ class ShmTreePolicy:
             reason = f"tree untouched for {idle / HOUR:.1f} h (limit {s.shm_idle_hours:g} h, any lane)"
             return self._gate(path, Category.SHM, 0.0, reason, s.shm_idle_hours * HOUR), False
         lane = lane_of(name, known)
-        if lane is not None and lane in active:
+        if lane is None or lane in active:
+            # An unknown lane left no ledger row, so nothing says its job is over: it is kept like an active lane.
+            self._kept_for_lane.add(path)
             self._skipped.append(
-                Skipped(path=path, size_bytes=st.size_bytes, reason=f"lane {lane} has a job running or deferred")
+                Skipped(
+                    path=path,
+                    size_bytes=st.size_bytes,
+                    reason=f"lane {lane} has a job running or deferred"
+                    if lane
+                    else "no ledger lane owns it; kept until the 24 h ceiling",
+                )
             )
             return None, self._usable(path)
         if idle >= s.shm_idle_minutes * MINUTE:
             reason = (
                 f"tree untouched for {idle / MINUTE:.0f} min (limit {s.shm_idle_minutes:g} min); "
-                f"lane {lane or 'unknown'} has no job running or deferred"
+                f"lane {lane} has no job running or deferred"
             )
             return self._gate(path, Category.SHM, 0.0, reason, s.shm_idle_minutes * MINUTE), False
         self._skipped.append(

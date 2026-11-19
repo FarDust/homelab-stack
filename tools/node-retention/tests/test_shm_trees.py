@@ -245,3 +245,43 @@ def test_jsonl_ledger_skips_old_malformed_rows_but_fails_closed_on_recent_or_und
     path.write_text('{"event":"start","tree_mb":,}\n', encoding="utf-8")
     with pytest.raises(LedgerUnreadableError, match="line 1"):
         JsonlLedger(path, malformed_tolerance_s=48 * 3600).rows()
+
+
+def test_tree_with_no_ledger_lane_is_kept_until_the_24_hour_ceiling(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    fs.add(f"{ROOT}/handmade-g1", 100, 3 * HOUR)
+    fs.add(f"{ROOT}/handmade-g0", 100, 26 * HOUR)
+    _, _, _, plan = _plan(tmp_path, fs, [_row("end", "a", "other")])
+    assert _paths(plan) == {f"{ROOT}/handmade-g0"}
+    assert "no ledger lane owns it" in _reasons(plan)[f"{ROOT}/handmade-g1"]
+
+
+def test_cap_takes_trees_of_finished_lanes_before_trees_of_active_lanes(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    fs.add(f"{ROOT}/busy-g1", 5 * GIB, 100 * MIN)  # older, but its lane runs a job
+    fs.add(f"{ROOT}/done-g1", 5 * GIB, 60 * MIN)  # newer, its lane finished (idle under 120 min)
+    rows = [_row("start", "a", "busy", pid=7), _row("end", "b", "done")]
+    _, _, _, plan = _plan(tmp_path, fs, rows, FakeProcs(alive={7}))
+    assert _paths(plan) == {f"{ROOT}/done-g1"}
+
+
+def test_ledger_tolerance_comes_from_the_settings(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path, ledger_malformed_tolerance_hours=1.0)
+    ledger = cli._job_ledger(settings)
+    assert ledger._tolerance_s == 3600.0
+
+
+def test_guard_exits_1_when_shm_gc_fails_but_still_checks_the_root_floor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    ledger = FakeLedger()
+    ledger.unreadable = True
+    settings = make_settings(tmp_path)
+    ports = Ports(fs=fs, procs=FakeProcs(), docker=FakeDocker(), clock=FakeClock(), jobs=FakeJobs(ledger))
+    monkeypatch.setattr(cli, "_settings", lambda: settings)
+    monkeypatch.setattr(cli, "_ports", lambda s: ports)
+    monkeypatch.setattr(cli, "TextfilePublisher", lambda directory, image: FakePublisher())
+    result = CliRunner().invoke(cli.app, ["guard"])
+    assert result.exit_code == 1
+    assert "nothing to do" in result.output
