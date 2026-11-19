@@ -145,6 +145,7 @@ class FakeJobs:
 
     def __init__(self, ledger: FakeLedger) -> None:
         self.ledger = ledger
+        self.skipped_lines: list[int] = []
 
     def rows(self) -> list[dict[str, object]]:
         return self.ledger.read_rows()

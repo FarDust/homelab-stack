@@ -12,6 +12,7 @@ from node_retention.config import Settings
 from node_retention.domain.errors import ImageLookupError
 from node_retention.domain.models import (
     Candidate,
+    Category,
     Manifest,
     ManifestEntry,
     Outcome,
@@ -31,12 +32,14 @@ class Applier:
         self._p = ports
         self._ledger = ledger
         self._pub = publisher
+        self._what = "retention-apply"
 
     def manifest_path(self, run_id: str) -> Path:
         return self._s.state_dir / f"manifest-{run_id}.json"
 
-    def apply(self, plan: Plan, run_id: str, pid: int) -> Manifest:
+    def apply(self, plan: Plan, run_id: str, pid: int, what: str = "retention-apply") -> Manifest:
         s, p = self._s, self._p
+        self._what = what
         manifest = Manifest(
             host=s.host,
             run_id=run_id,
@@ -65,6 +68,7 @@ class Applier:
         self._write(manifest, run_id)
         failed = bool(manifest.protected_image_violations) or any(e.outcome is Outcome.FAILED for e in manifest.entries)
         self._ledger.append(self._row("end", run_id, pid, manifest, failed=failed))
+        self._note_tree_gc(run_id, pid, manifest)
         self._pub.publish(CHECK_FILE, render_metrics(s, free_bytes=manifest.root_free_after, now=manifest.finished_at))
         self._pub.publish(
             RUN_FILE,
@@ -77,6 +81,39 @@ class Applier:
             ),
         )
         return manifest
+
+    def _note_tree_gc(self, run_id: str, pid: int, manifest: Manifest) -> None:
+        """One ledger note per run that removed tmpfs job trees: path, size, age and reason of each (the manifest has the rest)."""
+        removed = [e for e in manifest.entries if e.candidate.category is Category.SHM and e.outcome is Outcome.DELETED]
+        if not removed:
+            return
+        freed = sum(e.freed_bytes for e in removed)
+        self._ledger.append(
+            {
+                "ts": iso(self._p.clock.now()),
+                "event": "note",
+                "id": f"{run_id}-tree-gc",
+                "who": "retention",
+                "class": "light",
+                "what": f"tree gc: removed {len(removed)} idle tmpfs job tree(s), {freed // 2**20} MB",
+                "where": self._s.shm_jobs_root.as_posix(),
+                "host": self._s.host,
+                "pid": pid,
+                "kind": "tree-gc",
+                "gc_freed_mb": freed // 2**20,
+                "gc_removed": [
+                    {
+                        "tree": e.candidate.path,
+                        "mb": e.freed_bytes // 2**20,
+                        "age_min": int(e.candidate.age_seconds // 60),
+                        "reason": e.candidate.reason,
+                    }
+                    for e in removed
+                ],
+                "manifest": str(self.manifest_path(run_id)),
+                "review": "2026-11-26",
+            }
+        )
 
     def _write(self, manifest: Manifest, run_id: str) -> None:
         path = self.manifest_path(run_id)
@@ -165,7 +202,7 @@ class Applier:
             "id": run_id,
             "who": "retention",
             "class": "io-light",
-            "what": "retention-apply",
+            "what": self._what,
             "host": self._s.host,
             "pid": pid,
         }

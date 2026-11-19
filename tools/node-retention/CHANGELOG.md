@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Collect idle tmpfs job trees of finished lanes: idle time (120 min) with no running or deferred job in the lane,
+  a 24 h ceiling for any lane, and an 8 GiB cap that evicts the oldest idle trees first; trees in use are never
+  candidates. New `shm-gc [--dry-run]` command; `guard` runs it on every tick; each removal writes a ledger note
+  with the manifest.
+- Skip malformed job-ledger rows older than 48 h (`ledger_malformed_tolerance_hours`) instead of failing every
+  run: three legacy rows had stopped all retention for five days. Recent or undated malformed rows still fail
+  closed.
+
 ## 0.4.0
 
 - Add the typed, read-only `node-retention-report` CLI with indexed process and

@@ -78,3 +78,39 @@ def running_job_paths(rows: list[dict[str, object]], is_alive: Callable[[int], b
             if isinstance(value, str) and value.startswith("/"):
                 held.add(posixpath.normpath(value))
     return held
+
+
+def job_lanes(rows: list[dict[str, object]], is_alive: Callable[[int], bool]) -> tuple[set[str], set[str]]:
+    """Return (every lane named by the ledger, lanes with a job running or deferred).
+
+    A lane is active when the last row of one of its job ids is neither `end` nor `refused` and the row's pid
+    is alive (or absent). Deferred rows count: the lane is waiting for admission and will create a tree.
+    """
+    last: dict[str, dict[str, object]] = {}
+    known: set[str] = set()
+    for row in rows:
+        who = row.get("who")
+        if isinstance(who, str) and who:
+            known.add(who)
+        job_id = row.get("id")
+        # A note row (tree gc, reports) says nothing about whether the job still runs.
+        if isinstance(job_id, str) and job_id and isinstance(who, str) and who and row.get("event") != "note":
+            last[job_id] = row
+    active: set[str] = set()
+    for row in last.values():
+        if row.get("event") in _FINISHED_EVENTS:
+            continue
+        pid = row.get("pid")
+        if isinstance(pid, int) and not is_alive(pid):
+            continue
+        active.add(str(row["who"]))
+    return known, active
+
+
+def lane_of(tree_name: str, known: set[str]) -> str | None:
+    """Lane that owns a tree named `<lane>-<rest>`: the longest known lane name that prefixes it."""
+    best = None
+    for lane in known:
+        if tree_name.startswith(lane + "-") and (best is None or len(lane) > len(best)):
+            best = lane
+    return best

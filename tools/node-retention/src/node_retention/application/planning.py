@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from node_retention.application.safety import protected_image_violations, running_jobs, unsafe_reason
+from node_retention.application.shm_trees import ShmTreePolicy
 from node_retention.config import Settings
 from node_retention.domain.models import Candidate, Category, Plan, Skipped
 from node_retention.domain.ports import Clock, Docker, FileSystem, JobLedger, Processes
-from node_retention.domain.rules import in_use, job_pid, matches_any, name_matches_any
+from node_retention.domain.rules import in_use, matches_any, name_matches_any
 
 HOUR = 3600.0
 DAY = 86400.0
@@ -37,16 +38,25 @@ class Planner:
         self.candidates: list[Candidate] = []
         self.skipped: list[Skipped] = []
 
-    def build(self) -> Plan:
-        s, p = self._s, self._p
+    def build_shm(self) -> Plan:
+        """Plan only the tmpfs job trees (the `shm-gc` command: gate end hook and the 10-minute guard)."""
+        self._prepare()
+        self._shm()
+        return self._plan(free=self._p.fs.free_bytes(self._s.root_mount.as_posix()), budget_used=0)
+
+    def _prepare(self) -> None:
+        p = self._p
         self._now = p.clock.now()
         self._open = p.procs.open_paths()
         self._mounts = p.docker.mount_sources()
         self._mount_points = p.fs.mount_points()
         # Fails closed: an unreadable ledger raises here, before any candidate exists.
-        self._jobs = running_jobs(s, p.jobs, p.procs)
+        self._jobs = running_jobs(self._s, p.jobs, p.procs)
         self.candidates, self.skipped = [], []
 
+    def build(self) -> Plan:
+        s, p = self._s, self._p
+        self._prepare()
         self._evidence()
         self._tarballs()
         self._tmp()
@@ -61,6 +71,10 @@ class Planner:
         )
         budget_used = self._tool_caches(free, freed_on_root)
         self._docker()
+        return self._plan(free=free, budget_used=budget_used)
+
+    def _plan(self, free: int, budget_used: int) -> Plan:
+        s = self._s
         return Plan(
             host=s.host,
             generated_at=self._now,
@@ -164,17 +178,10 @@ class Planner:
                 self._add(self._gate(path, Category.TMP, s.tmp_idle_days * DAY, reason))
 
     def _shm(self) -> None:
-        s = self._s
-        for path in self._p.fs.children(s.shm_jobs_root.as_posix()):
-            pid = job_pid(PurePosixPath(path).name)
-            if pid is None:
-                reason = f"job dir idle for {s.shm_idle_hours:g} h"
-                self._add(self._gate(path, Category.SHM, s.shm_idle_hours * HOUR, reason))
-            elif self._p.procs.is_alive(pid):
-                size = self._p.fs.stats(path).size_bytes
-                self.skipped.append(Skipped(path=path, size_bytes=size, reason=f"job pid {pid} is alive"))
-            else:
-                self._add(self._gate(path, Category.SHM, 0.0, f"job pid {pid} is dead", s.shm_dead_idle_hours * HOUR))
+        """Job trees on tmpfs; the rules live in `shm_trees.py` (docs/adr/node_disk_retention_adr.md)."""
+        policy = ShmTreePolicy(self._s, self._p, self._gate, self.skipped, self._now, self._open | self._mounts)
+        for cand in policy.candidates():
+            self._add(cand)
 
     def _tool_caches(self, free: int, freed_on_root: int) -> int:
         """Prune the least recently used tool caches only when the budget or the floor needs it."""
