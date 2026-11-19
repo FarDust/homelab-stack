@@ -16,6 +16,7 @@ from node_memory_probe.domain.models import CgroupMemory, KernelSample, ProcessB
 from node_memory_probe.domain.ports import (
     Clock,
     ContainerDirectory,
+    ContainerDirectoryError,
     JvmTool,
     KernelSource,
     ProcessGone,
@@ -104,13 +105,21 @@ class Probe:
             skipped.append(f"cpu PSI some avg10 {cpu:.1f} >= {self._o.cpu_psi_skip_avg10:.1f}")
 
         briefs = self._p.procs.processes()
-        resolved = self._p.containers.resolve(self._o.jvm_containers) if self._o.jvm_containers else {}
+        resolved: dict[str, str] = {}
+        try:
+            resolved = self._p.containers.resolve(self._o.jvm_containers) if self._o.jvm_containers else {}
+        except ContainerDirectoryError as exc:
+            skipped.append(f"container names unavailable: {exc}")
         primaries = self._primaries(briefs, resolved)
         selected = primaries + self._top_swap(briefs, {b.pid for b in primaries})
         cgroups = self._p.kernel.cgroups()
         top_cgroups = sorted(cgroups, key=lambda c: (-c.swap_current, c.path))[: self._o.top_cgroups]
         ids = {b.container_id for b in selected if b.container_id} | {c.container_id for c in top_cgroups if c.container_id}
-        names = self._p.containers.names(sorted(ids)) if ids else {}
+        names: dict[str, str] = {}
+        try:
+            names = self._p.containers.names(sorted(ids)) if ids else {}
+        except ContainerDirectoryError as exc:
+            skipped.append(f"container names unavailable: {exc}")
         names.update({cid: name for name, cid in resolved.items()})
 
         jvm_cache: dict[str, Any] = state.get("jvm_ranges", {})

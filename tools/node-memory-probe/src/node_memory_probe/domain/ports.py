@@ -36,6 +36,10 @@ class KernelSource(Protocol):
     def memory_limit(self, cgroup: str) -> int | None: ...
 
 
+class ContainerDirectoryError(RuntimeError):
+    """The container directory (docker) could not answer; the run continues without container names."""
+
+
 class JvmTool(Protocol):
     def run(self, brief: ProcessBrief, command: str) -> str: ...
 

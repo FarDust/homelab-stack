@@ -16,8 +16,11 @@ class StateCorrupt(RuntimeError):
 def _atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_bytes(data)
-    tmp.chmod(mode)
+    tmp.unlink(missing_ok=True)
+    # O_EXCL | O_NOFOLLOW: this runs as root, so a planted symlink at the temporary name must fail, not be followed.
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), mode)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
     tmp.replace(path)
 
 

@@ -40,5 +40,8 @@ class Settings(BaseSettings):
     snapshot_retention_days: float = Field(default=14.0, gt=0)
     snapshot_budget_bytes: int = Field(default=200 * MIB, gt=0)
 
+    # jcmd attaches to the target JVM (SIGQUIT to its signal dispatcher, a short-lived second JVM in its container):
+    # the one deliberate exception to "never signal", see docs/adr/node_memory_probe_adr.md. Set false to forbid it.
+    jcmd_enabled: bool = True
     docker_bin: str = "docker"
     docker_timeout_seconds: float = Field(default=15.0, gt=0, le=50)

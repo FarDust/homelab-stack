@@ -136,3 +136,20 @@ def test_summary_classifies_every_region_and_ranks_mappings_by_swap() -> None:
 def test_without_layout_nothing_is_called_java_heap() -> None:
     totals, _ = summarize([anon(0x540000000, GIB, swap=GIB)], None, [], top=5)
     assert totals[Region.JAVA_HEAP].swap == 0 and totals[Region.ANON_OTHER].swap == GIB
+
+
+def test_atomic_write_refuses_a_planted_symlink(tmp_path):
+    import os
+
+    from node_memory_probe.adapters.files import Textfile
+
+    target = tmp_path / "victim"
+    target.write_text("keep")
+    link = tmp_path / f".out.prom.{os.getpid()}.tmp"
+    try:
+        link.symlink_to(target)
+    except OSError:
+        return  # symlinks need a privilege on Windows; the Linux CI run covers this
+    Textfile(tmp_path, "out.prom").publish("x 1\n")
+    assert target.read_text() == "keep"
+    assert (tmp_path / "out.prom").read_text() == "x 1\n"

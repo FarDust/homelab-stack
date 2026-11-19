@@ -15,7 +15,9 @@ A typed tool, `tools/node-memory-probe` (uv, Python 3.13, pydantic-settings, Typ
 - Kernel side: `pswpin`/`pswpout` rates from `/proc/vmstat` deltas, SwapFree, SwapCached, Slab, SReclaimable, Cached, MemAvailable, PSI memory and I/O, per-cgroup swap and reclaim rates, top readers by storage reads and metadata scanners.
 - Overhead guard: per-mapping reads and `jcmd` are skipped while CPU PSI `some avg10` is at or above the configured threshold.
 - Output: the textfile `node_memory_probe.prom` (`node_memory_probe_*{process,region}`) by atomic rename in the directory node_exporter already reads, and trigger snapshots (SwapFree under 3 GiB or `pswpout` above 100 pages/s; top 30 mappings by swap) kept 14 days or 200 MiB.
-- Read-only: the probe reads `/proc`, cgroupfs and `jcmd` answers only; it never signals a process, restarts a container or touches the observed workload.
+- Read-only, with one named exception: the probe reads `/proc`, cgroupfs and `jcmd` answers; it restarts nothing and writes only its own files. `jcmd` uses the JVM attach mechanism, which sends SIGQUIT to the target JVM's signal dispatcher (no thread dump), creates an `.attach_pid` marker in the container's `/tmp` and starts a short-lived 64 MiB JVM in the container's cgroup. Owner and review date: lira, 2026-11-26. `NODE_MEMORY_PROBE_JCMD_ENABLED=false` removes the exception; the heap then comes from the JVM flags.
+- Failure containment: a docker timeout or error skips container names for that run (reported as skipped) and the `/proc` metrics are still published; the unit timeout is 90 s.
+- Root hygiene: temporary files are created with `O_EXCL | O_NOFOLLOW`, so a planted symlink cannot redirect a root write.
 
 ## Alternatives
 

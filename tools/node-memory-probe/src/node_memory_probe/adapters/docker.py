@@ -6,13 +6,13 @@ import subprocess
 from collections.abc import Sequence
 
 from node_memory_probe.domain.models import ProcessBrief
-from node_memory_probe.domain.ports import JcmdError
+from node_memory_probe.domain.ports import ContainerDirectoryError, JcmdError
 
 # jcmd starts a small JVM of its own inside the target's container; keep it small and short-lived.
 JCMD_JVM_OPTIONS = ("-J-Xms8m", "-J-Xmx64m", "-J-XX:+UseSerialGC", "-J-XX:TieredStopAtLevel=1")
 
 
-class DockerError(RuntimeError):
+class DockerError(ContainerDirectoryError):
     """docker answered with an error that is not "no such container"."""
 
 
@@ -22,13 +22,16 @@ class DockerCli:
         self._timeout = timeout_s
 
     def _inspect(self, refs: Sequence[str], template: str) -> list[str]:
-        proc = subprocess.run(
-            [self._bin, "inspect", "--type", "container", "--format", template, *refs],
-            capture_output=True,
-            text=True,
-            timeout=self._timeout,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                [self._bin, "inspect", "--type", "container", "--format", template, *refs],
+                capture_output=True,
+                text=True,
+                timeout=self._timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise DockerError(f"docker inspect timed out after {self._timeout:.0f} s") from exc
         lines = [line for line in proc.stdout.splitlines() if line.strip()]
         # Exit 1 with "No such container" for refs that exited meanwhile; the others are still printed.
         unexpected = [e for e in proc.stderr.splitlines() if e.strip() and "No such" not in e]
@@ -52,6 +55,13 @@ class DockerCli:
             if running == "true":
                 out[name.lstrip("/")] = cid
         return out
+
+
+class NoJcmd:
+    """jcmd switched off by configuration: every call fails, so the heap comes from the JVM flags."""
+
+    def run(self, brief: ProcessBrief, command: str) -> str:
+        raise JcmdError("jcmd disabled by NODE_MEMORY_PROBE_JCMD_ENABLED=false")
 
 
 class DockerJcmd:

@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from node_memory_probe import __version__
-from node_memory_probe.adapters.docker import DockerCli, DockerJcmd
+from node_memory_probe.adapters.docker import DockerCli, DockerJcmd, NoJcmd
 from node_memory_probe.adapters.files import JsonState, SnapshotDir, SystemClock, Textfile
 from node_memory_probe.adapters.procfs import ProcFs
 from node_memory_probe.application.metrics import render
@@ -34,7 +34,7 @@ def build_probe(settings: Settings) -> Probe:
     ports = Ports(
         procs=procfs,
         kernel=procfs,
-        jcmd=DockerJcmd(settings.docker_bin, settings.docker_timeout_seconds),
+        jcmd=DockerJcmd(settings.docker_bin, settings.docker_timeout_seconds) if settings.jcmd_enabled else NoJcmd(),
         containers=DockerCli(settings.docker_bin, settings.docker_timeout_seconds),
         state=JsonState(settings.state_path),
         snapshots=SnapshotDir(settings.snapshot_dir),

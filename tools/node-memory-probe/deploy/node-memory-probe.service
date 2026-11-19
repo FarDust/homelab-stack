@@ -9,7 +9,7 @@ ExecStart=/opt/node-memory-probe/.venv/bin/node-memory-probe run --quiet
 Nice=19
 IOSchedulingClass=idle
 CPUSchedulingPolicy=idle
-TimeoutStartSec=45
+TimeoutStartSec=90
 # Read-only probe: root is needed only to read /proc/<pid>/smaps of other users; nothing leaves the host.
 User=root
 StateDirectory=node-memory-probe
