@@ -55,6 +55,8 @@ class Ledger(Protocol):
 
 
 class JobLedger(Protocol):
+    skipped_lines: list[int]  # malformed rows the last read skipped (old rows only; recent ones raise)
+
     def rows(self) -> list[dict[str, object]]:
         """Every row of the node's job ledger.
 

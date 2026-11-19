@@ -8,7 +8,7 @@ from node_retention.config import Settings
 from node_retention.domain.errors import ProtectedImageError
 from node_retention.domain.models import Outcome
 from node_retention.domain.ports import Docker, FileSystem, JobLedger, Processes
-from node_retention.domain.rules import contains_mount, is_within, overlaps, running_job_paths
+from node_retention.domain.rules import contains_mount, is_within, job_lanes, overlaps, running_job_paths
 
 
 def running_jobs(settings: Settings, jobs: JobLedger, procs: Processes) -> set[str]:
@@ -74,3 +74,8 @@ def require_protected_images(settings: Settings, docker: Docker) -> None:
     found = protected_image_violations(settings, docker)
     if found:
         raise ProtectedImageError(found)
+
+
+def lanes_state(jobs: JobLedger, procs: Processes) -> tuple[set[str], set[str]]:
+    """(known lanes, lanes with a job running or deferred). An unreadable ledger raises, so nothing is deleted."""
+    return job_lanes(jobs.rows(), procs.is_alive)

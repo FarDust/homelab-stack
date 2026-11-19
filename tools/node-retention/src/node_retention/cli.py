@@ -25,10 +25,23 @@ from node_retention.application.planning import Planner, Ports
 from node_retention.application.safety import protected_image_violations
 from node_retention.config import Settings
 from node_retention.domain.models import Plan
+from node_retention.domain.ports import JobLedger
 
 app = typer.Typer(help="Standing disk retention policy for CI/build worker nodes.", no_args_is_help=True)
 err = Console(stderr=True)
 JsonFlag = Annotated[bool, typer.Option("--json", help="Print the machine-readable result on stdout.")]
+
+
+def _job_ledger(settings: Settings) -> JsonlLedger:
+    return JsonlLedger(settings.ledger_path, malformed_tolerance_s=settings.ledger_malformed_tolerance_hours * 3600)
+
+
+def _warn_skipped_rows(ledger: JobLedger) -> None:
+    if ledger.skipped_lines:
+        err.print(
+            f"[yellow]job ledger: skipped {len(ledger.skipped_lines)} malformed row(s) older than the tolerance, "
+            f"lines {ledger.skipped_lines[:10]}[/]"
+        )
 
 
 def _ports(settings: Settings) -> Ports:
@@ -37,7 +50,7 @@ def _ports(settings: Settings) -> Ports:
         procs=ProcProcesses(),
         docker=DockerCli(settings.textfile_helper_image),
         clock=SystemClock(),
-        jobs=JsonlLedger(settings.ledger_path),
+        jobs=_job_ledger(settings),
     )
 
 
@@ -75,6 +88,38 @@ def plan(as_json: JsonFlag = False) -> None:
         sys.stdout.write(result.model_dump_json(indent=2) + "\n")
     if result.protected_image_violations:
         raise typer.Exit(code=1)
+
+
+def _shm_gc(settings: Settings, *, dry_run: bool, as_json: bool) -> None:
+    ports = _ports(settings)
+    result = Planner(settings, ports).build_shm()
+    _warn_skipped_rows(ports.jobs)
+    _render(result)
+    if dry_run:
+        err.print("[bold]dry run: nothing removed[/]")
+        if as_json:
+            sys.stdout.write(result.model_dump_json(indent=2) + "\n")
+        return
+    if not result.candidates:
+        return
+    publisher = TextfilePublisher(settings.textfile_dir, settings.textfile_helper_image)
+    run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{os.getpid()}"
+    applier = Applier(settings, ports, JsonlLedger(settings.ledger_path), publisher)
+    manifest = applier.apply(result, run_id, os.getpid(), what="retention-shm-gc")
+    err.print(f"freed {_gib(manifest.freed_bytes)} of tmpfs; manifest {applier.manifest_path(run_id)}")
+    if as_json:
+        sys.stdout.write(manifest.model_dump_json(indent=2) + "\n")
+    if any(e.outcome and e.outcome.value == "failed" for e in manifest.entries):
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def shm_gc(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Print what would be removed; remove nothing.")] = False,
+    as_json: JsonFlag = False,
+) -> None:
+    """Collect idle tmpfs job trees (/dev/shm/agent-jobs): idle time, lane activity, 24 h ceiling and size cap."""
+    _shm_gc(_settings(), dry_run=dry_run, as_json=as_json)
 
 
 @app.command()
@@ -127,10 +172,19 @@ def guard(as_json: JsonFlag = False) -> None:
     free = ports.fs.free_bytes(settings.root_mount.as_posix())
     publisher = TextfilePublisher(settings.textfile_dir, settings.textfile_helper_image)
     publisher.publish(CHECK_FILE, render_metrics(settings, free_bytes=free, now=ports.clock.now()))
+    # tmpfs is RAM: it is collected on every guard run (10 minutes), not only when `/` is under its floor.
+    shm_failed = False
+    try:
+        _shm_gc(settings, dry_run=False, as_json=False)
+    except Exception as exc:
+        shm_failed = True
+        err.print(f"[bold red]shm-gc failed: {type(exc).__name__}: {exc}[/]")
     if free >= settings.floor_bytes:
         err.print(f"root free {_gib(free)} is above the floor {_gib(settings.floor_bytes)}; nothing to do")
         if as_json:
             sys.stdout.write('{"action": "none"}\n')
-        return
-    err.print(f"[yellow]root free {_gib(free)} is under the floor {_gib(settings.floor_bytes)}; pruning[/]")
-    apply(as_json=as_json)
+    else:
+        err.print(f"[yellow]root free {_gib(free)} is under the floor {_gib(settings.floor_bytes)}; pruning[/]")
+        apply(as_json=as_json)
+    if shm_failed:
+        raise typer.Exit(code=1)

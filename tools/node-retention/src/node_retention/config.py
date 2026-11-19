@@ -52,7 +52,19 @@ class Settings(BaseSettings):
     evidence_days: float = 14.0
     tarball_days: float = 7.0
     tmp_idle_days: float = 7.0
+    # `/dev/shm/agent-jobs` is RAM: every tree is judged by four rules (docs/adr/node_disk_retention_adr.md,
+    # section "Tmpfs job trees"). Owner lira; review 2026-11-26.
+    # 1. any tree untouched for this long goes, whatever its lane does (unless a process uses it).
     shm_idle_hours: float = 24.0
+    # 2. a tree untouched for this long goes when its lane has no job running or deferred in the ledger.
+    shm_idle_minutes: float = 120.0
+    # 3. when the whole directory exceeds this size the oldest idle trees go first until it fits.
+    shm_cap_gib: float = 8.0
+    # Trees touched more recently than this survive even a cap eviction.
+    shm_cap_min_idle_minutes: float = 10.0
+    # A malformed ledger row older than this is skipped (it cannot describe a running job); a recent or
+    # undated one still fails closed. A single legacy row once disabled all retention for five days.
+    ledger_malformed_tolerance_hours: float = 48.0
     # Job dirs whose pid is dead: a dead owner is stronger evidence than the 24 h idle window.
     shm_dead_idle_hours: float = 1.0
     docker_build_cache_days: int = 7
@@ -130,6 +142,10 @@ class Settings(BaseSettings):
         parents = (self.home, self.ci_root, self.ci_root / "jra", self.tmp_root, self.shm_jobs_root)
         roots = [r.as_posix() for r in (*parents, *self.cache_roots, *self.ci_scratch_roots)]
         return any(is_within(path, r) and path != r for r in roots)
+
+    @property
+    def shm_cap_bytes(self) -> int:
+        return int(self.shm_cap_gib * GIB)
 
     @property
     def floor_bytes(self) -> int:

@@ -7,7 +7,8 @@ Standing disk retention policy for a CI/build worker node. Decision record:
 uv run --project tools/node-retention node-retention plan          # dry run, Rich table on stderr
 uv run --project tools/node-retention node-retention plan --json   # manifest-shaped plan on stdout
 uv run --project tools/node-retention node-retention apply         # manifest first, then delete
-uv run --project tools/node-retention node-retention guard         # metrics; applies only under the floor
+uv run --project tools/node-retention node-retention guard         # metrics; tmpfs collection; applies only under the floor
+uv run --project tools/node-retention node-retention shm-gc --dry-run  # idle /dev/shm job trees (drop --dry-run to remove)
 uv run --project tools/node-retention node-retention verify-images # exit 1 when a protected image is missing or drifted
 ```
 

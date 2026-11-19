@@ -9,12 +9,15 @@ import shutil
 import stat
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 from node_retention.domain.errors import LedgerUnreadableError
 from node_retention.domain.models import StaleFiles, TreeStats
 
 _OCTAL = re.compile(r"\\([0-7]{3})")
+# The row's own timestamp, readable even when the rest of the line is not JSON.
+_ROW_TS = re.compile(r'^\{"ts":"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)"')
 
 
 class LocalFileSystem:
@@ -189,10 +192,29 @@ class ProcProcesses:
 class JsonlLedger:
     """The node's append-only job ledger: written by every agent, read here to find running jobs."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, malformed_tolerance_s: float | None = None) -> None:
+        """`malformed_tolerance_s`: a malformed row whose own `ts` is older than this is skipped, not fatal.
+
+        An old row cannot describe a job that still runs. A recent row, or one whose `ts` cannot be read, still
+        fails closed. None keeps the strict behaviour.
+        """
         self._path = path
+        self._tolerance_s = malformed_tolerance_s
         self._cache_key: tuple[int, int] | None = None
         self._cache: list[dict[str, object]] = []
+        self.skipped_lines: list[int] = []  # 1-based line numbers of malformed rows skipped by the last read
+
+    def _tolerated(self, line: str) -> bool:
+        if self._tolerance_s is None:
+            return False
+        found = _ROW_TS.search(line)
+        if found is None:
+            return False
+        try:
+            stamp = datetime.strptime(found.group(1), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        except ValueError:
+            return False
+        return time.time() - stamp.timestamp() > self._tolerance_s
 
     def rows(self) -> list[dict[str, object]]:
         """Parse the ledger, re-reading only when its size or mtime changed.
@@ -211,14 +233,21 @@ class JsonlLedger:
         lines = text.split("\n")
         complete, tail = lines[:-1], lines[-1]
         rows: list[dict[str, object]] = []
+        self.skipped_lines = []
         for number, line in enumerate(complete, start=1):
             if not line.strip():
                 continue
             try:
                 row = json.loads(line)
             except json.JSONDecodeError as exc:
+                if self._tolerated(line):
+                    self.skipped_lines.append(number)
+                    continue
                 raise LedgerUnreadableError(f"job ledger {self._path} line {number} is not JSON: {exc}") from exc
             if not isinstance(row, dict):
+                if self._tolerated(line):
+                    self.skipped_lines.append(number)
+                    continue
                 raise LedgerUnreadableError(f"job ledger {self._path} line {number} is not an object")
             rows.append(row)
         if tail.strip():
