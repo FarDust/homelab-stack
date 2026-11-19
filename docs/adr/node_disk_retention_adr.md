@@ -116,3 +116,26 @@ A tree of a lane that runs continuously survives until 24 h idle unless the cap 
 ### Verification
 
 `tests/test_shm_trees.py` covers each rule, the in-use guards, the cap order, the fail-closed ledger, the ledger note and the dry run; live proof on frost-fang is recorded in `Learnings/frost-fang gate tree collector for finished lanes 2026-11-19.md` of the agent memory vault.
+
+## uv cached environments (2026-11-19, owner lira, review 2026-11-26)
+
+### Context
+
+On 2026-11-19 00:16 UTC frost-fang `/` (vg0-root, 79 GB) had 4.7 GB free against the 8 GiB floor. The guard ran and reported nothing on `/` left to prune: the two uv caches (`~/ci-fallback/uv-cache` 8.6 GB, `~/.cache/uv` 4.0 GB) are cache units judged as a whole, and both are written every hour, so they never pass the 24 h gate. Measured inside them: `environments-v2` held 6.1 GB and 1.2 GB of cached ephemeral environments (109 and 27 entries, created by `uv run --script`, `--with` and `uvx`), while `archive-v0` held 2.4 and 2.8 GB. Four uv versions (0.7.13 on the host, 0.11.7, 0.12.5 and 0.13.7 from jobs) write the same cache.
+
+### Decision
+
+List each cache's `environments-v2` directory in `cache_roots`, so every environment is its own least-recently-used tool cache under the existing rules: pruned only when the floor or the budget needs it, only after 24 h without a write or read, never while a process holds it. No code change: the planner already treats children of a cache root this way.
+
+### Alternatives
+
+- `uv cache prune`: it removes every cache bucket the running uv version does not know, including the newer buckets of other versions on the same cache (`simple-v27`, `wheels-v7`), and the archives only they reference; with four writer versions that forces heavy re-downloads. Kept for a single-version cache.
+- Delete the whole cache when the floor is violated: discards `archive-v0`, which is the expensive part.
+
+### Consequences
+
+Removing an environment costs the next `uv run` of that script a rebuild from `archive-v0` (links or copies, no download). Environments in use within 24 h stay. The version drift that multiplies buckets is a separate finding for the gate owner.
+
+### Verification
+
+`tests/test_policy.py::test_idle_uv_environments_inside_an_active_cache_are_pruned_one_by_one`; live numbers in `Learnings/frost-fang root disk 94 percent 2026-11-19 uv environments and rclone cache.md` of the agent memory vault.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- Configure the cached ephemeral environments of each uv cache (`environments-v2`) as cache roots in the node
+  example: a uv cache written every hour never passed the 24 h gate as a whole, so on frost-fang 7 GB of idle
+  environments stayed on a root filesystem at 94 percent while the guard reported nothing left to prune. Each
+  environment idle 24 h is now a least-recently-used candidate when the floor or budget needs it; uv rebuilds it
+  from `archive-v0` without a download. Regression test added.
+
 ## 0.5.0
 
 - Collect idle tmpfs job trees of finished lanes: idle time (120 min) with no running or deferred job in the lane,

@@ -149,6 +149,23 @@ def test_floor_violation_prunes_caches_even_within_budget(tmp_path: Path) -> Non
     assert sum(c.size_bytes for c in plan.candidates) >= int(2.2 * GIB)
 
 
+def test_idle_uv_environments_inside_an_active_cache_are_pruned_one_by_one(tmp_path: Path) -> None:
+    # A uv cache written every hour never passes the 24 h gate as a whole; its cached ephemeral
+    # environments (`environments-v2/<hash>`) are configured as a cache root so each idle one goes.
+    envs = "/h/ci/uv-cache/environments-v2"
+    fs = FakeFs(root_free=int(4.7 * GIB))
+    fs.add("/h/ci/uv-cache", 9 * GIB, 1 * HOUR)
+    fs.add(envs, 6 * GIB, 1 * HOUR)
+    fs.add(f"{envs}/old", 2 * GIB, 30 * HOUR)
+    fs.add(f"{envs}/fresh", 1 * GIB, 1 * HOUR)
+    _, _, planner = _planner(tmp_path, fs, cache_roots=[Path("/h/.cache"), Path(envs)])
+    plan = planner.build()
+    assert plan.floor_violated
+    assert [c.path for c in plan.candidates if c.category is Category.TOOL_CACHE] == [f"{envs}/old"]
+    skipped = {s.path for s in plan.skipped}
+    assert {f"{envs}/fresh", "/h/ci/uv-cache"} <= skipped
+
+
 def test_docker_candidates_use_dangling_and_build_cache_only(tmp_path: Path) -> None:
     fs = FakeFs(root_free=20 * GIB)
     _, _, planner = _planner(tmp_path, fs, docker=FakeDocker(dangling=5, cache=7))
