@@ -10,7 +10,7 @@ from node_retention.application.shm_trees import ShmTreePolicy
 from node_retention.config import Settings
 from node_retention.domain.models import Candidate, Category, Plan, Skipped
 from node_retention.domain.ports import Clock, Docker, FileSystem, JobLedger, Processes
-from node_retention.domain.rules import in_use, matches_any, name_matches_any
+from node_retention.domain.rules import in_use, is_within, matches_any, name_matches_any
 
 HOUR = 3600.0
 DAY = 86400.0
@@ -193,7 +193,11 @@ class Planner:
         units = [u for u in dict.fromkeys(units) if u not in stale_units]
         sized = [(u, p.fs.stats(u)) for u in units if p.fs.exists(u)]
         stale_sized = [(u, p.fs.stats(u)) for u in stale_units if p.fs.exists(u)]
-        used = sum(st.size_bytes for _, st in sized + stale_sized)
+        # A unit inside another unit (uv `environments-v2/<hash>` under its cache) is already in the outer size.
+        everything = [u for u, _ in sized + stale_sized]
+        used = sum(
+            st.size_bytes for u, st in sized + stale_sized if not any(o != u and is_within(u, o) for o in everything)
+        )
         need = max(used - s.budget_bytes, s.floor_bytes - (free + freed_on_root), 0)
         if need == 0:
             return used
@@ -222,14 +226,22 @@ class Planner:
                     )
                 )
                 gained += found.size_bytes
-        for path, _ in sorted(sized, key=lambda item: item[1].newest_ts):
+        chosen: list[str] = []
+        for path, st in sorted(sized, key=lambda item: item[1].newest_ts):
             if gained >= need:
                 break
+            if any(is_within(path, c) or is_within(c, path) for c in chosen):
+                # Nested in (or holding) a unit already chosen: its bytes are counted once, and a uv cache keeps
+                # its archive while its idle environments go (docs/adr/node_disk_retention_adr.md).
+                reason = "nested with a cache unit already chosen"
+                self.skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason=reason))
+                continue
             cand = self._gate(
                 path, Category.TOOL_CACHE, s.idle_hours * HOUR, "least recently used tool cache over budget or floor"
             )
             if cand is not None:
                 self.candidates.append(cand)
+                chosen.append(path)
                 gained += cand.size_bytes
         return used
 
