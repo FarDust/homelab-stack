@@ -6,7 +6,9 @@
   example: a uv cache written every hour never passed the 24 h gate as a whole, so on frost-fang 7 GB of idle
   environments stayed on a root filesystem at 94 percent while the guard reported nothing left to prune. Each
   environment idle 24 h is now a least-recently-used candidate when the floor or budget needs it; uv rebuilds it
-  from `archive-v0` without a download. Regression test added.
+  from `archive-v0` without a download.
+- Count a cache unit nested in another unit once and never plan both: the nested environments go first and
+  the cache holding the archive is skipped. Regression tests added.
 
 ## 0.5.0
 

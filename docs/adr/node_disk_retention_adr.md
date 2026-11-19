@@ -125,7 +125,7 @@ On 2026-11-19 00:16 UTC frost-fang `/` (vg0-root, 79 GB) had 4.7 GB free against
 
 ### Decision
 
-List each cache's `environments-v2` directory in `cache_roots`, so every environment is its own least-recently-used tool cache under the existing rules: pruned only when the floor or the budget needs it, only after 24 h without a write or read, never while a process holds it. No code change: the planner already treats children of a cache root this way.
+List each cache's `environments-v2` directory in `cache_roots`, so every environment is its own least-recently-used tool cache under the existing rules: pruned only when the floor or the budget needs it, only after 24 h without a write or read, never while a process holds it. The planner counts a unit nested in another unit once (the budget is not inflated by the environments inside their cache) and never chooses both a unit and a unit nested in it: the environments, being older, go first and the cache that holds `archive-v0` is skipped with the reason `nested with a cache unit already chosen`.
 
 ### Alternatives
 
@@ -138,4 +138,4 @@ Removing an environment costs the next `uv run` of that script a rebuild from `a
 
 ### Verification
 
-`tests/test_policy.py::test_idle_uv_environments_inside_an_active_cache_are_pruned_one_by_one`; live numbers in `Learnings/frost-fang root disk 94 percent 2026-11-19 uv environments and rclone cache.md` of the agent memory vault.
+`tests/test_policy.py::test_idle_uv_environments_inside_an_active_cache_are_pruned_one_by_one` and `::test_idle_cache_and_its_nested_environments_are_not_both_candidates`; live numbers in `Learnings/frost-fang root disk 94 percent 2026-11-19 uv environments and rclone cache.md` of the agent memory vault.
