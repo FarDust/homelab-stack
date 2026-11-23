@@ -14,7 +14,7 @@ Embedding values in environment variables or sending credentials in requests wou
 
 ## Consequences
 
-Deployments rendering this stack must supply both source-file variables. Removing the mounts and restoring the prior image reverses this process access; disabling an owned flag is a separate action and preserves its rules.
+Deployments rendering this stack must supply both source-file variables. For rollback, render the saved pre-change service configuration with its recorded secret version, not the current global version. Confirm that the four existing secret references resolve to the exact pre-change objects before deployment. Remove only the two new mounts and environment entries, restore the previous image, and verify convergence and references. Disabling an owned flag is a separate action that preserves its rules. A collision or unconfirmed reference is an explicit stop.
 
 ## Verification
 
