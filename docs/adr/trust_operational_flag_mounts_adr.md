@@ -6,7 +6,7 @@ A narrowly scoped operational flag capability needs an existing flag administrat
 
 ## Decision
 
-Mount each existing credential as a versioned Swarm secret and provide its in-container path to Trust Agent. The two required source-file variables identify protected files on the manager. The capability itself restricts callers and flag scope; mounting credentials expands what the Trust Agent process can read. Retain prior source files and the previous image and secret references for rollback.
+Mount each existing credential as a versioned Swarm secret and provide its in-container path to Trust Agent. The two required source-file variables identify protected files on the manager. The capability itself restricts callers and flag scope; mounting credentials expands what the Trust Agent process can read. A Trust-specific secret version preserves its existing references when the global configuration version changes. Retain prior source files and the previous image and secret references for rollback.
 
 ## Alternatives
 

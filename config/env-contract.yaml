@@ -352,7 +352,6 @@ variables:
   - main/rustfs
   - main/storage
   - main/traefik
-  - main/trust-agent
   - main/uptime
   - productivity/automations
   - productivity/finance
@@ -3885,6 +3884,14 @@ variables:
   required: true
   description: Protected source file for the service identity credential.
   example: <protected-secret-file>
+- name: TRUST_AGENT_CONFIG_VERSION
+  kind: literal
+  owner: main/trust-agent
+  used_by:
+  - main/trust-agent
+  required: true
+  description: Version shared by Trust Agent secret references.
+  example: '1'
 - name: TRUST_AGENT_IMAGE
   kind: literal
   owner: main/trust-agent

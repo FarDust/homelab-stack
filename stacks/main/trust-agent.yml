@@ -141,20 +141,20 @@ services:
 
 secrets:
   trust_agent_unleash_admin:
-    name: trust_agent_unleash_admin-${CONFIG_VERSION:-0}
+    name: trust_agent_unleash_admin-${TRUST_AGENT_CONFIG_VERSION?err}
     file: ${TRUST_AGENT_UNLEASH_ADMIN_SECRET_FILE?err}
   trust_agent_japan_service_credential:
-    name: trust_agent_japan_service_credential-${CONFIG_VERSION:-0}
+    name: trust_agent_japan_service_credential-${TRUST_AGENT_CONFIG_VERSION?err}
     file: ${TRUST_AGENT_JAPAN_SERVICE_SECRET_FILE?err}
   trust_agent_oidc_secret:
-    name: trust_agent_oidc_secret-${CONFIG_VERSION:-0}
+    name: trust_agent_oidc_secret-${TRUST_AGENT_CONFIG_VERSION?err}
     file: ../../secrets/trust-agent/oidc_client_secret
   trust_agent_keycloak_provisioner_client_secret:
-    name: trust_agent_keycloak_provisioner_client_secret-${CONFIG_VERSION:-0}
+    name: trust_agent_keycloak_provisioner_client_secret-${TRUST_AGENT_CONFIG_VERSION?err}
     file: ../../secrets/trust-agent/keycloak_provisioner_client_secret
   trust_agent_litellm_key:
-    name: trust_agent_litellm_key-${CONFIG_VERSION:-0}
+    name: trust_agent_litellm_key-${TRUST_AGENT_CONFIG_VERSION?err}
     file: ../../secrets/trust-agent/api_key
   trust_agent_firefly_accounting_api_token:
-    name: trust_agent_firefly_accounting_api_token-${CONFIG_VERSION:-0}
+    name: trust_agent_firefly_accounting_api_token-${TRUST_AGENT_CONFIG_VERSION?err}
     file: ../../secrets/fireflyiii/accounting_api_token
