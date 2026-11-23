@@ -3150,7 +3150,6 @@ variables:
   - llms/governance
   - llms/monitoring
   - main/logging
-  - main/monitoring
   required: true
   description: 'Redis password (Generate: openssl rand -hex 32)'
   secret_file: redis/redis_password
