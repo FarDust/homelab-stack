@@ -1,5 +1,9 @@
 # Trust Agent operational flag credential mounts
 
+## Rollback status
+
+The two operational credential mounts are removed by this rollback. The service-scoped secret version remains to preserve the previous objects.
+
 ## Context
 
 A narrowly scoped operational flag capability needs an existing flag administration credential and an existing service identity credential. The source file locations are deployment-specific; their contents must stay out of configuration and logs.
