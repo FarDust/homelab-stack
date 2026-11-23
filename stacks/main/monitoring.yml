@@ -41,7 +41,7 @@ services:
         - "traefik.enable=false"
         - "traefik.swarm.network=traefik"
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:latest@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57
     hostname: "{{.Node.Hostname}}"
     networks:
       - traefik
@@ -50,7 +50,6 @@ services:
       - "--docker_only=true"
       - "--housekeeping_interval=15s"
       - "--store_container_labels=true"
-      - "--storage_driver_password=${REDIS_PASSWORD?err}"
       - "--storage_driver=redis"
       - "--storage_driver_host=${REDIS_HOST:?err}:${REDIS_PORT:?err}"
     volumes:
