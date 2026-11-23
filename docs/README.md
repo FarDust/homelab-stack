@@ -49,6 +49,7 @@
 
 ## Observability and identity
 
+- [Trust Agent operational flag mounts](adr/trust_operational_flag_mounts_adr.md): protected source-file variables, scoped Swarm mounts and rollback.
 - [Trust Agent dependency routing](adr/trust_agent_dependency_routing_adr.md): exact TLS aliases on the existing isolated Traefik overlay avoid local Tailscale hairpin failures without widening service networks.
 - [Traefik immutable image pin](adr/traefik_image_pin_adr.md): configuration-only deployments retain the reviewed proxy image digest.
 - [Grafana managed ingress alert routing](adr/grafana_managed_ingress_alert_routing_adr.md): alert routing for managed ingress.
