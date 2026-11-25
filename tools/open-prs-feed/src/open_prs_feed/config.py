@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
+from typing import Annotated
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from open_prs_feed.domain.models import OWNER_RE, REPO_RE
 
@@ -15,8 +16,9 @@ class Settings(BaseSettings):
 
     # At least one of these: owners whose every repository is covered (one GraphQL query each), and single
     # owner/name repositories outside those owners. Cover every repository that has PR-tied job dirs on the node.
-    owners: list[str] = Field(default_factory=list)
-    repos: list[str] = Field(default_factory=list)
+    # Comma-separated in the environment (`OWNERS=a,b`), so env files need no quote characters.
+    owners: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    repos: Annotated[list[str], NoDecode] = Field(default_factory=list)
     # Directory that receives the files: local path, or an absolute POSIX path on `ssh_host`.
     output_dir: str = Field(min_length=1)
     # When set, files are written on this host through OpenSSH (`ssh_command`) instead of locally.
@@ -29,6 +31,13 @@ class Settings(BaseSettings):
     gh_timeout_s: float = Field(default=60.0, gt=0)
     ssh_timeout_s: float = Field(default=60.0, gt=0)
     allow_empty: bool = False
+
+    @field_validator("owners", "repos", mode="before")
+    @classmethod
+    def _split(cls, v: object) -> object:
+        if isinstance(v, str):
+            return [part.strip() for part in v.split(",") if part.strip()]
+        return v
 
     @field_validator("repos")
     @classmethod

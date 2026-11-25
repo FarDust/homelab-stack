@@ -31,8 +31,8 @@ consumer always sees the last complete list.
 
 ## Settings (`OPEN_PRS_FEED_*`)
 
-See `deploy/open-prs-feed.env.example`. Required: `OUTPUT_DIR` and at least one of `OWNERS` (JSON list of GitHub
-logins; every non-archived repository they own, through one paginated GraphQL query each) and `REPOS` (JSON list of
+See `deploy/open-prs-feed.env.example`. Required: `OUTPUT_DIR` and at least one of `OWNERS` (comma-separated GitHub
+logins; every non-archived repository they own, through one paginated GraphQL query each) and `REPOS` (comma-separated
 `owner/name`, through `gh pr list`). Prefer `OWNERS`: a directory tied to a PR of a repository the feed does not
 cover would look closed and could be released while its PR is still open. With
 `SSH_HOST` set, `OUTPUT_DIR` is an absolute path on that host and the files are written over OpenSSH.

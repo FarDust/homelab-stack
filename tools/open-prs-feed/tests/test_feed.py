@@ -247,7 +247,7 @@ def test_settings_require_repos_and_an_absolute_remote_dir(monkeypatch: pytest.M
         Settings(repos=["just-a-name"], output_dir="/x")  # type: ignore[call-arg]
     with pytest.raises(ValueError, match="absolute POSIX"):
         Settings(repos=["o/a"], output_dir="relative", ssh_host="node-a")  # type: ignore[call-arg]
-    monkeypatch.setenv("OPEN_PRS_FEED_REPOS", '["o/a","o/b"]')
+    monkeypatch.setenv("OPEN_PRS_FEED_REPOS", "o/a, o/b")
     monkeypatch.setenv("OPEN_PRS_FEED_OUTPUT_DIR", "/srv/ci")
     assert Settings().repos == ["o/a", "o/b"]  # type: ignore[call-arg]
 
@@ -258,7 +258,7 @@ def test_cli_exits_nonzero_on_failure_and_prints_the_list_on_success(
     out = tmp_path / "out"
     out.mkdir()
     env = tmp_path / "feed.env"
-    env.write_text(f'OPEN_PRS_FEED_REPOS=["o/app"]\nOPEN_PRS_FEED_OUTPUT_DIR={out.as_posix()}\n', encoding="utf-8")
+    env.write_text(f"OPEN_PRS_FEED_REPOS=o/app\nOPEN_PRS_FEED_OUTPUT_DIR={out.as_posix()}\n", encoding="utf-8")
     import open_prs_feed.composition as composition
 
     answers: dict = {"o/app": RunResult(1, b"", b"HTTP 401: Bad credentials")}
