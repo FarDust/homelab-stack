@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     samples: int = Field(default=2, ge=1)
     alert_interval_min: float = Field(default=30.0, gt=0)
     top_n: int = Field(default=10, ge=1)
+    # Opt-in WSL page-cache drop (docs/adr/memory_guard_adr.md, addendum 0.2.0). Kill switch: set to false.
+    reclaim_enabled: bool = True
+    reclaim_samples: int = Field(default=2, ge=1)
+    reclaim_min_interval_min: float = Field(default=10.0, gt=0)
+    reclaim_max_per_hour: int = Field(default=6, ge=1)
+    reclaim_timeout_s: float = Field(default=60.0, gt=0)
+    reclaim_settle_s: float = Field(default=20.0, ge=0)
+    wsl_distro: str = Field(default="Ubuntu", min_length=1)
 
     @field_validator("alert_command", mode="before")
     @classmethod

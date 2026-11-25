@@ -64,3 +64,23 @@ class PsutilProcessLister:
             raise ProbeError("no process private bytes could be read")
         rows.sort(key=lambda r: r.private_bytes, reverse=True)
         return rows[:limit], skipped
+
+
+class PsutilVmmemProbe:
+    """Private bytes of the WSL VM process (`vmmemWSL`, or `vmmem` on older WSL builds)."""
+
+    NAMES = ("vmmemwsl", "vmmem")
+
+    def private_bytes(self) -> int:
+        total, found = 0, False
+        for proc in psutil.process_iter(["name"]):
+            if (proc.info["name"] or "").lower() not in self.NAMES:
+                continue
+            try:
+                total += proc.memory_info().private
+            except psutil.Error as exc:
+                raise ProbeError(f"cannot read private bytes of {proc.info['name']}: {exc}") from exc
+            found = True
+        if not found:
+            raise ProbeError("vmmemWSL process not found although the distro is running")
+        return total

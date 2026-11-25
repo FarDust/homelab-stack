@@ -1,11 +1,13 @@
-"""One guard run: sample, update state, alert on sustained pressure, announce recovery."""
+"""One guard run: sample, update state, remediate (opt-in), alert on sustained pressure, announce recovery."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
-from memory_guard.domain.models import Condition, GuardState, MemorySample, Thresholds, gib
-from memory_guard.domain.ports import AlertSink, Clock, MemoryProbe, ProcessLister, StateStore
+from memory_guard.domain.errors import GuardError
+from memory_guard.domain.models import Condition, GuardState, MemorySample, ReclaimRecord, Thresholds, gib
+from memory_guard.domain.ports import AlertSink, Clock, MemoryProbe, ProcessLister, Reclaimer, StateStore
 
 LABEL = {Condition.VIRTUAL: "free virtual memory", Condition.RAM: "free RAM"}
 
@@ -15,6 +17,7 @@ class CheckResult:
     sample: MemorySample
     alerted: tuple[Condition, ...]
     recovered: tuple[Condition, ...]
+    reclaim: ReclaimRecord | None = None
 
 
 class CheckMemory:
@@ -28,11 +31,13 @@ class CheckMemory:
         thresholds: Thresholds,
         host: str,
         top_n: int = 10,
+        reclaimer: Reclaimer | None = None,
     ) -> None:
         self._probe, self._processes, self._sink, self._store = probe, processes, sink, store
         self._clock, self._t, self._host, self._top_n = clock, thresholds, host, top_n
+        self._reclaimer = reclaimer
 
-    def _body(self, sample: MemorySample) -> str:
+    def _body(self, sample: MemorySample, reclaim_note: str | None = None) -> str:
         top, skipped = self._processes.top_by_private_bytes(self._top_n)
         lines = [
             f"commit {gib(sample.commit_used)} of {gib(sample.commit_limit)} (free virtual {gib(sample.free_virtual)})",
@@ -40,7 +45,18 @@ class CheckMemory:
             f"top {len(top)} processes by private bytes ({skipped} unreadable):",
         ]
         lines += [f"  {p.pid} {p.name} {gib(p.private_bytes)}" for p in top]
+        if reclaim_note:
+            lines.append(reclaim_note)
         return "\n".join(lines)
+
+    def _reclaim(self, sample: MemorySample, state: GuardState) -> tuple[ReclaimRecord | None, GuardError | None]:
+        """Run the opt-in cache drop before any alert: a slow or failing alert path never delays it."""
+        if self._reclaimer is None:
+            return None, None
+        try:
+            return self._reclaimer(sample, state.conditions[Condition.VIRTUAL].consecutive), None
+        except GuardError as exc:
+            return None, exc
 
     def __call__(self) -> CheckResult:
         sample = self._probe.sample()
@@ -59,6 +75,21 @@ class CheckMemory:
                 recovered.append(cond)
         # Persist the counters first: a failed alert keeps them and retries on the next run.
         self._store.save(state)
+        record, reclaim_error = self._reclaim(sample, state)
+        note = record.summary() if record else (f"WSL cache drop failed: {reclaim_error}" if reclaim_error else None)
+        try:
+            self._notify(sample, state, now, due, recovered, note)
+        except GuardError as exc:
+            if reclaim_error is not None:
+                raise GuardError(f"{reclaim_error}; additionally the alert path failed: {exc}") from exc
+            raise
+        if reclaim_error is not None:
+            raise reclaim_error
+        return CheckResult(sample, tuple(due), tuple(recovered), record)
+
+    def _notify(
+        self, sample: MemorySample, state: GuardState, now: datetime, due: list, recovered: list, note: str | None
+    ) -> None:
         if due:
             names = ", ".join(LABEL[c] for c in due)
             # Record the attempt time before sending: a path that delivers but fails its receipt would otherwise
@@ -66,17 +97,18 @@ class CheckMemory:
             for c in due:
                 state.conditions[c].last_alert = now
             self._store.save(state)
-            self._sink.send(f"[memory-guard] {self._host}: low {names}\n{self._body(sample)}")
+            self._sink.send(f"[memory-guard] {self._host}: low {names}\n{self._body(sample, note)}")
             for c in due:
                 state.conditions[c].active = True
             self._store.save(state)
         if recovered:
             names = ", ".join(LABEL[c] for c in recovered)
+            last = self._reclaimer.last_summary() if self._reclaimer else None
             self._sink.send(
                 f"[memory-guard] {self._host}: recovered {names}; free virtual {gib(sample.free_virtual)}, "
                 f"free RAM {gib(sample.free_ram)}, non-paged pool {gib(sample.nonpaged_pool)}"
+                + (f"\n{last}" if last else "")
             )
             for c in recovered:
                 state.conditions[c].active = False  # keep last_alert: a flap stays inside the rate limit
             self._store.save(state)
-        return CheckResult(sample, tuple(due), tuple(recovered))

@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 
 from memory_guard.adapters.command_alert import CommandAlertSink
+from memory_guard.adapters.reclaim_log import JsonlReclaimLog
 from memory_guard.adapters.state_file import JsonStateStore
-from memory_guard.adapters.windows_probe import PsutilProcessLister, WindowsMemoryProbe
+from memory_guard.adapters.windows_probe import PsutilProcessLister, PsutilVmmemProbe, WindowsMemoryProbe
+from memory_guard.adapters.wsl import WslCli
 from memory_guard.application.check import CheckMemory
+from memory_guard.application.reclaim import ReclaimWslCache
 from memory_guard.config import Settings
-from memory_guard.domain.models import GIB, Thresholds
+from memory_guard.domain.models import GIB, ReclaimPolicy, Thresholds
 
 
 class SystemClock:
@@ -24,13 +28,32 @@ def build_check(settings: Settings) -> CheckMemory:
         settings.samples,
         timedelta(minutes=settings.alert_interval_min),
     )
+    probe = WindowsMemoryProbe()
+    clock = SystemClock()
+    policy = ReclaimPolicy(
+        settings.reclaim_enabled,
+        settings.reclaim_samples,
+        timedelta(minutes=settings.reclaim_min_interval_min),
+        settings.reclaim_max_per_hour,
+        settings.reclaim_settle_s,
+    )
+    reclaimer = ReclaimWslCache(
+        WslCli(settings.wsl_distro, settings.reclaim_timeout_s),
+        PsutilVmmemProbe(),
+        probe,
+        JsonlReclaimLog(settings.state_dir / "reclaim.jsonl"),
+        clock,
+        policy,
+        time.sleep,
+    )
     return CheckMemory(
-        WindowsMemoryProbe(),
+        probe,
         PsutilProcessLister(),
         CommandAlertSink(settings.alert_command, settings.alert_timeout_s, settings.alert_confirm),
         JsonStateStore(settings.state_dir / "state.json"),
-        SystemClock(),
+        clock,
         thresholds,
         settings.host,
         settings.top_n,
+        reclaimer,
     )

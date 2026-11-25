@@ -161,5 +161,6 @@ def test_cli_alert_path_failure_exits_1(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setenv("MEMORY_GUARD_STATE_DIR", str(tmp_path))
     monkeypatch.setenv("MEMORY_GUARD_ALERT_COMMAND", "definitely-not-a-command-xyz|{message}")
     monkeypatch.setenv("MEMORY_GUARD_SAMPLES", "1")
+    monkeypatch.setenv("MEMORY_GUARD_RECLAIM_ENABLED", "false")  # tests never touch the real WSL
     result = CliRunner().invoke(app, ["check", "--min-free-virtual-gb", "100000"])
     assert result.exit_code == 1
