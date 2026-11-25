@@ -82,11 +82,11 @@ class CheckMemory:
     def _drop_eligible(self, state: GuardState) -> bool:
         return self._reclaimer is not None and self._reclaimer.eligible(state.conditions[Condition.VIRTUAL].consecutive)
 
-    def _attribute(self, state: GuardState, breached: dict[Condition, bool], due: list) -> Attribution | None:
+    def _attribute(self, breached: dict[Condition, bool], due: list, eligible: bool) -> Attribution | None:
         """Attribute only low free virtual memory (host commit), and only when an alert or a drop is possible."""
         if self._attributor is None or not breached[Condition.VIRTUAL]:
             return None
-        if Condition.VIRTUAL in due or self._drop_eligible(state):
+        if Condition.VIRTUAL in due or eligible:
             return self._attributor()
         return None
 
@@ -107,14 +107,15 @@ class CheckMemory:
                 recovered.append(cond)
         # Persist the counters first: a failed alert keeps them and retries on the next run.
         self._store.save(state)
-        cause = self._attribute(state, breached, due)
+        eligible = self._drop_eligible(state)
+        cause = self._attribute(breached, due, eligible)
         record, reclaim_error = self._reclaim(sample, state, cause)
         notes = [cause.line] if cause else []
         if record:
             notes.append(record.summary())
         elif reclaim_error:
             notes.append(f"WSL cache drop failed: {reclaim_error}")
-        elif cause is not None and cause.gpu_resident and self._drop_eligible(state):
+        elif cause is not None and cause.gpu_resident and eligible:
             notes.append("WSL cache drop skipped: a resident GPU model is not guest cache, a drop cannot free it")
         try:
             self._notify(sample, state, now, due, recovered, notes)

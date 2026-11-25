@@ -45,23 +45,27 @@ class ReclaimWslCache:
             self._sleep(POLL_S)
             waited += POLL_S
 
-    def eligible(self, consecutive_low: int) -> bool:
+    def _guards_allow(self, consecutive_low: int) -> bool:
         p, now = self._policy, self._clock.now()
         if not p.enabled or consecutive_low < p.samples:
             return False
         recent = self._log.recent(now - timedelta(hours=1))
-        return not (len(recent) >= p.max_per_hour or (recent and now - max(r.at for r in recent) < p.min_interval))
+        if len(recent) >= p.max_per_hour or (recent and now - max(r.at for r in recent) < p.min_interval):
+            return False
+        return self._wsl.is_running()  # a stopped distro is never started
+
+    def eligible(self, consecutive_low: int) -> bool:
+        """Would a drop run now. An unreadable log or an unknown distro state counts as no: `__call__` reports it."""
+        try:
+            return self._guards_allow(consecutive_low)
+        except GuardError:
+            return False
 
     def __call__(self, sample: MemorySample, consecutive_low: int) -> ReclaimRecord | None:
         """Return the record of a successful drop, None when a guard says no; raise GuardError on failure."""
-        p, now = self._policy, self._clock.now()
-        if not p.enabled or consecutive_low < p.samples:
+        if not self._guards_allow(consecutive_low):
             return None
-        recent = self._log.recent(now - timedelta(hours=1))
-        if len(recent) >= p.max_per_hour or (recent and now - max(r.at for r in recent) < p.min_interval):
-            return None
-        if not self._wsl.is_running():  # a stopped distro is never started
-            return None
+        now = self._clock.now()
         before = self._snapshot(sample)  # a missing vmmemWSL counter raises ProbeError before anything runs
         try:
             self._wsl.drop_cache()

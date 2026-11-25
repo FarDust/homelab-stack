@@ -25,7 +25,7 @@ class AttributeCause:
         try:
             return self._attribute()
         except Exception as exc:
-            return Attribution(CauseKind.UNKNOWN, f"cause unknown: attribution failed: {type(exc).__name__}: {exc}")
+            return Attribution(CauseKind.UNKNOWN, f"cause unknown: attribution failed: {type(exc).__name__}")
 
     def _attribute(self) -> Attribution:
         dedicated, gpu_error = self._gpu_reading()

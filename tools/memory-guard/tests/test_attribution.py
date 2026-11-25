@@ -262,7 +262,7 @@ def test_counter_missing_alert_says_cause_unknown(tmp_path: Path) -> None:
 
 def test_unexpected_probe_exception_still_sends_the_alert_as_cause_unknown(tmp_path: Path) -> None:
     sink, reclaimer = run_guard(tmp_path, 12 * GIB, RuntimeError("boom"))
-    assert "cause unknown: attribution failed: RuntimeError: boom" in sink.sent[0]
+    assert "cause unknown: attribution failed: RuntimeError" in sink.sent[0]
     assert reclaimer.calls == 1
 
 

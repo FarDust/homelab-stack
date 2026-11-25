@@ -149,7 +149,9 @@ said nothing about the cause, so a GPU-driven alarm read as "low free RAM from c
   exception type and message go into the alert. Probe messages carry the HTTP status or exception type, never the URL
   (the alert reaches a mailbox).
 - The drop is skipped only when it would otherwise have been eligible (enabled, sustained, interval and hourly guards),
-  and only then does the alert say `WSL cache drop skipped`; `reclaimer.eligible()` exposes those guards.
+  and only then does the alert say `WSL cache drop skipped`; `reclaimer.eligible()` exposes those guards plus the running-distro check, and counts an unreadable log or an
+  unknown distro state as not eligible (the real drop path still reports it). The exception text of an unexpected
+  attribution failure is reduced to its type name.
 - `MEMORY_GUARD_OLLAMA_URL` must point at the Ollama that serves this host's GPU: a remote Ollama would suppress the
   local drop for a model that is not on this host.
 
