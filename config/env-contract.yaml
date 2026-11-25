@@ -988,6 +988,7 @@ variables:
   used_by:
   - apps/japan-trip-api
   - apps/japan-trip-assistant
+  - apps/japan-trip-backend
   - apps/japan-trip-mcp
   - apps/japan-trip-realtime
   - productivity/static-journey
@@ -1549,6 +1550,7 @@ variables:
   used_by:
   - admin/dashboards
   - apps/japan-trip-assistant
+  - apps/japan-trip-backend
   - apps/japan-trip-mcp
   - apps/supabase
   - apps/web
@@ -3985,6 +3987,49 @@ variables:
   default: '8080'
   description: Internal port for Open WebUI HTTP server
   example: '8080'
+- name: JT_BACKEND_ALLOWED_CLIENTS
+  kind: literal
+  owner: apps/japan-trip-backend
+  used_by:
+  - apps/japan-trip-backend
+  required: false
+  description: Comma list of OIDC client ids the backend accepts tokens from.
+  example: japan-trip
+  default: japan-trip
+- name: JT_BACKEND_FEATURES
+  kind: literal
+  owner: apps/japan-trip-backend
+  used_by:
+  - apps/japan-trip-backend
+  required: false
+  description: Comma list of parts mounted in the backend process; realtime only, the other parts run as their own services.
+  example: realtime
+  default: realtime
+- name: JT_BACKEND_IMAGE
+  kind: literal
+  owner: apps/japan-trip-backend
+  used_by:
+  - apps/japan-trip-backend
+  required: true
+  description: Trip application backend image (tag and digest), built with the meals plugin.
+  example: your_trip_backend_image_reference
+- name: JT_CHANGE_FEED_SECRET_VERSION
+  kind: literal
+  owner: apps/japan-trip-backend
+  used_by:
+  - apps/japan-trip-backend
+  required: true
+  description: Version suffix of the Swarm secret jt_backend_change_feed_dsn-<version> (DSN of the LISTEN-only jt_realtime role).
+  example: '1'
+- name: JT_MEALS_RATING_SOURCES
+  kind: literal
+  owner: apps/japan-trip-backend
+  used_by:
+  - apps/japan-trip-backend
+  required: false
+  description: Rating sources the meals plugin may ask (google, tabelog).
+  example: google,tabelog
+  default: google,tabelog
 - name: JT_POSTGREST_IMAGE
   kind: literal
   owner: apps/japan-trip-api
@@ -4006,6 +4051,7 @@ variables:
   owner: apps/japan-trip-api
   used_by:
   - apps/japan-trip-api
+  - apps/japan-trip-backend
   required: true
   description: Audience claim the shared trip API requires in access tokens.
   example: japan-trip

@@ -1,0 +1,120 @@
+version: '3.9'
+# Trip application backend (FastAPI) of the shared trip, stack apps-japan-trip-backend, started with the meals plugin
+# (japan-route-app docs/adr/app_backend_fastapi_adr.md, backend_plugins_adr.md and meal_plans_ratings_adr.md there).
+# Rollout and rollback: docs/operations/app_backend_rollout.md of that repository; the service holds no data of its own,
+# so rollback is removing the stack.
+#
+# Routing: /api/v2 on the private application host reaches this service (priority 200); /api keeps reaching PostgREST
+# (apps-japan-trip-api, priority 100). Tailnet only, like every japan-trip stack: the router sits on the same private
+# host on the websecure entrypoint; there is no public route and no tunnel.
+#
+# Environment (.env, see config/env-contract.yaml):
+#   JT_BACKEND_IMAGE               image reference with digest (built with BACKEND_PLUGINS=meals)
+#   JT_BACKEND_FEATURES            comma list of mounted parts; `realtime` only (mcp, assistant and media stay separate services)
+#   JT_CHANGE_FEED_SECRET_VERSION  version suffix of the Swarm secret jt_backend_change_feed_dsn-<version>
+#   JOURNEY_HOSTNAME, LOCAL_DOMAIN private application host and the identity provider domain
+# Swarm secrets (created through trust-agent and the cluster tooling, never printed):
+#   jt_backend_change_feed_dsn-<version>  DSN of the jt_realtime login role (LISTEN only)
+#   jt_assistant_db_url                   DSN of the jt_assistant role (Maps cache and ledger, read by the meals plugin)
+#   jt_assistant_maps_key                 Google Maps key restricted to Places API (New)
+#   feature_flags_client_token            Unleash client token (read-only by design), the one the MCP service uses
+services:
+  backend:
+    image: ${JT_BACKEND_IMAGE?err}
+    networks: [traefik, traefik-public]
+    read_only: true
+    cap_drop: [ALL]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    secrets:
+      - source: jt_backend_change_feed_dsn
+        target: jt_backend_change_feed_dsn
+        mode: 0400
+        uid: '10001'
+      - source: jt_assistant_db_url
+        target: jt_meals_db_url
+        mode: 0400
+        uid: '10001'
+      - source: jt_assistant_maps_key
+        target: jt_meals_maps_key
+        mode: 0400
+        uid: '10001'
+      - source: feature_flags_client_token
+        target: feature_flags_client_token
+        mode: 0400
+        uid: '10001'
+    environment:
+      JT_BACKEND_ISSUER: https://idp.${LOCAL_DOMAIN?err}/realms/japan-trip
+      JT_BACKEND_AUDIENCE: ${JT_KEYCLOAK_AUDIENCE:-japan-trip}
+      JT_BACKEND_ALLOWED_CLIENTS: ${JT_BACKEND_ALLOWED_CLIENTS:-japan-trip}
+      JT_BACKEND_API_BASE_URL: http://apps-japan-trip-api_api:3000
+      JT_BACKEND_ALLOWED_ORIGINS: https://${JOURNEY_HOSTNAME?err}
+      JT_BACKEND_FEATURES: ${JT_BACKEND_FEATURES:-realtime}
+      JT_BACKEND_PLUGINS: meals
+      JT_BACKEND_CHANGE_FEED_DSN_FILE: /run/secrets/jt_backend_change_feed_dsn
+      JT_BACKEND_LOG_LEVEL: INFO
+      JT_MEALS_DATABASE_URL_FILE: /run/secrets/jt_meals_db_url
+      JT_MEALS_MAPS_KEY_FILE: /run/secrets/jt_meals_maps_key
+      JT_MEALS_RATING_SOURCES: ${JT_MEALS_RATING_SOURCES:-google,tabelog}
+      FLAGS_UNLEASH_URL: https://flags.${LOCAL_DOMAIN?err}/api
+      FLAGS_UNLEASH_TOKEN_FILE: /run/secrets/feature_flags_client_token
+      FLAGS_BACKUP_DIR: /tmp/flags
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status == 200 else 1)"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 96M
+        limits:
+          memory: 384M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.routers.japan-trip-backend.rule=Host(`${JOURNEY_HOSTNAME?err}`) && (Path(`/api/v2`) || PathPrefix(`/api/v2/`))
+        - traefik.http.routers.japan-trip-backend.priority=200
+        - traefik.http.routers.japan-trip-backend.entrypoints=websecure
+        - traefik.http.routers.japan-trip-backend.tls=true
+        - traefik.http.routers.japan-trip-backend.tls.certresolver=le-dns
+        - traefik.http.routers.japan-trip-backend.middlewares=japan-trip-backend-rate@swarm
+        - traefik.http.middlewares.japan-trip-backend-rate.ratelimit.average=30
+        - traefik.http.middlewares.japan-trip-backend-rate.ratelimit.burst=60
+        - traefik.http.services.japan-trip-backend.loadbalancer.server.port=8000
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  jt_backend_change_feed_dsn:
+    name: jt_backend_change_feed_dsn-${JT_CHANGE_FEED_SECRET_VERSION?err}
+    external: true
+  jt_assistant_db_url:
+    external: true
+  jt_assistant_maps_key:
+    external: true
+  feature_flags_client_token:
+    external: true
