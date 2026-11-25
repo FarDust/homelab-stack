@@ -4,10 +4,10 @@ Status: accepted, 2026-11-25. Implementation: `tools/memory-guard` (0.1.0).
 
 ## Context
 
-On 2026-11-25 the Windows desktop (32 GB RAM, about 78 GB commit limit) ran at 68.3 GB commit with 0.79 GB free
+On 2026-11-25 the owner's Windows desktop (32 GB RAM, about 78 GB commit limit) ran at 68.3 GB commit with 0.79 GB free
 RAM for roughly 45 minutes, and Claude Code stopped several agent lanes' background waits for low memory. Nothing
 alerted. A non-paged pool leak of about 9 GB, growing about 0.34 GB per day, and the WSL VM page cache held as
-host commit were the contributors. Gabriel's desktop comes first, so the watchdog must cost almost nothing.
+host commit were the contributors. The desktop comes first, so the watchdog must cost almost nothing.
 
 ## Decision
 
@@ -44,6 +44,7 @@ host commit were the contributors. Gabriel's desktop comes first, so the watchdo
 
 - One short process every 5 minutes (about 100 ms CPU); no resident memory between runs.
 - Two samples mean an alert after 5 to 10 minutes of sustained pressure; a spike shorter than that is ignored.
+- Delivery is at least once: an alert whose state save fails is sent again on the next run. A recovered condition keeps its last alert time, so a flap stays inside the 30-minute limit.
 - The alert path depends on the agent-bridge helper and its recipient; its failure is visible as a failed task run.
 
 ## Verification

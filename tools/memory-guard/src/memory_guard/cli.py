@@ -28,7 +28,7 @@ EnvFile = Annotated[
 def _settings(env_file: Path | None, **overrides: object) -> Settings:
     try:
         base = Settings(_env_file=env_file) if env_file else Settings()  # type: ignore[call-arg]
-        return base.model_copy(update={k: v for k, v in overrides.items() if v is not None})
+        return Settings.model_validate({**base.model_dump(), **{k: v for k, v in overrides.items() if v is not None}})
     except ValidationError as exc:
         err.print(f"[red]configuration invalid[/red]: {exc}")
         raise typer.Exit(2) from exc

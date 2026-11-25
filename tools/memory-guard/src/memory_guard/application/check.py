@@ -72,6 +72,6 @@ class CheckMemory:
                 f"free RAM {gib(sample.free_ram)}, non-paged pool {gib(sample.nonpaged_pool)}"
             )
             for c in recovered:
-                state.conditions[c].active, state.conditions[c].last_alert = False, None
+                state.conditions[c].active = False  # keep last_alert: a flap stays inside the rate limit
             self._store.save(state)
         return CheckResult(sample, tuple(due), tuple(recovered))

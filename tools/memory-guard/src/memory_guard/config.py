@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 
 from pydantic import Field
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     # Text that must appear in the alert command's stdout to count as delivered (agent-bridge prints "delivered <id>").
     alert_confirm: str = "delivered"
     alert_timeout_s: float = Field(default=60.0, gt=0)
-    host: str = "gabriel-pc"
+    host: str = Field(default_factory=socket.gethostname, min_length=1)
     min_free_virtual_gb: float = Field(default=8.0, gt=0)
     min_free_ram_gb: float = Field(default=1.0, gt=0)
     samples: int = Field(default=2, ge=1)

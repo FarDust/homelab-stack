@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Callable
 
@@ -28,5 +29,5 @@ class CommandAlertSink:
             raise AlertError(f"alert command {self._command[0]!r} failed to run: {exc}") from exc
         if done.returncode != 0:
             raise AlertError(f"alert command exited {done.returncode}: {done.stderr.strip()[:300]}")
-        if self._confirm not in done.stdout:
+        if not re.search(rf"^{re.escape(self._confirm)}", done.stdout, re.MULTILINE):
             raise AlertError(f"alert command exited 0 without the {self._confirm!r} receipt in its output")
