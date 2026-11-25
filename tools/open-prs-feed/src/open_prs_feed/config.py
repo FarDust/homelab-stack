@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     gh_timeout_s: float = Field(default=60.0, gt=0)
     ssh_timeout_s: float = Field(default=60.0, gt=0)
     allow_empty: bool = False
+    # Fewest repositories an owner query must return; catches a gh login that silently lost private-repo scope.
+    min_owner_repos: int = Field(default=1, ge=1)
 
     @field_validator("owners", "repos", mode="before")
     @classmethod
@@ -72,6 +74,8 @@ class Settings(BaseSettings):
             raise ValueError("set OPEN_PRS_FEED_OWNERS or OPEN_PRS_FEED_REPOS (or both)")
         if self.numbers_file == self.detail_file:
             raise ValueError("numbers_file and detail_file must differ")
+        if self.ssh_host is not None and (not self.ssh_host or self.ssh_host.startswith("-")):
+            raise ValueError("ssh_host must be a host or ~/.ssh/config alias, not empty or an option")
         if self.ssh_host is not None and not PurePosixPath(self.output_dir).is_absolute():
             raise ValueError("output_dir must be an absolute POSIX path when ssh_host is set")
         return self

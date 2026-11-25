@@ -24,7 +24,8 @@ from open_prs_feed.domain.models import OpenPr
 FIELDS = "number,headRefOid,headRefName,updatedAt"
 OWNER_PRS_PER_REPO = 100
 
-# Every non-archived repository the owner owns, with up to 100 open PRs each.
+# Every non-archived repository the owner owns, with up to 100 open PRs each. A repository with more falls back to
+# `gh pr list`. Keep `pageInfo` only on `repositories`: `gh --paginate` follows the single pageInfo in the query.
 OWNER_QUERY = """
 query($owner: String!, $endCursor: String) {
   repositoryOwner(login: $owner) {
@@ -119,9 +120,19 @@ def _unique(repo: str, rows: list[_GhPr]) -> None:
 
 
 class GhCliSource:
-    def __init__(self, runner: CommandRunner, gh_command: Sequence[str], limit: int, timeout_s: float) -> None:
+    def __init__(
+        self,
+        runner: CommandRunner,
+        gh_command: Sequence[str],
+        limit: int,
+        timeout_s: float,
+        min_owner_repos: int = 1,
+    ) -> None:
         if limit < 2:
             raise ValueError("limit must be at least 2 so a full page can be told apart from a complete answer")
+        if min_owner_repos < 1:
+            raise ValueError("min_owner_repos must be at least 1")
+        self._min_owner_repos = min_owner_repos
         self._runner = runner
         self._gh = list(gh_command)
         self._limit = limit
@@ -157,10 +168,14 @@ class GhCliSource:
         return [_to_open_pr(repo, r) for r in rows]
 
     def open_prs_of_owner(self, owner: str) -> list[OpenPr]:
-        """Every open PR of every repository `owner` owns, from one paginated GraphQL query."""
+        """Every open PR of every repository `owner` owns, from one paginated GraphQL query.
+
+        Fewer visible repositories than `min_owner_repos` (a login that lost private scope, SSO or a token
+        restriction) fails closed: those repositories' PRs would otherwise look closed.
+        """
         raw = self._json(
             f"owner {owner}",
-            ["api", "graphql", "--paginate", "--slurp", "-F", f"owner={owner}", "-f", f"query={OWNER_QUERY}"],
+            ["api", "graphql", "--paginate", "--slurp", "-f", f"owner={owner}", "-f", f"query={OWNER_QUERY}"],
         )
         if isinstance(raw, list) and any(isinstance(p, dict) and "errors" in p for p in raw):
             raise SourceUnavailableError(f"GraphQL errors for owner {owner}: {json.dumps(raw)[:400]}")
@@ -170,14 +185,22 @@ class GhCliSource:
             raise MalformedSourceError(f"gh api graphql for owner {owner}: {_first_error(exc)}") from exc
         if not pages or pages[-1].data.repositoryOwner.repositories.pageInfo.hasNextPage:
             raise TruncatedSourceError(f"owner {owner}: pagination did not reach the last page of repositories")
+        repos = [repo for page in pages for repo in page.data.repositoryOwner.repositories.nodes]
+        if len(repos) < self._min_owner_repos:
+            raise TruncatedSourceError(
+                f"owner {owner}: {len(repos)} repositories visible, fewer than OPEN_PRS_FEED_MIN_OWNER_REPOS="
+                f"{self._min_owner_repos}; check the gh login scopes, or lower the floor after archiving repositories"
+            )
         out: list[OpenPr] = []
-        for page in pages:
-            for repo in page.data.repositoryOwner.repositories.nodes:
-                conn = repo.pullRequests
-                if conn.totalCount != len(conn.nodes):
-                    raise TruncatedSourceError(
-                        f"{repo.nameWithOwner} has {conn.totalCount} open PRs, the query returned {len(conn.nodes)}"
-                    )
-                _unique(repo.nameWithOwner, conn.nodes)
-                out.extend(_to_open_pr(repo.nameWithOwner, r) for r in conn.nodes)
+        for repo in repos:
+            conn = repo.pullRequests
+            if conn.totalCount > OWNER_PRS_PER_REPO and len(conn.nodes) == OWNER_PRS_PER_REPO:
+                out.extend(self.open_prs(repo.nameWithOwner))
+                continue
+            if conn.totalCount != len(conn.nodes):
+                raise TruncatedSourceError(
+                    f"{repo.nameWithOwner} has {conn.totalCount} open PRs, the query returned {len(conn.nodes)}"
+                )
+            _unique(repo.nameWithOwner, conn.nodes)
+            out.extend(_to_open_pr(repo.nameWithOwner, r) for r in conn.nodes)
         return out

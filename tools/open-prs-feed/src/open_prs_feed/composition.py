@@ -19,7 +19,7 @@ class SystemClock:
 
 def build_collect(settings: Settings, runner: CommandRunner | None = None) -> CollectSnapshot:
     runner = runner or SubprocessRunner()
-    source = GhCliSource(runner, settings.gh_command, settings.limit, settings.gh_timeout_s)
+    source = GhCliSource(runner, settings.gh_command, settings.limit, settings.gh_timeout_s, settings.min_owner_repos)
     return CollectSnapshot(source, SystemClock(), settings.repos, settings.allow_empty, settings.owners)
 
 

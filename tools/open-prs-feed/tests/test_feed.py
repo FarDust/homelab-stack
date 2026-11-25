@@ -345,3 +345,74 @@ def test_owner_api_failure_publishes_nothing(tmp_path: Path) -> None:
     with pytest.raises(SourceUnavailableError, match="exited 4"):
         PublishOpenPrs(collect, LocalAtomicSink(tmp_path), "open-prs.json", "open-prs.detail.json")()
     assert_last_good_kept(tmp_path)
+
+
+def test_owner_scope_falls_back_to_pr_list_for_a_repository_over_the_per_repo_page() -> None:
+    page = owner_page({"o/busy": [gh_row(n) for n in range(1, 101)], "o/a": [gh_row(7)]}, total={"o/busy": 150})
+    runner = FakeRunner({"owner:o": ok([page]), "o/busy": ok([gh_row(n) for n in range(1, 151)])})
+    snap = CollectSnapshot(GhCliSource(runner, ["gh"], 500, 5.0), FixedClock(), (), False, owners=["o"])()
+    assert len([p for p in snap.prs if p.repo == "o/busy"]) == 150
+    assert ("o/a", 7) in {(p.repo, p.number) for p in snap.prs}
+    owner_argv = runner.calls[0][0]
+    assert owner_argv[owner_argv.index("owner=o") - 1] == "-f"  # string variable, no gh type conversion
+
+
+def test_owner_scope_fails_closed_below_the_visible_repository_floor(tmp_path: Path) -> None:
+    seed_last_good(tmp_path)
+    runner = FakeRunner({"owner:o": ok([owner_page({"o/a": [gh_row(1)], "o/b": []})])})
+    src = GhCliSource(runner, ["gh"], 50, 5.0, min_owner_repos=3)
+    collect = CollectSnapshot(src, FixedClock(), (), False, owners=["o"])
+    with pytest.raises(TruncatedSourceError, match="2 repositories visible"):
+        PublishOpenPrs(collect, LocalAtomicSink(tmp_path), "open-prs.json", "open-prs.detail.json")()
+    assert_last_good_kept(tmp_path)
+    assert CollectSnapshot(GhCliSource(runner, ["gh"], 50, 5.0, 2), FixedClock(), (), False, owners=["o"])().numbers()
+
+
+def test_settings_reject_an_ssh_host_that_looks_like_an_option(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in list(os.environ):
+        if key.startswith("OPEN_PRS_FEED_"):
+            monkeypatch.delenv(key)
+    for host in ["-oProxyCommand=x", ""]:
+        with pytest.raises(ValueError, match="ssh_host"):
+            Settings(owners=["o"], output_dir="/srv/ci", ssh_host=host)  # type: ignore[call-arg]
+
+
+class LocalShellAsSsh:
+    """Runs the remote command string through the local POSIX sh, as sshd would on the node."""
+
+    def run(self, argv: Sequence[str], stdin: bytes | None, timeout_s: float) -> RunResult:
+        import subprocess
+
+        done = subprocess.run(["sh", "-c", argv[-1]], input=stdin, capture_output=True, timeout=timeout_s, check=False)
+        return RunResult(done.returncode, done.stdout, done.stderr)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the remote script runs under POSIX sh on the node")
+def test_ssh_sink_remote_script_renames_atomically_in_a_quoted_directory(tmp_path: Path) -> None:
+    from pathlib import PurePosixPath
+
+    target = tmp_path / "dir with 'quotes' and spaces"
+    target.mkdir()
+    (target / "open-prs.json").write_text("[201]\n", encoding="utf-8")
+    sink = SshAtomicSink(LocalShellAsSsh(), ["ssh"], "node-a", PurePosixPath(target.as_posix()), 5.0)
+    sink.write("open-prs.json", b"[1, 2]\n")
+    assert (target / "open-prs.json").read_bytes() == b"[1, 2]\n"
+    assert oct((target / "open-prs.json").stat().st_mode & 0o777) == "0o644"
+    assert sorted(p.name for p in target.iterdir()) == ["open-prs.json"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the remote script runs under POSIX sh on the node")
+def test_ssh_sink_remote_size_mismatch_keeps_the_last_good_file_and_cleans_up(tmp_path: Path) -> None:
+    from pathlib import PurePosixPath
+
+    (tmp_path / "open-prs.json").write_text("[201]\n", encoding="utf-8")
+
+    class ShortWrite(LocalShellAsSsh):
+        def run(self, argv: Sequence[str], stdin: bytes | None, timeout_s: float) -> RunResult:
+            return super().run(argv, (stdin or b"")[:-2], timeout_s)
+
+    sink = SshAtomicSink(ShortWrite(), ["ssh"], "node-a", PurePosixPath(tmp_path.as_posix()), 5.0)
+    with pytest.raises(SinkError, match="size 5 != 7"):
+        sink.write("open-prs.json", b"[1, 2]\n")
+    assert (tmp_path / "open-prs.json").read_text(encoding="utf-8") == "[201]\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["open-prs.json"]

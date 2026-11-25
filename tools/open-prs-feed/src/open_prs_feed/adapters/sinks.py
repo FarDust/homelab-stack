@@ -14,7 +14,7 @@ from open_prs_feed.domain.errors import SinkError
 # Remote side: temp file in the target dir, size check, chmod, rename. Runs under POSIX sh.
 _REMOTE_SCRIPT = (
     'set -eu; d=$1; n=$2; want=$3; umask 022; t=$(mktemp "$d/.$n.XXXXXX"); '
-    'trap \'rm -f "$t"\' EXIT; cat >"$t"; got=$(wc -c <"$t"); '
+    'trap \'rm -f "$t"\' EXIT; trap \'exit 1\' HUP INT TERM; cat >"$t"; got=$(wc -c <"$t"); '
     'if [ "$got" -ne "$want" ]; then echo "size $got != $want" >&2; exit 3; fi; '
     'chmod 0644 "$t"; mv -f "$t" "$d/$n"; trap - EXIT'
 )
