@@ -99,3 +99,36 @@ class ReclaimPolicy:
     min_interval: timedelta
     max_per_hour: int
     settle_s: float
+
+
+class CauseKind(StrEnum):
+    GPU_MODEL = "gpu_model_resident"
+    GPU_OTHER = "gpu_other_consumer"
+    CPU_MODEL = "cpu_model_resident"
+    PAGE_CACHE = "guest_page_cache"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class LoadedModel:
+    """One model Ollama holds in memory, from `GET /api/ps`."""
+
+    name: str
+    size: int
+    size_vram: int
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class Attribution:
+    kind: CauseKind
+    text: str
+
+    @property
+    def line(self) -> str:
+        """The alert line: an unknown cause already starts with its own label."""
+        return self.text if self.kind is CauseKind.UNKNOWN else f"cause: {self.text}"
+
+    @property
+    def gpu_resident(self) -> bool:
+        return self.kind is CauseKind.GPU_MODEL

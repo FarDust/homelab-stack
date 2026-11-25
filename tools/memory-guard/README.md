@@ -19,3 +19,8 @@ timeout) and records free virtual, free RAM and `vmmemWSL` before and after in t
 `<state-dir>/reclaim.jsonl`. It never starts WSL and never touches `.wslconfig`. Disable it with
 `MEMORY_GUARD_RECLAIM_ENABLED=false` in the env file (or the process environment), or remove the whole task with
 `Unregister-ScheduledTask -TaskName memory-guard -Confirm:$false`.
+
+Cause attribution (0.3.0): every alert carries a `cause:` line. With `MEMORY_GUARD_OLLAMA_URL` set (private env file) the
+guard reads Ollama `GET /api/ps` and the host `\GPU Adapter Memory(*)\Dedicated Usage` counter and names a resident GPU
+model (with its size and unload time), another GPU consumer, guest page cache (an inference) or `cause unknown: <reason>`.
+The cache drop is skipped while a GPU model is resident.

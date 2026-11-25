@@ -6,10 +6,13 @@ import time
 from datetime import UTC, datetime, timedelta
 
 from memory_guard.adapters.command_alert import CommandAlertSink
+from memory_guard.adapters.gpu_pdh import PdhGpuMemoryProbe
+from memory_guard.adapters.ollama import OllamaPsProbe
 from memory_guard.adapters.reclaim_log import JsonlReclaimLog
 from memory_guard.adapters.state_file import JsonStateStore
 from memory_guard.adapters.windows_probe import PsutilProcessLister, PsutilVmmemProbe, WindowsMemoryProbe
 from memory_guard.adapters.wsl import WslCli
+from memory_guard.application.attribution import AttributeCause
 from memory_guard.application.check import CheckMemory
 from memory_guard.application.reclaim import ReclaimWslCache
 from memory_guard.config import Settings
@@ -56,4 +59,10 @@ def build_check(settings: Settings) -> CheckMemory:
         settings.host,
         settings.top_n,
         reclaimer,
+        AttributeCause(
+            PdhGpuMemoryProbe(),
+            OllamaPsProbe(settings.ollama_url, settings.ollama_timeout_s),
+            clock,
+            int(settings.gpu_other_gb * GIB),
+        ),
     )
