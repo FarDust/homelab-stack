@@ -8,6 +8,7 @@ import re
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, PositiveInt, field_validator
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 SCHEMA_VERSION = 1
 
 
@@ -35,6 +36,7 @@ class Snapshot(BaseModel):
 
     schema_version: int = SCHEMA_VERSION
     generated_at: AwareDatetime
+    owners: tuple[str, ...] = ()
     repos: tuple[str, ...]
     prs: tuple[OpenPr, ...]
 

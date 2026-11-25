@@ -13,6 +13,10 @@ class PullRequestSource(Protocol):
         """Every open PR of `repo`, or a FeedError. Never a partial list."""
         ...
 
+    def open_prs_of_owner(self, owner: str) -> list[OpenPr]:
+        """Every open PR of every repository `owner` owns, or a FeedError. Never a partial list."""
+        ...
+
 
 class AtomicSink(Protocol):
     def describe(self, name: str) -> str: ...

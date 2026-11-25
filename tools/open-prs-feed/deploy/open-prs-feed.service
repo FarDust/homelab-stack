@@ -1,0 +1,8 @@
+[Unit]
+Description=Open PR feed: write the open pull request list that node-retention reads
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/open-prs-feed
+ExecStart=%h/.local/bin/uv run --python 3.13 --project %h/open-prs-feed open-prs-feed publish --env-file %h/.config/open-prs-feed.env
+Nice=10

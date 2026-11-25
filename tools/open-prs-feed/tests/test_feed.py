@@ -51,6 +51,10 @@ class FakeRunner:
         if "--repo" in argv:
             ans = self.answers[argv[list(argv).index("--repo") + 1]]
             return ans() if callable(ans) else ans
+        if "graphql" in argv:
+            owner = next(a for a in argv if a.startswith("owner=")).removeprefix("owner=")
+            ans = self.answers[f"owner:{owner}"]
+            return ans() if callable(ans) else ans
         return self.answers["ssh"]() if callable(self.answers["ssh"]) else self.answers["ssh"]
 
 
@@ -237,7 +241,7 @@ def test_settings_require_repos_and_an_absolute_remote_dir(monkeypatch: pytest.M
     for key in list(os.environ):
         if key.startswith("OPEN_PRS_FEED_"):
             monkeypatch.delenv(key)
-    with pytest.raises(ValueError, match="repos"):
+    with pytest.raises(ValueError, match="OPEN_PRS_FEED_OWNERS or OPEN_PRS_FEED_REPOS"):
         Settings(output_dir="/x")  # type: ignore[call-arg]
     with pytest.raises(ValueError, match="owner/name"):
         Settings(repos=["just-a-name"], output_dir="/x")  # type: ignore[call-arg]
@@ -268,3 +272,76 @@ def test_cli_exits_nonzero_on_failure_and_prints_the_list_on_success(
     done = runner.invoke(app, ["publish", "--env-file", str(env)])
     assert done.exit_code == 0, done.output
     assert json.loads((out / "open-prs.json").read_text(encoding="utf-8")) == [12]
+
+
+def owner_page(repos: dict[str, list[dict]], has_next: bool = False, total: dict[str, int] | None = None) -> dict:
+    total = total or {}
+    return {
+        "data": {
+            "repositoryOwner": {
+                "repositories": {
+                    "pageInfo": {"hasNextPage": has_next, "endCursor": "c"},
+                    "nodes": [
+                        {"nameWithOwner": r, "pullRequests": {"totalCount": total.get(r, len(rows)), "nodes": rows}}
+                        for r, rows in repos.items()
+                    ],
+                }
+            }
+        }
+    }
+
+
+def collect_owner(runner: FakeRunner, repos: Sequence[str] = ()) -> CollectSnapshot:
+    return CollectSnapshot(source(runner), FixedClock(), repos, False, owners=["o"])
+
+
+def test_owner_scope_covers_every_repository_across_pages_and_merges_with_repos() -> None:
+    pages = [
+        owner_page({"o/a": [gh_row(2)], "o/empty": []}, has_next=True),
+        owner_page({"o/b": [gh_row(2), gh_row(9)]}),
+    ]
+    runner = FakeRunner({"owner:o": ok(pages), "x/extra": ok([gh_row(31)])})
+    snap = collect_owner(runner, ["x/extra"])()
+    assert [(p.repo, p.number) for p in snap.prs] == [("o/a", 2), ("o/b", 2), ("o/b", 9), ("x/extra", 31)]
+    assert snap.numbers() == [2, 9, 31]
+    assert snap.owners == ("o",)
+    argv = runner.calls[0][0]
+    assert argv[:5] == ["gh", "api", "graphql", "--paginate", "--slurp"]
+
+
+@pytest.mark.parametrize(
+    ("pages", "error", "match"),
+    [
+        ([owner_page({"o/a": [gh_row(1)]}, total={"o/a": 101})], TruncatedSourceError, "101 open PRs"),
+        ([owner_page({"o/a": [gh_row(1)]}, has_next=True)], TruncatedSourceError, "last page"),
+        ([], TruncatedSourceError, "last page"),
+        ([{"data": {"repositoryOwner": None}}], MalformedSourceError, "repositoryOwner"),
+        (
+            [{"data": None, "errors": [{"message": "Could not resolve to a RepositoryOwner"}]}],
+            SourceUnavailableError,
+            "GraphQL errors",
+        ),
+        (
+            [owner_page({"o/a": [{"number": 1, "headRefName": "b", "updatedAt": "2026-11-25T00:00:00Z"}]})],
+            MalformedSourceError,
+            "headRefOid",
+        ),
+        ({"data": {}}, MalformedSourceError, "owner o"),
+    ],
+)
+def test_owner_scope_fails_closed(tmp_path: Path, pages: object, error: type, match: str) -> None:
+    seed_last_good(tmp_path)
+    collect = collect_owner(FakeRunner({"owner:o": RunResult(0, json.dumps(pages).encode(), b"")}))
+    with pytest.raises(error, match=match):
+        PublishOpenPrs(collect, LocalAtomicSink(tmp_path), "open-prs.json", "open-prs.detail.json")()
+    assert_last_good_kept(tmp_path)
+
+
+def test_owner_api_failure_publishes_nothing(tmp_path: Path) -> None:
+    seed_last_good(tmp_path)
+    collect = collect_owner(
+        FakeRunner({"owner:o": RunResult(4, b"", b"gh: To get started with GitHub CLI, run gh auth login")})
+    )
+    with pytest.raises(SourceUnavailableError, match="exited 4"):
+        PublishOpenPrs(collect, LocalAtomicSink(tmp_path), "open-prs.json", "open-prs.detail.json")()
+    assert_last_good_kept(tmp_path)

@@ -18,26 +18,38 @@ class PublishResult:
 
 
 class CollectSnapshot:
-    def __init__(self, source: PullRequestSource, clock: Clock, repos: Sequence[str], allow_empty: bool) -> None:
-        if not repos:
-            raise ValueError("at least one repository is required")
+    def __init__(
+        self,
+        source: PullRequestSource,
+        clock: Clock,
+        repos: Sequence[str],
+        allow_empty: bool,
+        owners: Sequence[str] = (),
+    ) -> None:
+        if not repos and not owners:
+            raise ValueError("at least one repository or owner is required")
         self._source = source
         self._clock = clock
         self._repos = tuple(repos)
+        self._owners = tuple(owners)
         self._allow_empty = allow_empty
 
     def __call__(self) -> Snapshot:
-        """Every repository must answer; the first failure propagates and no snapshot exists."""
-        prs: list[OpenPr] = []
+        """Every repository and owner must answer; the first failure propagates and no snapshot exists."""
+        found: dict[tuple[str, int], OpenPr] = {}
+        for owner in self._owners:
+            for pr in self._source.open_prs_of_owner(owner):
+                found[(pr.repo, pr.number)] = pr
         for repo in self._repos:
-            prs.extend(self._source.open_prs(repo))
-        if not prs and not self._allow_empty:
+            for pr in self._source.open_prs(repo):
+                found[(pr.repo, pr.number)] = pr
+        if not found and not self._allow_empty:
             raise EmptySnapshotError(
-                f"no open PR in any of {len(self._repos)} repositories; refusing to publish an empty list "
-                "(pass --allow-empty when that is the real state)"
+                f"no open PR in {len(self._repos)} repositories and {len(self._owners)} owners; refusing to publish "
+                "an empty list (set OPEN_PRS_FEED_ALLOW_EMPTY=true when that is the real state)"
             )
-        prs.sort(key=lambda p: (p.repo, p.number))
-        return Snapshot(generated_at=self._clock.now(), repos=self._repos, prs=tuple(prs))
+        prs = sorted(found.values(), key=lambda p: (p.repo, p.number))
+        return Snapshot(generated_at=self._clock.now(), owners=self._owners, repos=self._repos, prs=tuple(prs))
 
 
 class PublishOpenPrs:
