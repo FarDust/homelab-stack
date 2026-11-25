@@ -108,3 +108,69 @@ distro. The owner approved the WSL cache drop as a mitigation and keeps `.wslcon
 - After merge: the task registered from the merged tree and a forced-threshold run
   (`check --min-free-virtual-gb 100000 --state-dir <temp>` with `MEMORY_GUARD_RECLAIM_SAMPLES=1`) must drop once and
   record the numbers.
+
+## Addendum 2026-11-25: cause attribution of low headroom (0.3.0)
+
+### Context
+
+The research note `vmmemWSL commit swings follow Ollama GPU model load and unload 2026-11-25` (Agent Memory vault) showed
+that the 10 to 26 GB swings of `vmmemWSL` private bytes on the desktop are host commit charged 1:1 for the GPU device
+allocations of the Ollama runner. A model loads on a chat request and unloads 5 minutes after the last one. The
+Hyper-V allocation stayed flat at 15.9 GB while private bytes fell 10.1 GB, so the guest page cache is a minor part
+(2.5 GB at most) and `drop_caches` cannot free the rest. Version 0.2.0 dropped caches on that premise and its alerts
+said nothing about the cause, so a GPU-driven alarm read as "low free RAM from cache".
+
+### Decision
+
+- When any condition is breached, build one attribution per run and print it in the alert as `cause: ...`:
+  - `GPU model resident: <model> (<size>), unloads ~<N> min from now`: Ollama `GET /api/ps` lists a model with
+    `size_vram > 0`; N comes from its `expires_at` (keep-alive expiry, which is the last request plus the keep-alive).
+    The host GPU dedicated usage is appended when the counter is readable.
+  - `GPU memory held without an Ollama model: another GPU consumer`: nothing resident in Ollama, GPU dedicated usage at
+    or above `MEMORY_GUARD_GPU_OTHER_GB` (default 4).
+  - `guest page cache (...inferred, not measured)`: both signals readable, no model resident, GPU quiet. It is an
+    inference by exclusion and the text says so.
+  - `cause unknown: <reason>`: the endpoint is unset, down, slow or answers an unexpected shape, or the GPU counter is
+    missing while no model is resident. Never a guessed attribution; both reasons are listed when both signals fail.
+- The WSL cache drop stays enabled and unchanged for every cause except one: while a GPU model is resident the drop is
+  skipped, because a guest cache drop cannot release host commit charged for GPU allocations, and repeating it only
+  costs a refill of the cache. The alert says `WSL cache drop skipped`. A drop is still allowed when the cause is
+  cache, another GPU consumer or unknown (harmless, the 0.2.0 guards still apply).
+- Host GPU dedicated memory is read from the PDH counter `\GPU Adapter Memory(*)\Dedicated Usage`, summed over
+  adapters, through pywin32 `win32pdh.AddEnglishCounter` (works on any display language; the desktop runs Spanish).
+- The Ollama endpoint is `MEMORY_GUARD_OLLAMA_URL` in the private env file (typed setting, no default, no credentials);
+  timeout `MEMORY_GUARD_OLLAMA_TIMEOUT_S` (5 s).
+- Attribution failures never fail the run: the alert carries `cause unknown: <reason>` instead (explicit, visible),
+  while the alert path and drop failures keep their nonzero exit.
+
+### Libraries
+
+| Library | Stars (2026-11-25) | Provider | Licence | Use |
+|---|---|---|---|---|
+| pywin32 | 5,639 | mhammond | PSF | PDH counter (`win32pdh`); Windows only marker in `pyproject.toml` |
+| httpx | 15,855 | encode | BSD-3-Clause | `GET /api/ps` with timeouts and a mockable transport |
+
+### Alternatives
+
+- Shell out to `typeperf` or `nvidia-smi`: localized counter names and a parsed text format; rejected for the PDH API.
+- Read only Ollama or only the GPU counter: Ollama alone cannot see other GPU users; the counter alone cannot say
+  whether the memory is Ollama's or when it unloads. Both are read, each failure is explicit.
+- Shorten `OLLAMA_KEEP_ALIVE` or lower `OLLAMA_CONTEXT_LENGTH` (remediations 2 and 3 of the research note): changes the
+  Ollama service for its callers; left to the owner's decision and not part of this tool.
+- Attribute cache by measuring guest `Cached` through `wsl.exe`: starts a process in the guest on every breached run;
+  not needed to avoid the wrong claim, so the cache case is labeled as an inference.
+
+### Consequences
+
+- An alert during a model load now says which model, how large and when it unloads, so nobody chases the page cache.
+- During a resident model no WSL process is started by the guard (no needless `drop_caches`).
+- Each breached run costs one HTTP call (5 s bound) and one PDH read.
+
+### Verification
+
+- Tests in `tools/memory-guard/tests/test_attribution.py`: model resident with size and unload time, no-expiry model,
+  counter missing with a model resident, cache-only, another GPU consumer, endpoint down, both signals missing,
+  counter missing with no model, unset URL, HTTP error, missing required field, malformed body, connection failure,
+  alert text and drop skipped for a resident model, drop still run for cache and unknown, live PDH read on Windows.
+- After deploy: a forced-threshold run (`check --min-free-virtual-gb 100000 --state-dir <temp>` with the alert command
+  pointed at a print-only sink) must print the attribution line without touching WSL.

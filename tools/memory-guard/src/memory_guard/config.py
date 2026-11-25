@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     reclaim_max_per_hour: int = Field(default=6, ge=1)
     reclaim_timeout_s: float = Field(default=60.0, gt=0)
     reclaim_settle_s: float = Field(default=20.0, ge=0)
+    # Cause attribution (docs/adr/memory_guard_adr.md, addendum 0.3.0). Base URL of the Ollama API, for `GET /api/ps`.
+    # Unset: the alert says "cause unknown: MEMORY_GUARD_OLLAMA_URL is not set" instead of guessing.
+    ollama_url: str | None = None
+    ollama_timeout_s: float = Field(default=5.0, gt=0)
+    # Host GPU dedicated memory at or above this, with no Ollama model resident, is reported as another GPU consumer.
+    gpu_other_gb: float = Field(default=4.0, gt=0)
     wsl_distro: str = Field(default="Ubuntu", min_length=1)
 
     @field_validator("alert_command", mode="before")

@@ -6,8 +6,25 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from memory_guard.domain.errors import GuardError
-from memory_guard.domain.models import Condition, GuardState, MemorySample, ReclaimRecord, Thresholds, gib
-from memory_guard.domain.ports import AlertSink, Clock, MemoryProbe, ProcessLister, Reclaimer, StateStore
+from memory_guard.domain.models import (
+    Attribution,
+    CauseKind,
+    Condition,
+    GuardState,
+    MemorySample,
+    ReclaimRecord,
+    Thresholds,
+    gib,
+)
+from memory_guard.domain.ports import (
+    AlertSink,
+    CauseAttributor,
+    Clock,
+    MemoryProbe,
+    ProcessLister,
+    Reclaimer,
+    StateStore,
+)
 
 LABEL = {Condition.VIRTUAL: "free virtual memory", Condition.RAM: "free RAM"}
 
@@ -32,12 +49,13 @@ class CheckMemory:
         host: str,
         top_n: int = 10,
         reclaimer: Reclaimer | None = None,
+        attributor: CauseAttributor | None = None,
     ) -> None:
         self._probe, self._processes, self._sink, self._store = probe, processes, sink, store
         self._clock, self._t, self._host, self._top_n = clock, thresholds, host, top_n
-        self._reclaimer = reclaimer
+        self._reclaimer, self._attributor = reclaimer, attributor
 
-    def _body(self, sample: MemorySample, reclaim_note: str | None = None) -> str:
+    def _body(self, sample: MemorySample, notes: list[str]) -> str:
         top, skipped = self._processes.top_by_private_bytes(self._top_n)
         lines = [
             f"commit {gib(sample.commit_used)} of {gib(sample.commit_limit)} (free virtual {gib(sample.free_virtual)})",
@@ -45,14 +63,20 @@ class CheckMemory:
             f"top {len(top)} processes by private bytes ({skipped} unreadable):",
         ]
         lines += [f"  {p.pid} {p.name} {gib(p.private_bytes)}" for p in top]
-        if reclaim_note:
-            lines.append(reclaim_note)
+        lines += notes
         return "\n".join(lines)
 
-    def _reclaim(self, sample: MemorySample, state: GuardState) -> tuple[ReclaimRecord | None, GuardError | None]:
+    def _reclaim(
+        self, sample: MemorySample, state: GuardState, cause: Attribution | None
+    ) -> tuple[ReclaimRecord | None, GuardError | None]:
         """Run the opt-in cache drop before any alert: a slow or failing alert path never delays it."""
         if self._reclaimer is None:
             return None, None
+        if cause is not None and cause.gpu_resident:
+            return (
+                None,
+                None,
+            )  # a resident GPU model is charged to commit by the host; a guest cache drop cannot free it
         try:
             return self._reclaimer(sample, state.conditions[Condition.VIRTUAL].consecutive), None
         except GuardError as exc:
@@ -75,10 +99,17 @@ class CheckMemory:
                 recovered.append(cond)
         # Persist the counters first: a failed alert keeps them and retries on the next run.
         self._store.save(state)
-        record, reclaim_error = self._reclaim(sample, state)
-        note = record.summary() if record else (f"WSL cache drop failed: {reclaim_error}" if reclaim_error else None)
+        cause = self._attributor() if self._attributor is not None and any(breached.values()) else None
+        record, reclaim_error = self._reclaim(sample, state, cause)
+        notes = [cause.text if cause.kind is CauseKind.UNKNOWN else f"cause: {cause.text}"] if cause else []
+        if record:
+            notes.append(record.summary())
+        elif reclaim_error:
+            notes.append(f"WSL cache drop failed: {reclaim_error}")
+        elif cause is not None and cause.gpu_resident:
+            notes.append("WSL cache drop skipped: a resident GPU model is not guest cache, a drop cannot free it")
         try:
-            self._notify(sample, state, now, due, recovered, note)
+            self._notify(sample, state, now, due, recovered, notes)
         except GuardError as exc:
             if reclaim_error is not None:
                 raise GuardError(f"{reclaim_error}; additionally the alert path failed: {exc}") from exc
@@ -88,7 +119,7 @@ class CheckMemory:
         return CheckResult(sample, tuple(due), tuple(recovered), record)
 
     def _notify(
-        self, sample: MemorySample, state: GuardState, now: datetime, due: list, recovered: list, note: str | None
+        self, sample: MemorySample, state: GuardState, now: datetime, due: list, recovered: list, notes: list[str]
     ) -> None:
         if due:
             names = ", ".join(LABEL[c] for c in due)
@@ -97,7 +128,7 @@ class CheckMemory:
             for c in due:
                 state.conditions[c].last_alert = now
             self._store.save(state)
-            self._sink.send(f"[memory-guard] {self._host}: low {names}\n{self._body(sample, note)}")
+            self._sink.send(f"[memory-guard] {self._host}: low {names}\n{self._body(sample, notes)}")
             for c in due:
                 state.conditions[c].active = True
             self._store.save(state)

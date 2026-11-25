@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+- Cause attribution in every alert: when headroom is low the guard reads the host GPU dedicated usage (PDH counter
+  `\GPU Adapter Memory(*)\Dedicated Usage` through pywin32) and the Ollama loaded-model list (`GET /api/ps` on
+  `MEMORY_GUARD_OLLAMA_URL`) and prints `cause: GPU model resident: <model> (<size>), unloads ~<N> min from now`,
+  `cause: guest page cache (...)`, `cause: GPU memory held without an Ollama model...` or
+  `cause unknown: <reason>`. A missing counter or an unreachable endpoint is reported, never guessed.
+- The WSL page-cache drop is skipped while a GPU model is resident (it cannot free GPU commit); the alert says so.
+- New settings: `MEMORY_GUARD_OLLAMA_URL`, `MEMORY_GUARD_OLLAMA_TIMEOUT_S`, `MEMORY_GUARD_GPU_OTHER_GB`. New
+  dependencies: httpx, pywin32 (Windows). See `docs/adr/memory_guard_adr.md` (addendum 2026-11-25, 0.3.0).
+
 ## 0.2.0
 
 - Opt-in WSL page-cache drop (default on for the desktop that approved it). When free virtual memory is under the
