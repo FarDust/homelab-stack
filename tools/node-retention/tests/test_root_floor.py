@@ -11,6 +11,7 @@ from node_retention.domain.models import Category
 from tests.fakes import (
     DAY,
     GIB,
+    ROOT_DEV,
     HOUR,
     NOW,
     FakeClock,
@@ -222,6 +223,7 @@ def test_open_prs_file_answers_unknown_when_missing_stale_or_malformed(tmp_path:
 def test_symlinked_docker_data_root_is_judged_by_the_device_it_points_to(tmp_path: Path) -> None:
     fs = FakeFs(root_free=7 * GIB)
     fs.symlinks["/var/lib/docker"] = "/mnt/docker"
+    fs.devices["/var/lib/docker"] = ROOT_DEV
     fs.devices["/mnt/docker"] = TMP_DEV  # the link sits on `/`, the data does not
     plan = _plan(tmp_path, fs, docker=FakeDocker(dangling=2 * GIB))
     assert plan.root_reclaimable_bytes == 0 and "short of the floor" in plan.floor_unmet_reason
