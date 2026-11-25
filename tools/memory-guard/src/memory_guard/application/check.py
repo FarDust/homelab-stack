@@ -61,9 +61,14 @@ class CheckMemory:
         self._store.save(state)
         if due:
             names = ", ".join(LABEL[c] for c in due)
+            # Record the attempt time before sending: a path that delivers but fails its receipt would otherwise
+            # repeat the alert every run. The failure still exits nonzero; the retry waits one interval.
+            for c in due:
+                state.conditions[c].last_alert = now
+            self._store.save(state)
             self._sink.send(f"[memory-guard] {self._host}: low {names}\n{self._body(sample)}")
             for c in due:
-                state.conditions[c].active, state.conditions[c].last_alert = True, now
+                state.conditions[c].active = True
             self._store.save(state)
         if recovered:
             names = ", ".join(LABEL[c] for c in recovered)
