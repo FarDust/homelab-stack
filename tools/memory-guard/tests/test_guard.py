@@ -103,7 +103,7 @@ def test_ram_condition_is_independent(tmp_path: Path) -> None:
     assert guard().alerted == (Condition.RAM,)
 
 
-def test_alert_failure_propagates_and_is_retried(tmp_path: Path) -> None:
+def test_alert_failure_propagates_and_retries_after_one_interval(tmp_path: Path) -> None:
     clock = Clock()
     bad = make(tmp_path, FakeProbe(LOW, LOW), FakeSink(fail=True), clock)
     bad()
@@ -111,7 +111,10 @@ def test_alert_failure_propagates_and_is_retried(tmp_path: Path) -> None:
         bad()
     good = FakeSink()
     make(tmp_path, FakeProbe(LOW), good, clock)()
-    assert len(good.sent) == 1  # not marked alerted by the failed attempt
+    assert good.sent == []  # the failed attempt counts toward the rate limit
+    clock.t += timedelta(minutes=30)
+    make(tmp_path, FakeProbe(LOW), good, clock)()
+    assert len(good.sent) == 1
 
 
 def test_probe_failure_propagates(tmp_path: Path) -> None:
