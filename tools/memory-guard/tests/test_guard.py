@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -157,7 +156,7 @@ def test_cli_missing_alert_command_exits_2(tmp_path: Path, monkeypatch: pytest.M
 
 def test_cli_alert_path_failure_exits_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MEMORY_GUARD_STATE_DIR", str(tmp_path))
-    monkeypatch.setenv("MEMORY_GUARD_ALERT_COMMAND", json.dumps(["definitely-not-a-command-xyz", "{message}"]))
+    monkeypatch.setenv("MEMORY_GUARD_ALERT_COMMAND", "definitely-not-a-command-xyz|{message}")
     monkeypatch.setenv("MEMORY_GUARD_SAMPLES", "1")
     result = CliRunner().invoke(app, ["check", "--min-free-virtual-gb", "100000"])
     assert result.exit_code == 1

@@ -20,7 +20,7 @@ host commit were the contributors. The desktop comes first, so the watchdog must
   counters live in a small JSON state file under the state directory. One alert per condition per 30 minutes; a
   recovery message when a previously alerted condition is clear again.
 - Alert text carries commit and limit, free RAM, the non-paged pool and the top 10 processes by private bytes.
-- Alert path: an external command from `MEMORY_GUARD_ALERT_COMMAND` (a JSON argument list with a `{message}`
+- Alert path: an external command from `MEMORY_GUARD_ALERT_COMMAND` (arguments separated by `|`, with a `{message}`
   placeholder), the agent-bridge helper's `post`. Success needs exit 0 and the `delivered` receipt in stdout; a
   failure exits 1 with the cause on stderr, does not mark the condition as alerted and is retried on the next run.
 - Read-only: the tool never signals, kills or modifies a process, and starts neither WSL nor anything heavy.
