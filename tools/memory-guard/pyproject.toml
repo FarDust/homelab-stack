@@ -1,0 +1,40 @@
+[project]
+name = "memory-guard"
+version = "0.1.0"
+description = "Windows memory-pressure watchdog: alerts on low free virtual memory or RAM with the top private-bytes processes and the non-paged pool size. Read-only."
+requires-python = ">=3.12"
+dependencies = [
+    "psutil>=6.1",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.7",
+    "typer>=0.12",
+    "rich>=13.9",
+]
+
+[project.scripts]
+memory-guard = "memory_guard.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memory_guard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.py" }]
+
+[tool.ruff]
+line-length = 120
+[tool.ruff.lint]
+select = ["E","F","I","UP","B","RUF"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+line-ending = "lf"
