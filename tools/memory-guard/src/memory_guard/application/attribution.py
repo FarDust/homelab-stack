@@ -8,7 +8,7 @@ from memory_guard.domain.errors import ProbeError
 from memory_guard.domain.models import Attribution, CauseKind, gib
 from memory_guard.domain.ports import Clock, GpuMemoryProbe, ModelResidencyProbe
 
-NO_EXPIRY_S = 24 * 3600  # keep-alive -1 reports a far-future expiry
+NO_EXPIRY_S = 24 * 3600  # keep-alive -1 reports a far-future expiry; a custom keep_alive over 24 h reads the same
 
 
 class AttributeCause:
@@ -22,6 +22,12 @@ class AttributeCause:
             return None, str(exc)
 
     def __call__(self) -> Attribution:
+        try:
+            return self._attribute()
+        except Exception as exc:
+            return Attribution(CauseKind.UNKNOWN, f"cause unknown: attribution failed: {type(exc).__name__}: {exc}")
+
+    def _attribute(self) -> Attribution:
         dedicated, gpu_error = self._gpu_reading()
         gpu_note = f"; host GPU dedicated {gib(dedicated)}" if dedicated is not None else ""
         try:
@@ -43,6 +49,10 @@ class AttributeCause:
                 parts.append(f"{m.name} ({gib(m.size_vram)}), {when}")
             tail = f"; GPU counter unavailable: {gpu_error}" if gpu_error else gpu_note
             return Attribution(CauseKind.GPU_MODEL, f"GPU model resident: {'; '.join(parts)}{tail}")
+        in_ram = [m for m in loaded if m.size_vram == 0 and m.size > 0]
+        if in_ram:
+            names = "; ".join(f"{m.name} ({gib(m.size)})" for m in in_ram)
+            return Attribution(CauseKind.CPU_MODEL, f"Ollama model resident in RAM, not on the GPU: {names}{gpu_note}")
         if dedicated is None:
             return Attribution(CauseKind.UNKNOWN, f"cause unknown: no Ollama model resident, {gpu_error}")
         if dedicated >= self._other_gpu_min:
@@ -51,5 +61,5 @@ class AttributeCause:
             )
         return Attribution(
             CauseKind.PAGE_CACHE,
-            f"guest page cache (no GPU model resident{gpu_note}; the cache is inferred, not measured)",
+            f"guest page cache is the candidate (no Ollama model resident{gpu_note}; the cache is inferred, not measured)",
         )

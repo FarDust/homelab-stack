@@ -8,7 +8,6 @@ from datetime import datetime
 from memory_guard.domain.errors import GuardError
 from memory_guard.domain.models import (
     Attribution,
-    CauseKind,
     Condition,
     GuardState,
     MemorySample,
@@ -73,14 +72,23 @@ class CheckMemory:
         if self._reclaimer is None:
             return None, None
         if cause is not None and cause.gpu_resident:
-            return (
-                None,
-                None,
-            )  # a resident GPU model is charged to commit by the host; a guest cache drop cannot free it
+            # Host commit is charged for the GPU allocations; a guest cache drop cannot free it.
+            return None, None
         try:
             return self._reclaimer(sample, state.conditions[Condition.VIRTUAL].consecutive), None
         except GuardError as exc:
             return None, exc
+
+    def _drop_eligible(self, state: GuardState) -> bool:
+        return self._reclaimer is not None and self._reclaimer.eligible(state.conditions[Condition.VIRTUAL].consecutive)
+
+    def _attribute(self, state: GuardState, breached: dict[Condition, bool], due: list) -> Attribution | None:
+        """Attribute only low free virtual memory (host commit), and only when an alert or a drop is possible."""
+        if self._attributor is None or not breached[Condition.VIRTUAL]:
+            return None
+        if Condition.VIRTUAL in due or self._drop_eligible(state):
+            return self._attributor()
+        return None
 
     def __call__(self) -> CheckResult:
         sample = self._probe.sample()
@@ -99,14 +107,14 @@ class CheckMemory:
                 recovered.append(cond)
         # Persist the counters first: a failed alert keeps them and retries on the next run.
         self._store.save(state)
-        cause = self._attributor() if self._attributor is not None and any(breached.values()) else None
+        cause = self._attribute(state, breached, due)
         record, reclaim_error = self._reclaim(sample, state, cause)
-        notes = [cause.text if cause.kind is CauseKind.UNKNOWN else f"cause: {cause.text}"] if cause else []
+        notes = [cause.line] if cause else []
         if record:
             notes.append(record.summary())
         elif reclaim_error:
             notes.append(f"WSL cache drop failed: {reclaim_error}")
-        elif cause is not None and cause.gpu_resident:
+        elif cause is not None and cause.gpu_resident and self._drop_eligible(state):
             notes.append("WSL cache drop skipped: a resident GPU model is not guest cache, a drop cannot free it")
         try:
             self._notify(sample, state, now, due, recovered, notes)

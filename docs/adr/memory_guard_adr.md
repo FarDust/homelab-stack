@@ -122,14 +122,17 @@ said nothing about the cause, so a GPU-driven alarm read as "low free RAM from c
 
 ### Decision
 
-- When any condition is breached, build one attribution per run and print it in the alert as `cause: ...`:
+- Attribute only low free virtual memory (host commit), and only when an alert is due or the cache drop is eligible, so
+  a sustained breach does not cost an HTTP call and a PDH read on every run. A low free RAM breach alone gets no cause
+  line: GPU commit explains free virtual memory, not physical RAM. The attribution prints in the alert as `cause: ...`:
   - `GPU model resident: <model> (<size>), unloads ~<N> min from now`: Ollama `GET /api/ps` lists a model with
     `size_vram > 0`; N comes from its `expires_at` (keep-alive expiry, which is the last request plus the keep-alive).
     The host GPU dedicated usage is appended when the counter is readable.
   - `GPU memory held without an Ollama model: another GPU consumer`: nothing resident in Ollama, GPU dedicated usage at
     or above `MEMORY_GUARD_GPU_OTHER_GB` (default 4).
-  - `guest page cache (...inferred, not measured)`: both signals readable, no model resident, GPU quiet. It is an
-    inference by exclusion and the text says so.
+  - `Ollama model resident in RAM, not on the GPU`: a loaded model with `size_vram == 0`.
+  - `guest page cache is the candidate (...inferred, not measured)`: both signals readable, no model resident, GPU
+    quiet. It is an inference by exclusion and the text says so; the top processes in the alert show the rest.
   - `cause unknown: <reason>`: the endpoint is unset, down, slow or answers an unexpected shape, or the GPU counter is
     missing while no model is resident. Never a guessed attribution; both reasons are listed when both signals fail.
 - The WSL cache drop stays enabled and unchanged for every cause except one: while a GPU model is resident the drop is
@@ -141,7 +144,14 @@ said nothing about the cause, so a GPU-driven alarm read as "low free RAM from c
 - The Ollama endpoint is `MEMORY_GUARD_OLLAMA_URL` in the private env file (typed setting, no default, no credentials);
   timeout `MEMORY_GUARD_OLLAMA_TIMEOUT_S` (5 s).
 - Attribution failures never fail the run: the alert carries `cause unknown: <reason>` instead (explicit, visible),
-  while the alert path and drop failures keep their nonzero exit.
+  while the alert path and drop failures keep their nonzero exit. The attribution boundary catches every exception
+  (a missing pywin32, a malformed URL, a naive timestamp) because a probe bug must not silence the watchdog; the
+  exception type and message go into the alert. Probe messages carry the HTTP status or exception type, never the URL
+  (the alert reaches a mailbox).
+- The drop is skipped only when it would otherwise have been eligible (enabled, sustained, interval and hourly guards),
+  and only then does the alert say `WSL cache drop skipped`; `reclaimer.eligible()` exposes those guards.
+- `MEMORY_GUARD_OLLAMA_URL` must point at the Ollama that serves this host's GPU: a remote Ollama would suppress the
+  local drop for a model that is not on this host.
 
 ### Libraries
 
@@ -171,6 +181,9 @@ said nothing about the cause, so a GPU-driven alarm read as "low free RAM from c
 - Tests in `tools/memory-guard/tests/test_attribution.py`: model resident with size and unload time, no-expiry model,
   counter missing with a model resident, cache-only, another GPU consumer, endpoint down, both signals missing,
   counter missing with no model, unset URL, HTTP error, missing required field, malformed body, connection failure,
-  alert text and drop skipped for a resident model, drop still run for cache and unknown, live PDH read on Windows.
+  alert text and drop skipped for a resident model only when the drop was eligible, drop still run for cache and
+  unknown, RAM-only breach not attributed, no attribution work before the condition is sustained, CPU-resident model,
+  naive timestamp and unexpected probe exception reported as unknown, URL kept out of probe errors, PDH read through a
+  fake `win32pdh` (sum, no instances, counter error, missing pywin32, query closed) and one live read on Windows.
 - After deploy: a forced-threshold run (`check --min-free-virtual-gb 100000 --state-dir <temp>` with the alert command
   pointed at a print-only sink) must print the attribution line without touching WSL.

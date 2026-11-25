@@ -7,7 +7,11 @@
   `MEMORY_GUARD_OLLAMA_URL`) and prints `cause: GPU model resident: <model> (<size>), unloads ~<N> min from now`,
   `cause: guest page cache (...)`, `cause: GPU memory held without an Ollama model...` or
   `cause unknown: <reason>`. A missing counter or an unreachable endpoint is reported, never guessed.
-- The WSL page-cache drop is skipped while a GPU model is resident (it cannot free GPU commit); the alert says so.
+- Only low free virtual memory is attributed (a RAM-only breach gets no cause line), and only when an alert is due or
+  the drop is eligible. A model resident in RAM (no VRAM) is named as such; the cache case is labeled a candidate.
+- The WSL page-cache drop is skipped while a GPU model is resident (it cannot free GPU commit); the alert says so only
+  when the drop would otherwise have run. Any probe failure becomes `cause unknown: <reason>` and the alert still goes
+  out; probe errors never include the endpoint URL.
 - New settings: `MEMORY_GUARD_OLLAMA_URL`, `MEMORY_GUARD_OLLAMA_TIMEOUT_S`, `MEMORY_GUARD_GPU_OTHER_GB`. New
   dependencies: httpx, pywin32 (Windows). See `docs/adr/memory_guard_adr.md` (addendum 2026-11-25, 0.3.0).
 

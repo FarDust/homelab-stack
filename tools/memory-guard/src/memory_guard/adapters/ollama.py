@@ -13,6 +13,7 @@ from memory_guard.domain.models import LoadedModel
 
 class _PsModel(BaseModel):
     name: str
+    size: int
     size_vram: int
     expires_at: datetime
 
@@ -36,10 +37,13 @@ class OllamaPsProbe:
                 response = httpx.get(endpoint, timeout=self._timeout)
             response.raise_for_status()
             parsed = _PsResponse.model_validate_json(response.content)
-        except httpx.HTTPError as exc:
-            raise ProbeError(f"Ollama /api/ps unreachable: {type(exc).__name__}: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            # The exception text embeds the URL; the alert goes to a mailbox, so keep the host out of it.
+            raise ProbeError(f"Ollama /api/ps unreachable: HTTP {exc.response.status_code}") from exc
+        except (httpx.HTTPError, httpx.InvalidURL) as exc:
+            raise ProbeError(f"Ollama /api/ps unreachable: {type(exc).__name__}") from exc
         except ValidationError as exc:
             raise ProbeError(
                 f"Ollama /api/ps answered an unexpected shape: {exc.error_count()} invalid field(s)"
             ) from exc
-        return [LoadedModel(m.name, m.size_vram, m.expires_at) for m in parsed.models]
+        return [LoadedModel(m.name, m.size, m.size_vram, m.expires_at) for m in parsed.models]

@@ -59,6 +59,10 @@ class Reclaimer(Protocol):
         """Return the record of a drop that ran, None when a guard declined; raise GuardError on failure."""
         ...
 
+    def eligible(self, consecutive_low: int) -> bool:
+        """True when the policy guards (enabled, sustained samples, interval, hourly cap) would allow a drop now."""
+        ...
+
     def last_summary(self) -> str | None: ...
 
 

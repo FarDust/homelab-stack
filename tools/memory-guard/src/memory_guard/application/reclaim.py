@@ -45,6 +45,13 @@ class ReclaimWslCache:
             self._sleep(POLL_S)
             waited += POLL_S
 
+    def eligible(self, consecutive_low: int) -> bool:
+        p, now = self._policy, self._clock.now()
+        if not p.enabled or consecutive_low < p.samples:
+            return False
+        recent = self._log.recent(now - timedelta(hours=1))
+        return not (len(recent) >= p.max_per_hour or (recent and now - max(r.at for r in recent) < p.min_interval))
+
     def __call__(self, sample: MemorySample, consecutive_low: int) -> ReclaimRecord | None:
         """Return the record of a successful drop, None when a guard says no; raise GuardError on failure."""
         p, now = self._policy, self._clock.now()

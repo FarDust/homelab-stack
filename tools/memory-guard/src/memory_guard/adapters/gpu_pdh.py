@@ -13,7 +13,10 @@ class PdhGpuMemoryProbe:
     def dedicated_usage(self) -> int:
         if sys.platform != "win32":
             raise ProbeError("PDH GPU counters are only available on Windows")
-        import win32pdh
+        try:
+            import win32pdh
+        except ImportError as exc:
+            raise ProbeError("pywin32 is not installed, GPU counter unavailable") from exc
 
         query = win32pdh.OpenQuery()
         try:

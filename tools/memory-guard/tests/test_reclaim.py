@@ -289,3 +289,35 @@ def test_cli_kill_switch_env_disables_the_drop(tmp_path: Path, monkeypatch: pyte
     result = CliRunner().invoke(app, ["check", "--min-free-virtual-gb", "100000"])
     assert result.exit_code == 1  # the alert path fails; no reclaim log was written
     assert not (tmp_path / "reclaim.jsonl").exists()
+
+
+def test_eligible_follows_the_policy_guards(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    reclaimer = rig.guard._reclaimer
+    assert not reclaimer.eligible(1)  # not sustained
+    assert reclaimer.eligible(2)
+    rig.second_low_run()
+    assert not reclaimer.eligible(2)  # a drop just ran: the minimum interval holds
+    (tmp_path / "off").mkdir()
+    off = Rig(tmp_path / "off", policy=ReclaimPolicy(False, 2, timedelta(minutes=10), 6, 4.0))
+    assert not off.guard._reclaimer.eligible(5)
+
+
+def test_resident_gpu_model_blocks_the_real_reclaimer_end_to_end(tmp_path: Path) -> None:
+    from memory_guard.application.attribution import AttributeCause
+    from memory_guard.domain.models import LoadedModel
+
+    class Gpu:
+        def dedicated_usage(self) -> int:
+            return 12 * GIB
+
+    class Ollama:
+        def loaded_models(self):
+            return [LoadedModel("qwen3.5:9b", 9 * GIB, 6 * GIB, T0 + timedelta(minutes=4))]
+
+    rig = Rig(tmp_path)
+    rig.guard._attributor = AttributeCause(Gpu(), Ollama(), rig.clock, 4 * GIB)
+    rig.second_low_run()
+    assert rig.wsl.drops == 0
+    assert "GPU model resident: qwen3.5:9b" in rig.sink.sent[0]
+    assert "WSL cache drop skipped" in rig.sink.sent[0]
