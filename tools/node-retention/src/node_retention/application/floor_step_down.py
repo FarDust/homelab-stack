@@ -111,7 +111,11 @@ class FloorStepDown:
         self._now = now
 
     def _roots(self) -> list[str]:
-        return [r.as_posix() for r in (*self._s.ci_job_roots, *self._s.ci_scratch_roots)]
+        # A scratch root that is a kept store (the evidence store) holds products with their own retention, not
+        # job dirs; a job root such as `jra` is a real parent of job dirs.
+        keep = self._s.ci_job_keep_names
+        scratch = (r for r in self._s.ci_scratch_roots if r.name not in keep)
+        return [r.as_posix() for r in (*self._s.ci_job_roots, *scratch)]
 
     def _reserved(self) -> set[str]:
         """Configured roots and caches: never a job dir, even when a ledger row names a path inside one."""

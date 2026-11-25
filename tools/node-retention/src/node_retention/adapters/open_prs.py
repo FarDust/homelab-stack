@@ -24,7 +24,7 @@ class OpenPrsFile:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
-        if age > self._max_age_s or not isinstance(data, list):
+        if age > self._max_age_s or age < -60 or not isinstance(data, list):
             return None
         if not all(isinstance(n, int) and not isinstance(n, bool) and n > 0 for n in data):
             return None

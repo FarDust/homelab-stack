@@ -14,6 +14,7 @@
 - tmpfs trees: a deferred (waiting) job no longer keeps its lane's idle trees, the placeholder lane `unspecified`
   owns nothing, and a tree whose gate `.agent-job` record names a creator pid that is gone goes after one hour idle
   (read with `O_NOATIME`, so the scan is not a use).
+- A Docker data root that is a symlink is judged by the device it points to; scratch roots named in `ci_job_keep_names` (the evidence store) are not step-down roots; an open-PRs file dated in the future is unknown.
 - Plans report `root_reclaimable_bytes`, `floor_step_days` and `floor_unmet_reason`.
 
 ## 0.5.1

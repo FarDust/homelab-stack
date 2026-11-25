@@ -212,3 +212,38 @@ def test_open_prs_file_answers_unknown_when_missing_stale_or_malformed(tmp_path:
     path.write_text('{"open": [1]}', encoding="utf-8")
     os.utime(path, (NOW - 60, NOW - 60))
     assert OpenPrsFile(path, 3600, clock).numbers() is None
+    path.write_text("[]", encoding="utf-8")  # an empty list is a real answer: no PR is open
+    os.utime(path, (NOW - 60, NOW - 60))
+    assert OpenPrsFile(path, 3600, clock).numbers() == set()
+    os.utime(path, (NOW + 3600, NOW + 3600))  # a writer with a clock in the future is not trusted
+    assert OpenPrsFile(path, 3600, clock).numbers() is None
+
+
+def test_symlinked_docker_data_root_is_judged_by_the_device_it_points_to(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=7 * GIB)
+    fs.symlinks["/var/lib/docker"] = "/mnt/docker"
+    fs.devices["/mnt/docker"] = TMP_DEV  # the link sits on `/`, the data does not
+    plan = _plan(tmp_path, fs, docker=FakeDocker(dangling=2 * GIB))
+    assert plan.root_reclaimable_bytes == 0 and "short of the floor" in plan.floor_unmet_reason
+
+
+def test_step_down_takes_only_the_eligible_dir_among_the_kept_ones(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=int(7.5 * GIB))
+    for name in ("eligible", "no-end-row", "ledger-never-names"):
+        fs.add(f"{CI}/{name}", 1 * GIB, 5 * DAY)
+    rows = [
+        *_job("e", f"{CI}/eligible", 5 * DAY),
+        # started 5 days ago, its process is gone, and no `end` row was ever written: not ended, so kept
+        *_job("n", f"{CI}/no-end-row", None),
+    ]
+    plan = _plan(tmp_path, fs, rows)
+    assert _paths(plan, Category.CI_JOB) == [f"{CI}/eligible"]
+
+
+def test_step_down_keeps_children_of_the_evidence_store(tmp_path: Path) -> None:
+    evidence = "/h/ci/evidence"
+    fs = FakeFs(root_free=1 * GIB)
+    fs.add(f"{evidence}/run-1", 1 * GIB, 5 * DAY)
+    settings_roots = {"ci_scratch_roots": [Path(evidence)]}
+    plan = _plan(tmp_path, fs, _job("x", f"{evidence}/run-1", 5 * DAY), **settings_roots)
+    assert f"{evidence}/run-1" not in _paths(plan, Category.CI_JOB)

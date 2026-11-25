@@ -138,7 +138,8 @@ class Planner:
 
     def _docker_on_root(self) -> bool:
         if self._docker_root_on_root is None:
-            self._docker_root_on_root = self._path_on_root(self._p.docker.data_root())
+            # Follow a symlinked data root: lstat of the link reports the device the link sits on, not the data.
+            self._docker_root_on_root = self._path_on_root(self._p.fs.resolve(self._p.docker.data_root()))
         return self._docker_root_on_root
 
     def _root_bytes(self) -> int:
