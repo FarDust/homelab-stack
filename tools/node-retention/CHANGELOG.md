@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0
+
+- Count toward the `/` floor only candidates on the floor's own filesystem (`st_dev` of `root_mount`); Docker
+  images and build cache count only when Docker's data root is on `/`. On frost-fang the floor had been violated
+  for 12 days while every apply freed about 0 bytes on `/`: its only candidates lived on a separate Docker volume and the `/tmp`
+  volume. Tool caches off `/` are no longer taken for the floor once the budget holds.
+- Root floor step-down: while `/` stays under its floor, direct child dirs of `ci_job_roots` and
+  `ci_scratch_roots` that the job ledger names, whose jobs all ended 3 days ago (then 1 day), untouched as long,
+  on `/` and not tied to an open PR, become `ci-job-ended` candidates, oldest first, until the floor is met. Dirs
+  the ledger never names are never candidates. Open PRs come from `open_prs_file`; unknown means every PR-tied dir
+  is kept.
+- tmpfs trees: a deferred (waiting) job no longer keeps its lane's idle trees, the placeholder lane `unspecified`
+  owns nothing, and a tree whose gate `.agent-job` record names a creator pid that is gone goes after one hour idle
+  (read with `O_NOATIME`, so the scan is not a use).
+- Plans report `root_reclaimable_bytes`, `floor_step_days` and `floor_unmet_reason`.
+
 ## 0.5.1
 
 - Configure the cached ephemeral environments of each uv cache (`environments-v2`) as cache roots in the node

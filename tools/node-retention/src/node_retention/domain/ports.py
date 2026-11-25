@@ -25,6 +25,17 @@ class FileSystem(Protocol):
         """Every mount point of this mount namespace (`/proc/self/mountinfo`)."""
         ...
 
+    def device(self, path: str) -> int:
+        """Device id (`st_dev` of `lstat`) of the filesystem that holds `path`; raises when it does not exist."""
+        ...
+
+    def read_record(self, path: str) -> str | None:
+        """Text of a small record file (at most 4 KiB) read without updating its atime, or None when absent.
+
+        Reading must not refresh the atime: a tree's newest read is part of its idle time.
+        """
+        ...
+
 
 class Processes(Protocol):
     def open_paths(self) -> set[str]:
@@ -41,6 +52,10 @@ class Docker(Protocol):
 
     def image_id(self, ref: str) -> str | None:
         """Full image id (`sha256:...`) the tag or reference resolves to, or None when no such image exists."""
+        ...
+
+    def data_root(self) -> str:
+        """Docker's data directory (`DockerRootDir`): images and build cache live on its filesystem."""
         ...
 
     def prune_dangling_images(self) -> int: ...
@@ -62,6 +77,16 @@ class JobLedger(Protocol):
 
         Raises `LedgerUnreadableError` when the ledger is missing, unreadable or holds a malformed row, so the
         caller deletes nothing (fail closed).
+        """
+        ...
+
+
+class OpenPullRequests(Protocol):
+    def numbers(self) -> set[int] | None:
+        """PR numbers that are open in the repositories CI runs for, or None when that is unknown.
+
+        Unknown is a valid answer: the node may have no GitHub credentials. Callers then protect every path
+        tied to any PR number (fail closed).
         """
         ...
 

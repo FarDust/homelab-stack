@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     # section "Tmpfs job trees"). Owner lira; review 2026-11-26.
     # 1. any tree untouched for this long goes, whatever its lane does (unless a process uses it).
     shm_idle_hours: float = 24.0
-    # 2. a tree untouched for this long goes when its lane has no job running or deferred in the ledger.
+    # 2. a tree untouched for this long goes when its lane has no running job in the ledger (deferred rows do not count).
     shm_idle_minutes: float = 120.0
     # 3. when the whole directory exceeds this size the oldest idle trees go first until it fits.
     shm_cap_gib: float = 8.0
@@ -82,6 +82,20 @@ class Settings(BaseSettings):
     # Directories whose children are CI job scratch (logs, build contexts, archives).
     ci_scratch_roots: list[Path] = []
     ci_scratch_days: float = 14.0
+    # Directories whose direct child directories are CI job dirs (checkouts, run scratch, evidence) that the job
+    # ledger names. While `/` is under its floor these are judged by ledger `end` rows with stepped age gates.
+    ci_job_roots: list[Path] = []
+    # Names under the job roots that are tooling or stores, never job dirs (node toolchain, port claims, shims,
+    # the durable evidence store).
+    ci_job_keep_names: list[str] = ["tools", "slots", "bin", "evidence", "jra"]
+    # Root floor step-down (docs/adr/node_disk_retention_adr.md, "Root floor on its own device"; owner lira,
+    # review 2026-12-09): while `/` is under its floor after the normal rules, ledger-ended CI job dirs on `/`
+    # become candidates at these ages (days), largest first, oldest dirs first, until the floor is met.
+    floor_step_days: list[float] = [3.0, 1.0]
+    # JSON list of open PR numbers (`[201, 382]`) written by whatever has GitHub access; absent or older than
+    # `open_prs_max_age_hours` means unknown, and every dir tied to any PR number is then kept.
+    open_prs_file: Path | None = None
+    open_prs_max_age_hours: float = 2.0
     # Images that must never be pruned, as reference -> expected image id (`sha256:...`). Empty by default: the
     # real mapping comes from the node's private settings (JSON in NODE_RETENTION_PROTECTED_IMAGE_REFS).
     protected_image_refs: dict[str, str] = {}
@@ -95,6 +109,12 @@ class Settings(BaseSettings):
         "*/olympus*",
         "*/queue-archives*",
     ]
+
+    @model_validator(mode="after")
+    def _floor_steps_are_positive(self) -> Settings:
+        if any(d <= 0 for d in self.floor_step_days):
+            raise ValueError(f"floor_step_days must be positive, got {self.floor_step_days}")
+        return self
 
     @model_validator(mode="after")
     def _protected_images_are_well_formed(self) -> Settings:
@@ -130,6 +150,7 @@ class Settings(BaseSettings):
             self.shm_jobs_root,
             *self.cache_roots,
             *self.ci_scratch_roots,
+            *self.ci_job_roots,
             *self.cache_units,
             *self.stale_file_units,
         ]
@@ -140,7 +161,7 @@ class Settings(BaseSettings):
         if path in units:
             return True
         parents = (self.home, self.ci_root, self.ci_root / "jra", self.tmp_root, self.shm_jobs_root)
-        roots = [r.as_posix() for r in (*parents, *self.cache_roots, *self.ci_scratch_roots)]
+        roots = [r.as_posix() for r in (*parents, *self.cache_roots, *self.ci_scratch_roots, *self.ci_job_roots)]
         return any(is_within(path, r) and path != r for r in roots)
 
     @property

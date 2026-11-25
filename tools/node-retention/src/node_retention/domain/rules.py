@@ -53,6 +53,31 @@ def contains_mount(path: str, mount_points: set[str]) -> bool:
 # the job may still be running or about to create its scratch.
 _FINISHED_EVENTS = frozenset({"end", "refused"})
 _PATH_FIELDS = ("where_fs", "where", "workdir")
+# `LANES_WHO` defaults that name no lane: every job without a lane id shared them, so one waiting job kept every
+# other job's trees. They are not owners.
+PLACEHOLDER_LANES = frozenset({"unspecified", ""})
+# A PR number in a directory name or a ledger `what` text (`pr201-3c9b623`, `PR #201`, `pr-201`).
+PR_NUMBER = re.compile(r"(?i)(?<![a-z0-9])pr[-_ #]{0,2}(\d{1,6})(?!\d)")
+
+
+def pr_numbers(text: str) -> set[int]:
+    """PR numbers that a name or a ledger text refers to."""
+    return {int(m.group(1)) for m in PR_NUMBER.finditer(text)}
+
+
+def parse_job_record(text: str) -> tuple[str | None, int | None]:
+    """(who, creating pid) of a gate `.agent-job` record: `who=<lane> id=<id> created=<ts>` then `<pid> <start>`."""
+    lines = text.splitlines()
+    who = None
+    if lines:
+        match = re.search(r"(?:^|\s)who=(\S+)", lines[0])
+        who = match.group(1) if match else None
+    pid = None
+    if len(lines) > 1:
+        first = lines[1].split()
+        if first and first[0].isdigit():
+            pid = int(first[0])
+    return who, pid
 
 
 def running_job_paths(rows: list[dict[str, object]], is_alive: Callable[[int], bool]) -> set[str]:
@@ -81,16 +106,19 @@ def running_job_paths(rows: list[dict[str, object]], is_alive: Callable[[int], b
 
 
 def job_lanes(rows: list[dict[str, object]], is_alive: Callable[[int], bool]) -> tuple[set[str], set[str]]:
-    """Return (every lane named by the ledger, lanes with a job running or deferred).
+    """Return (every lane named by the ledger, lanes with a job running).
 
-    A lane is active when the last row of one of its job ids is neither `end` nor `refused` and the row's pid
-    is alive (or absent). Deferred rows count: the lane is waiting for admission and will create a tree.
+    A lane is active when the last row of one of its job ids is neither `end`, `refused` nor `deferred` and
+    the row's pid is alive (or absent). A job waiting for admission holds no tree yet, so it does not keep the
+    lane's idle trees: on 2026-11-25 deferred jobs of the shared lane `unspecified` kept 1.6 GB of ended trees
+    in RAM while swap was full (docs/adr/node_disk_retention_adr.md, "Root floor on its own device").
+    Placeholder lanes (`unspecified`) name no owner and are never returned as known lanes.
     """
     last: dict[str, dict[str, object]] = {}
     known: set[str] = set()
     for row in rows:
         who = row.get("who")
-        if isinstance(who, str) and who:
+        if isinstance(who, str) and who and who not in PLACEHOLDER_LANES:
             known.add(who)
         job_id = row.get("id")
         # A note row (tree gc, reports) says nothing about whether the job still runs.
@@ -98,10 +126,12 @@ def job_lanes(rows: list[dict[str, object]], is_alive: Callable[[int], bool]) ->
             last[job_id] = row
     active: set[str] = set()
     for row in last.values():
-        if row.get("event") in _FINISHED_EVENTS:
+        if row.get("event") in _FINISHED_EVENTS or row.get("event") == "deferred":
             continue
         pid = row.get("pid")
         if isinstance(pid, int) and not is_alive(pid):
+            continue
+        if str(row["who"]) in PLACEHOLDER_LANES:
             continue
         active.add(str(row["who"]))
     return known, active

@@ -53,6 +53,24 @@ class LocalFileSystem:
                 points.add(_OCTAL.sub(lambda m: chr(int(m.group(1), 8)), raw))
         return points
 
+    def device(self, path: str) -> int:
+        return os.lstat(path).st_dev
+
+    def read_record(self, path: str) -> str | None:
+        """Read up to 4 KiB with O_NOATIME, so the scan does not count as a use of the tree.
+
+        O_NOATIME needs the file's owner; for a file of another user the record is not read (None): a plain
+        read would refresh the atime and keep the tree alive for another idle window.
+        """
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOATIME | os.O_NOFOLLOW)
+        except (FileNotFoundError, PermissionError, IsADirectoryError, OSError):
+            return None
+        try:
+            return os.read(fd, 4096).decode("utf-8", errors="replace")
+        finally:
+            os.close(fd)
+
     def stats(self, path: str) -> TreeStats:
         """Allocated size plus newest mtime and atime.
 

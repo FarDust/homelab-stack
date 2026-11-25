@@ -65,6 +65,12 @@ class DockerCli:
         out = self._run("inspect", "--format", '{{range .Mounts}}{{.Source}}{{"\\n"}}{{end}}', *ids)
         return {line for line in out.splitlines() if line.startswith("/")}
 
+    def data_root(self) -> str:
+        root = self._run("info", "--format", "{{.DockerRootDir}}").strip()
+        if not root.startswith("/"):
+            raise RuntimeError(f"docker info returned no DockerRootDir: {root!r}")
+        return root
+
     def dangling_images_reclaimable(self) -> int:
         ids = self._run("image", "ls", "--filter", "dangling=true", "--quiet").split()
         if not ids:

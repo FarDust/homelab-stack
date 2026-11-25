@@ -7,7 +7,9 @@ Rules, evaluated per tree and then for the whole directory:
 
 1. a tree named `<UTC stamp>-<pid>` goes one hour after its pid died; while the pid lives it stays;
 2. any other tree untouched for `shm_idle_hours` (24 h) goes whatever its lane does;
-3. any other tree untouched for `shm_idle_minutes` (120 min) goes when its lane has no job running or deferred;
+3. a tree whose `.agent-job` record names a creator pid that is gone goes one hour after its last use;
+3b. any other tree untouched for `shm_idle_minutes` (120 min) goes when its lane has no job running (a job waiting
+    for admission holds no tree, and the placeholder lane `unspecified` owns nothing);
 4. while the directory exceeds `shm_cap_gib`, the oldest trees idle for at least `shm_cap_min_idle_minutes` go first.
 """
 
@@ -19,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from node_retention.config import Settings
 from node_retention.domain.models import Candidate, Category, Skipped, TreeStats
-from node_retention.domain.rules import in_use, job_lanes, job_pid, lane_of
+from node_retention.domain.rules import in_use, job_lanes, job_pid, lane_of, parse_job_record
 
 if TYPE_CHECKING:
     from node_retention.application.planning import Ports
@@ -90,10 +92,19 @@ class ShmTreePolicy:
                 self._skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason=f"job pid {pid} is alive"))
                 return None, False
             return self._gate(path, Category.SHM, 0.0, f"job pid {pid} is dead", s.shm_dead_idle_hours * HOUR), False
+        # A gate `.agent-job` record (lanes_job_dir, or run.sh stamping a hand-made checkout) names its creator: once
+        # that process is gone the tree is a dead job's tree, whatever its lane does.
+        record_who = None
+        record = self._p.fs.read_record(f"{path}/.agent-job")
+        if record is not None:
+            record_who, owner = parse_job_record(record)
+            if owner is not None and not self._p.procs.is_alive(owner):
+                reason = f"creator pid {owner} of its .agent-job record is gone"
+                return self._gate(path, Category.SHM, 0.0, reason, s.shm_dead_idle_hours * HOUR), False
         if idle >= s.shm_idle_hours * HOUR:
             reason = f"tree untouched for {idle / HOUR:.1f} h (limit {s.shm_idle_hours:g} h, any lane)"
             return self._gate(path, Category.SHM, 0.0, reason, s.shm_idle_hours * HOUR), False
-        lane = lane_of(name, known)
+        lane = lane_of(name, known) or (record_who if record_who in known else None)
         if lane is None or lane in active:
             # An unknown lane left no ledger row, so nothing says its job is over: it is kept like an active lane.
             self._kept_for_lane.add(path)
@@ -101,7 +112,7 @@ class ShmTreePolicy:
                 Skipped(
                     path=path,
                     size_bytes=st.size_bytes,
-                    reason=f"lane {lane} has a job running or deferred"
+                    reason=f"lane {lane} has a job running"
                     if lane
                     else "no ledger lane owns it; kept until the 24 h ceiling",
                 )
@@ -110,7 +121,7 @@ class ShmTreePolicy:
         if idle >= s.shm_idle_minutes * MINUTE:
             reason = (
                 f"tree untouched for {idle / MINUTE:.0f} min (limit {s.shm_idle_minutes:g} min); "
-                f"lane {lane} has no job running or deferred"
+                f"lane {lane} has no job running"
             )
             return self._gate(path, Category.SHM, 0.0, reason, s.shm_idle_minutes * MINUTE), False
         self._skipped.append(
