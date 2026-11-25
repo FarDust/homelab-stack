@@ -139,3 +139,32 @@ Removing an environment costs the next `uv run` of that script a rebuild from `a
 ### Verification
 
 `tests/test_policy.py::test_idle_uv_environments_inside_an_active_cache_are_pruned_one_by_one` and `::test_idle_cache_and_its_nested_environments_are_not_both_candidates`; live numbers in `Learnings/frost-fang root disk 94 percent 2026-11-19 uv environments and rclone cache.md` of the agent memory vault.
+
+## Root floor on its own device (2026-11-25, owner lira, review 2026-12-09)
+
+### Context
+
+On 2026-11-25 12:45 UTC frost-fang `/` (80 GB) had 4,996 MB free against the 8 GiB floor, and it had been under the floor for at least 12 days. Every `apply` run reported about 0 freed bytes. The plan of 12:49 UTC showed why: its only candidates were Docker dangling images (29 GB) and build cache (2.7 GB), which live on a separate Docker volume, and stale files of `/tmp/node-compile-cache`, which lives on a separate `/tmp` volume. Deleting them frees nothing on `/`. Meanwhile `~/ci-fallback` held 27.4 GB on `/`: 384 direct child dirs (checkouts, run scratch, release rehearsals) were not judged by any rule, because only evidence globs and `ci_scratch_roots` children were; 11.8 GB of them belong to jobs whose ledger rows all ended 1 to 14 days ago. The planner had already excluded `/dev/shm` by path prefix, but nothing else was checked by device. In the same incident tmpfs trees stayed in RAM because every job ran as `who=unspecified` and a deferred job of that shared lane counted as activity (Learning `frost-fang SwapFree 22 MB CI deferrals 2026-11-25 hand-made tmpfs checkouts never swept` of the agent memory vault).
+
+### Decision
+
+1. A candidate counts toward the floor only when it is on the floor's filesystem: `st_dev` of the path equals `st_dev` of `root_mount`; Docker candidates count only when `DockerRootDir` is on it. The tool-cache step keeps two needs (budget, any device; floor, `/` only) and stops taking off-`/` caches once the budget holds. The plan reports `root_reclaimable_bytes`, and `floor_unmet_reason` when the floor stays violated after every rule.
+2. Step-down: while `/` stays under its floor after the normal rules, each direct child dir of `ci_job_roots` (`~/ci-fallback`, `~/ci-fallback/jra`) and `ci_scratch_roots` becomes a `ci-job-ended` candidate at the first step gate of `floor_step_days` (3 days, then 1 day; only steps below the 14-day base gates apply) when the job ledger names a path at or below it, every job id naming it ended (`end`/`refused`) longer ago than the step, its newest write is older than the step and it was not read for the idle window, it lies on `/`, and it is not tied to an open PR. The usual gate still applies (protected globs, running ledger jobs above or below it, open files, container mounts, sockets, mount points). Configured roots, caches and the names in `ci_job_keep_names` (`tools`, `slots`, `bin`, `evidence`, `jra`) are never job dirs. Oldest dirs go first and the step stops as soon as the shortfall is covered.
+3. Open PRs: a PR number in the dir name or in the `what` of a job naming it ties the dir to that PR. The node has no GitHub credentials, so the numbers come from `open_prs_file` (a JSON list written by a GitHub-capable job, valid for `open_prs_max_age_hours`). Missing, stale or malformed means unknown, and every PR-tied dir is then kept.
+4. Dirs the ledger never names (owner unknown, for example `jra-restore-synthetic-c8d` or `bridge-cold-*`) are never step-down candidates; they stay listed in the plan's skipped set for their owners.
+5. tmpfs trees: a `deferred` row no longer makes a lane active (a waiting job holds no tree), the placeholder lane `unspecified` owns nothing, and a tree with a gate `.agent-job` record whose creator pid is gone goes after `shm_dead_idle_hours` idle. The record is read with `O_NOATIME`, so the scan does not count as a use.
+
+### Alternatives
+
+- Lower the floor: rejected; it hides a 12-day failure and does not free a byte.
+- Count Docker on `/` anyway and move Docker back: rejected; the separate volume is deliberate.
+- Delete every `~/ci-fallback` child older than 3 days by mtime: rejected; it would remove dirs whose owner is unknown and dirs of open PRs.
+- Query GitHub from the node: rejected for now; the node has no credentials, and a file written by a GitHub-capable job keeps the tool offline and testable.
+
+### Consequences
+
+The step-down can remove a finished job's checkout 3 days (at worst 1 day) after its last ledger row while `/` is short; that job reclones to run again, and its evidence belongs on the PR or in the evidence store (`~/ci-fallback/evidence`, children kept 14 days). Unknown-owner dirs keep taking space until their owners act; the plan lists them. Rollback: `NODE_RETENTION_FLOOR_STEP_DAYS='[]'` disables the step-down, or reinstall 0.5.1.
+
+### Verification
+
+`tests/test_root_floor.py` (device accounting, Docker on and off `/`, the 3-day and 1-day steps with oldest-first order, running, unknown, reserved, off-`/` and PR-tied dirs, the open-PR file), `tests/test_shm_trees.py` (waiting jobs, the placeholder lane, the `.agent-job` creator rule). Live before and after numbers on frost-fang are in the same Learning of the agent memory vault.

@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
+from node_retention.application.floor_step_down import FloorStepDown
 from node_retention.application.safety import protected_image_violations, running_jobs, unsafe_reason
 from node_retention.application.shm_trees import ShmTreePolicy
 from node_retention.config import Settings
 from node_retention.domain.models import Candidate, Category, Plan, Skipped
-from node_retention.domain.ports import Clock, Docker, FileSystem, JobLedger, Processes
+from node_retention.domain.ports import Clock, Docker, FileSystem, JobLedger, OpenPullRequests, Processes
 from node_retention.domain.rules import in_use, is_within, matches_any, name_matches_any
 
 HOUR = 3600.0
 DAY = 86400.0
+
+
+class UnknownPullRequests:
+    """Default answer when nothing reports open PRs: unknown, so every PR-tied dir is kept by the step-down."""
+
+    def numbers(self) -> set[int] | None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -23,6 +31,7 @@ class Ports:
     docker: Docker
     clock: Clock
     jobs: JobLedger
+    prs: OpenPullRequests = field(default_factory=UnknownPullRequests)
 
 
 class Planner:
@@ -35,6 +44,8 @@ class Planner:
         self._jobs: set[str] = set()
         self._image_violations: list[str] = []
         self._now = 0.0
+        self._root_dev_id: int | None = None
+        self._docker_root_on_root: bool | None = None
         self.candidates: list[Candidate] = []
         self.skipped: list[Skipped] = []
 
@@ -63,18 +74,30 @@ class Planner:
         self._shm()
         self._ci_scratch()
         free = p.fs.free_bytes(s.root_mount.as_posix())
-        # tmpfs and Docker's own filesystem do not count toward the root floor.
-        freed_on_root = sum(
-            c.size_bytes
-            for c in self.candidates
-            if c.action == "remove_path" and not c.path.startswith(s.shm_jobs_root.as_posix())
-        )
-        budget_used = self._tool_caches(free, freed_on_root)
+        # Only bytes on the floor's own filesystem count toward it: tmpfs, a separate `/tmp` volume and Docker's
+        # data root free nothing on `/` (docs/adr/node_disk_retention_adr.md, "Root floor on its own device").
+        budget_used = self._tool_caches(free, self._root_bytes())
         self._docker()
-        return self._plan(free=free, budget_used=budget_used)
+        step_days: float | None = None
+        if free + self._root_bytes() < s.floor_bytes:
+            step = FloorStepDown(s, p, self._gate, self._now, self.skipped)
+            chosen, step_days = step.candidates(s.floor_bytes - free - self._root_bytes(), self._is_candidate)
+            self.candidates.extend(chosen)
+        return self._plan(free=free, budget_used=budget_used, step_days=step_days)
 
-    def _plan(self, free: int, budget_used: int) -> Plan:
+    def _plan(self, free: int, budget_used: int, step_days: float | None = None) -> Plan:
         s = self._s
+        reclaimable = self._root_bytes()
+        unmet = ""
+        if free + reclaimable < s.floor_bytes:
+            unmet = (
+                f"candidates free {reclaimable / 1024**3:.2f} GiB on {s.root_mount.as_posix()}, "
+                f"{(s.floor_bytes - free - reclaimable) / 1024**3:.2f} GiB short of the floor after every rule "
+                "and the step-down; what is left is kept (see skipped)"
+            )
+        # A path judged by several rules keeps its last reason; a candidate is not also listed as skipped.
+        chosen = {c.path for c in self.candidates}
+        skipped = list({sk.path: sk for sk in self.skipped if sk.path not in chosen}.values())
         return Plan(
             host=s.host,
             generated_at=self._now,
@@ -83,10 +106,44 @@ class Planner:
             budget_bytes=s.budget_bytes,
             budget_used_bytes=budget_used,
             floor_violated=free < s.floor_bytes,
+            root_reclaimable_bytes=reclaimable,
+            floor_step_days=step_days,
+            floor_unmet_reason=unmet,
             candidates=self.candidates,
-            skipped=self.skipped,
+            skipped=skipped,
             protected_image_violations=self._image_violations,
         )
+
+    # -- floor accounting ------------------------------------------------------------
+
+    def _is_candidate(self, path: str) -> bool:
+        return any(c.path == path for c in self.candidates)
+
+    def _on_root(self, cand: Candidate) -> bool:
+        """True when deleting `cand` frees space on the floor's filesystem (same `st_dev` as `root_mount`)."""
+        if cand.action in ("docker_image_prune", "docker_builder_prune"):
+            return self._docker_on_root()
+        return self._path_on_root(cand.path)
+
+    def _path_on_root(self, path: str) -> bool:
+        try:
+            return self._p.fs.device(path) == self._root_dev()
+        except FileNotFoundError:
+            return False
+
+    def _root_dev(self) -> int:
+        if self._root_dev_id is None:
+            self._root_dev_id = self._p.fs.device(self._s.root_mount.as_posix())
+        return self._root_dev_id
+
+    def _docker_on_root(self) -> bool:
+        if self._docker_root_on_root is None:
+            # Follow a symlinked data root: lstat of the link reports the device the link sits on, not the data.
+            self._docker_root_on_root = self._path_on_root(self._p.fs.resolve(self._p.docker.data_root()))
+        return self._docker_root_on_root
+
+    def _root_bytes(self) -> int:
+        return sum(c.size_bytes for c in self.candidates if self._on_root(c))
 
     # -- selection helpers -------------------------------------------------------------
 
@@ -198,14 +255,26 @@ class Planner:
         used = sum(
             st.size_bytes for u, st in sized + stale_sized if not any(o != u and is_within(u, o) for o in everything)
         )
-        need = max(used - s.budget_bytes, s.floor_bytes - (free + freed_on_root), 0)
-        if need == 0:
+        # Two needs: the budget counts every cache wherever it lives; the floor counts only bytes on `/`.
+        need_budget = max(used - s.budget_bytes, 0)
+        need_floor = max(s.floor_bytes - (free + freed_on_root), 0)
+        if need_budget == 0 and need_floor == 0:
             return used
-        gained = 0
+        gained_budget = gained_floor = 0
+
+        def met() -> bool:
+            return gained_budget >= need_budget and gained_floor >= need_floor
+
+        def useless(path: str) -> bool:
+            # Once the budget is met, a cache on another filesystem cannot help the floor.
+            return gained_budget >= need_budget and not self._path_on_root(path)
+
         cutoff = self._now - s.idle_hours * HOUR
         for path, _ in sorted(stale_sized, key=lambda item: item[1].newest_ts):
-            if gained >= need:
+            if met():
                 break
+            if useless(path):
+                continue
             if matches_any(path, s.protected_globs) or in_use(path, self._mounts):
                 continue
             unsafe = unsafe_reason(s, p.fs, path, self._jobs, self._mount_points, whole_path_resolves=True)
@@ -225,11 +294,14 @@ class Planner:
                         reason=f"{found.count} cache files not read or written for {s.idle_hours:g} h",
                     )
                 )
-                gained += found.size_bytes
+                gained_budget += found.size_bytes
+                gained_floor += found.size_bytes if self._path_on_root(path) else 0
         chosen: list[str] = []
         for path, st in sorted(sized, key=lambda item: item[1].newest_ts):
-            if gained >= need:
+            if met():
                 break
+            if useless(path):
+                continue
             if any(is_within(path, c) or is_within(c, path) for c in chosen):
                 # Nested in (or holding) a unit already chosen: its bytes are counted once, and a uv cache keeps
                 # its archive while its idle environments go (docs/adr/node_disk_retention_adr.md).
@@ -242,7 +314,8 @@ class Planner:
             if cand is not None:
                 self.candidates.append(cand)
                 chosen.append(path)
-                gained += cand.size_bytes
+                gained_budget += cand.size_bytes
+                gained_floor += cand.size_bytes if self._path_on_root(path) else 0
         return used
 
     def _docker(self) -> None:

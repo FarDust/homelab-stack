@@ -61,21 +61,49 @@ def test_idle_tree_of_a_finished_lane_is_collected_and_a_recent_one_kept(tmp_pat
     rows = [_row("start", "a", "fix179"), _row("end", "a", "fix179")]
     _, _, _, plan = _plan(tmp_path, fs, rows)
     assert _paths(plan) == {f"{ROOT}/fix179-g1"}
-    assert "lane fix179 has no job running or deferred" in plan.candidates[0].reason
+    assert "lane fix179 has no job running" in plan.candidates[0].reason
     assert "used 30 min ago" in _reasons(plan)[f"{ROOT}/fix179-g2"]
 
 
-def test_tree_of_a_lane_with_a_running_or_deferred_job_is_kept_until_24_hours(tmp_path: Path) -> None:
+def test_tree_of_a_lane_with_a_running_job_is_kept_until_24_hours_but_a_waiting_job_keeps_nothing(
+    tmp_path: Path,
+) -> None:
+    # 2026-11-25: deferred jobs of one lane kept 1.6 GB of ended trees in RAM while swap was full. A job that
+    # waits for admission holds no tree; only a running job keeps its lane's recent trees.
     fs = FakeFs(root_free=20 * GIB)
     fs.add(f"{ROOT}/lira-g1", 100, 3 * HOUR)
     fs.add(f"{ROOT}/queued-g1", 100, 3 * HOUR)
     fs.add(f"{ROOT}/lira-g0", 100, 25 * HOUR)
     rows = [_row("start", "a", "lira", pid=7), _row("deferred", "b", "queued", pid=8)]
     _, _, _, plan = _plan(tmp_path, fs, rows, FakeProcs(alive={7, 8}))
-    assert _paths(plan) == {f"{ROOT}/lira-g0"}
-    assert "any lane" in plan.candidates[0].reason
-    assert "running or deferred" in _reasons(plan)[f"{ROOT}/lira-g1"]
-    assert "running or deferred" in _reasons(plan)[f"{ROOT}/queued-g1"]
+    assert _paths(plan) == {f"{ROOT}/lira-g0", f"{ROOT}/queued-g1"}
+    assert "has a job running" in _reasons(plan)[f"{ROOT}/lira-g1"]
+
+
+def test_placeholder_lane_unspecified_owns_no_tree(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    fs.add(f"{ROOT}/unspecified-run-pr1-9", 100, 3 * HOUR)
+    rows = [_row("start", "a", "unspecified", pid=7)]
+    known, active = job_lanes(rows, lambda pid: True)
+    assert "unspecified" not in known and "unspecified" not in active
+    _, _, _, plan = _plan(tmp_path, fs, rows, FakeProcs(alive={7}))
+    assert "no ledger lane owns it" in _reasons(plan)[f"{ROOT}/unspecified-run-pr1-9"]
+
+
+def test_tree_whose_agent_job_creator_is_gone_goes_after_one_hour(tmp_path: Path) -> None:
+    # run.sh stamps a hand-made checkout with `.agent-job`; once run.sh is gone the checkout is a dead job's tree.
+    fs = FakeFs(root_free=20 * GIB)
+    for name, age in (("jra-d647e9b", 2 * HOUR), ("jra-fresh", 20 * MIN), ("jra-live", 5 * HOUR)):
+        fs.add(f"{ROOT}/{name}", 100, age)
+    fs.records[f"{ROOT}/jra-d647e9b/.agent-job"] = "who=pr201 id=x created=t\n900 123\n"
+    fs.records[f"{ROOT}/jra-fresh/.agent-job"] = "who=pr201 id=y created=t\n901 123\n"
+    fs.records[f"{ROOT}/jra-live/.agent-job"] = "who=pr201 id=z created=t\n902 123\n"
+    rows = [_row("start", "z", "pr201", pid=902)]
+    _, _, _, plan = _plan(tmp_path, fs, rows, FakeProcs(alive={902}))
+    assert _paths(plan) == {f"{ROOT}/jra-d647e9b"}
+    assert "creator pid 900" in plan.candidates[0].reason
+    # the live creator's tree falls back to its lane (from the record): lane pr201 runs, so it stays
+    assert "lane pr201 has a job running" in _reasons(plan)[f"{ROOT}/jra-live"]
 
 
 def test_a_lane_whose_job_process_died_without_an_end_row_is_not_active(tmp_path: Path) -> None:
@@ -181,7 +209,7 @@ def test_apply_writes_a_ledger_note_with_the_manifest_of_every_removed_tree(tmp_
     assert note["gc_freed_mb"] == 900 and str(note["manifest"]).endswith("manifest-run1.json")
     (item,) = note["gc_removed"]
     assert item["tree"] == f"{ROOT}/fix179-g1" and item["mb"] == 900 and item["age_min"] == 180
-    assert "no job running or deferred" in item["reason"]
+    assert "no job running" in item["reason"]
 
 
 def test_apply_without_removals_writes_no_note(tmp_path: Path) -> None:

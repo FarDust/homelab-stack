@@ -16,6 +16,7 @@ class Category(StrEnum):
     CI_SCRATCH = "ci-scratch"
     TMP = "tmp-leftover"
     SHM = "shm-job"
+    CI_JOB = "ci-job-ended"
     DOCKER_IMAGES = "docker-dangling-images"
     DOCKER_BUILD_CACHE = "docker-build-cache"
 
@@ -77,6 +78,13 @@ class Plan(BaseModel):
     budget_bytes: int
     budget_used_bytes: int
     floor_violated: bool
+    # Bytes the candidates free on the floor's own filesystem (`st_dev` of `root_mount`); tmpfs, `/tmp` on
+    # another volume and Docker's data root do not count toward the floor.
+    root_reclaimable_bytes: int = 0
+    # Smallest age gate (days) the floor step-down used, None when it was not needed.
+    floor_step_days: float | None = None
+    # Why the floor stays violated after this plan, empty when the plan reaches it.
+    floor_unmet_reason: str = ""
     candidates: list[Candidate]
     skipped: list[Skipped]
     protected_image_violations: list[str] = []

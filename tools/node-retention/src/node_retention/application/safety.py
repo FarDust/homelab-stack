@@ -77,5 +77,5 @@ def require_protected_images(settings: Settings, docker: Docker) -> None:
 
 
 def lanes_state(jobs: JobLedger, procs: Processes) -> tuple[set[str], set[str]]:
-    """(known lanes, lanes with a job running or deferred). An unreadable ledger raises, so nothing is deleted."""
+    """(known lanes, lanes with a job running; waiting jobs do not count). An unreadable ledger raises, so nothing is deleted."""
     return job_lanes(jobs.rows(), procs.is_alive)

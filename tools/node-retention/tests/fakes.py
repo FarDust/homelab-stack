@@ -11,6 +11,9 @@ from node_retention.domain.models import StaleFiles, TreeStats
 NOW = 2_000_000_000.0
 DAY = 86400.0
 HOUR = 3600.0
+ROOT_DEV = 1
+SHM_DEV = 2
+DOCKER_DEV = 3
 
 
 class FakeFs:
@@ -27,6 +30,19 @@ class FakeFs:
         self.mounts: set[str] = set()
         self.sockets: set[str] = set()  # trees that contain a Unix socket
         self.on_stats = lambda path: None  # hook: runs before each stats() call
+        # path prefix -> device id; the longest prefix wins, default ROOT_DEV (tmpfs and Docker's data root apart)
+        self.devices: dict[str, int] = {"/dev/shm": SHM_DEV, "/var/lib/docker": DOCKER_DEV}
+        self.records: dict[str, str] = {}  # path of a record file -> its text
+
+    def device(self, path: str) -> int:
+        best, dev = "", ROOT_DEV
+        for prefix, value in self.devices.items():
+            if (path == prefix or path.startswith(prefix.rstrip("/") + "/")) and len(prefix) > len(best):
+                best, dev = prefix, value
+        return dev
+
+    def read_record(self, path: str) -> str | None:
+        return self.records.get(path)
 
     def add(self, path: str, size: int, age_s: float, owned: bool = True, read_age_s: float | None = None) -> None:
         """`age_s` is the age of the newest write; `read_age_s` the age of the newest read (default: same)."""
@@ -97,6 +113,10 @@ class FakeDocker:
         self.calls: list[str] = []
         self.images: dict[str, str] = {}  # reference -> image id
         self.on_root_remove = lambda path: None
+        self.root_dir = "/var/lib/docker"
+
+    def data_root(self) -> str:
+        return self.root_dir
 
     def mount_sources(self) -> set[str]:
         return set(self.mounts)
@@ -151,6 +171,14 @@ class FakeJobs:
         return self.ledger.read_rows()
 
 
+class FakePrs:
+    def __init__(self, numbers: set[int] | None = None) -> None:
+        self.value = numbers
+
+    def numbers(self) -> set[int] | None:
+        return None if self.value is None else set(self.value)
+
+
 class FakePublisher:
     def __init__(self) -> None:
         self.files: dict[str, str] = {}
@@ -182,15 +210,19 @@ def make_settings(tmp: Path, **overrides: object) -> Settings:
 
 __all__ = [
     "DAY",
+    "DOCKER_DEV",
     "GIB",
     "HOUR",
     "NOW",
+    "ROOT_DEV",
+    "SHM_DEV",
     "FakeClock",
     "FakeDocker",
     "FakeFs",
     "FakeJobs",
     "FakeLedger",
     "FakeProcs",
+    "FakePrs",
     "FakePublisher",
     "make_settings",
 ]

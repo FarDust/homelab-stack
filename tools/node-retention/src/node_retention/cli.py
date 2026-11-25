@@ -18,6 +18,7 @@ from node_retention.adapters.local import (
     ProcProcesses,
     SystemClock,
 )
+from node_retention.adapters.open_prs import OpenPrsFile
 from node_retention.adapters.textfile import TextfilePublisher
 from node_retention.application.applying import Applier
 from node_retention.application.metrics import CHECK_FILE, RUN_FILE, render_metrics, render_run_metrics
@@ -45,12 +46,14 @@ def _warn_skipped_rows(ledger: JobLedger) -> None:
 
 
 def _ports(settings: Settings) -> Ports:
+    clock = SystemClock()
     return Ports(
         fs=LocalFileSystem(),
         procs=ProcProcesses(),
         docker=DockerCli(settings.textfile_helper_image),
-        clock=SystemClock(),
+        clock=clock,
         jobs=_job_ledger(settings),
+        prs=OpenPrsFile(settings.open_prs_file, settings.open_prs_max_age_hours * 3600, clock),
     )
 
 
@@ -74,8 +77,13 @@ def _render(plan: Plan) -> None:
     for line in plan.protected_image_violations:
         err.print(f"[bold red]image guard failed, image prune refused: {line}[/]")
     err.print(
-        f"[bold]plan frees up to {_gib(plan.total_bytes)}[/] in {len(plan.candidates)} entries; {len(plan.skipped)} skipped"
+        f"[bold]plan frees up to {_gib(plan.total_bytes)}[/] in {len(plan.candidates)} entries "
+        f"({_gib(plan.root_reclaimable_bytes)} on the floor's filesystem); {len(plan.skipped)} skipped"
     )
+    if plan.floor_step_days is not None:
+        err.print(f"[yellow]root floor step-down used, smallest age gate {plan.floor_step_days:g} days[/]")
+    if plan.floor_unmet_reason:
+        err.print(f"[bold red]floor stays violated: {plan.floor_unmet_reason}[/]")
 
 
 @app.command()
