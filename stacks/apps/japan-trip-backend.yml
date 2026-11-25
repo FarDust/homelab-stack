@@ -25,7 +25,11 @@ services:
     networks: [traefik, traefik-public]
     read_only: true
     cap_drop: [ALL]
-    tmpfs: [/tmp]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
     secrets:
       - source: jt_backend_change_feed_dsn
         target: jt_backend_change_feed_dsn
@@ -66,9 +70,8 @@ services:
       retries: 3
       start_period: 20s
     deploy:
-      replicas: 2
+      replicas: 1
       placement:
-        max_replicas_per_node: 1
         constraints:
           - node.labels.load.tier == light
           - node.labels.node.ephemeral != true
@@ -92,7 +95,7 @@ services:
         - traefik.enable=true
         - traefik.swarm.network=traefik-public
         - traefik.swarm.lbswarm=true
-        - traefik.http.routers.japan-trip-backend.rule=Host(`${JOURNEY_HOSTNAME?err}`) && PathPrefix(`/api/v2`)
+        - traefik.http.routers.japan-trip-backend.rule=Host(`${JOURNEY_HOSTNAME?err}`) && (Path(`/api/v2`) || PathPrefix(`/api/v2/`))
         - traefik.http.routers.japan-trip-backend.priority=200
         - traefik.http.routers.japan-trip-backend.entrypoints=websecure
         - traefik.http.routers.japan-trip-backend.tls=true
