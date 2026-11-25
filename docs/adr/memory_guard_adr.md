@@ -70,14 +70,14 @@ distro. The owner approved the WSL cache drop as a mitigation and keeps `.wslcon
 - `memory-guard check` runs the drop itself when all hold: free virtual memory below the threshold in
   `MEMORY_GUARD_RECLAIM_SAMPLES` (2) consecutive samples; the distro (`MEMORY_GUARD_WSL_DISTRO`, `Ubuntu`) is already
   listed by `wsl --list --running` (a stopped distro is never started); the last attempt is over 10 minutes old; fewer
-  than 6 attempts in the last hour (failed attempts count). The drop is `wsl.exe -d <distro> -u root -- sh -c ...`
+  than 6 attempts in the last hour (an attempt that reached the drop counts, failed or not; a failure before it, such as a missing `vmmemWSL` counter, raises on each run until fixed). The drop is `wsl.exe -d <distro> -u root -- sh -c ...`
   in a subprocess with a 60 s timeout.
 - Free virtual, free RAM and `vmmemWSL` private bytes are read before and after (the after reading polls the counters
   for up to 20 s until `vmmemWSL` shrank by 1 GiB: a bound, not a fixed wait). Both go into the alert or recovery
   message and one line of `<state-dir>/reclaim.jsonl` (trimmed to 500 lines past 1000).
 - The drop runs before the alert is posted, so a slow alert path (the agent-bridge post) never delays it.
 - Failure is explicit: `wsl.exe` missing, a nonzero exit, a timeout, a missing `vmmemWSL` counter or an unreadable log
-  exit 1 with the cause and a recovery hint on stderr; the alert still goes out, carrying the failure.
+  exit 1 with the cause and a recovery hint on stderr; when the alert is due (30-minute limit) it carries the failure. Compaction is best-effort (`|| true`) because kernels without it would otherwise fail a drop that worked.
 - Kill switch, default on for this desktop: `MEMORY_GUARD_RECLAIM_ENABLED=false` in the private env file or the process
   environment (or `check --no-reclaim-enabled` for one run). To remove everything:
   `Unregister-ScheduledTask -TaskName memory-guard -Confirm:$false`.

@@ -9,13 +9,13 @@ from memory_guard.domain.errors import ReclaimError
 
 Runner = Callable[..., subprocess.CompletedProcess[bytes]]
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-DROP_SCRIPT = "sync; echo 3 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory"
+DROP_SCRIPT = "sync; echo 3 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory || true"
 LIST_TIMEOUT_S = 15.0
 
 
 def _decode(raw: bytes) -> str:
     # `wsl.exe --list` writes UTF-16LE; command output from the guest is UTF-8.
-    return raw.decode("utf-16-le" if b"\x00" in raw else "utf-8", errors="replace").replace("\x00", "")
+    return raw.decode("utf-16-le" if b"\x00" in raw else "utf-8", errors="replace").replace("\x00", "").lstrip("﻿")
 
 
 class WslCli:
