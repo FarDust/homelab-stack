@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `tools/memory-guard` 0.1.0: read-only Windows memory-pressure watchdog (commit limit, free RAM, non-paged pool, top 10 processes by private bytes) that alerts through agent-bridge after two low samples, one alert per condition per 30 minutes, with a recovery message. Task Scheduler launcher every 5 minutes at BelowNormal. See `docs/adr/memory_guard_adr.md`.
 - Add `tools/open-prs-feed` 0.1.0: writes the open pull request list (`open-prs.json`) that node-retention 0.6.0 reads to release job directories of merged or closed PRs, plus a detail file with head SHA, branch and update time. Fails closed and keeps the last good file on any source failure, malformed row, truncated page or empty answer. See `docs/adr/open_prs_feed_adr.md`.
 - Fix: add reviewed host rsyslog source using `maxsize 5G` so the daily and weekly schedules remain effective. Node-retention 0.3.1 adds native debug regression checks using its existing Python 3.13 pin. Activation remains separate and requires preservation of diagnostic history; see `docs/adr/rsyslog_retention_schedule_adr.md`.
 

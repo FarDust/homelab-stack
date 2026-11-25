@@ -84,6 +84,9 @@ jobs:
       - name: Test the open PR feed
         run: uv run --python 3.13 --project tools/open-prs-feed pytest -q tools/open-prs-feed/tests
 
+      - name: Test the memory guard
+        run: uv run --python 3.13 --project tools/memory-guard pytest -q tools/memory-guard/tests
+
       - name: Scan the whole tracked tree for generic private indicators
         run: uv run --python 3.12 --script scripts/check_private_indicators.py scan-tree
 
