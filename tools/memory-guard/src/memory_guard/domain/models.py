@@ -63,3 +63,39 @@ class GuardState:
 
 def gib(value: int) -> str:
     return f"{value / GIB:.2f} GiB"
+
+
+@dataclass(frozen=True)
+class ReclaimSnapshot:
+    """The three numbers recorded before and after a cache drop."""
+
+    free_virtual: int
+    free_ram: int
+    vmmem_private: int
+
+
+@dataclass(frozen=True)
+class ReclaimRecord:
+    at: datetime
+    ok: bool
+    before: ReclaimSnapshot
+    after: ReclaimSnapshot | None
+    error: str | None = None
+
+    def summary(self) -> str:
+        if not self.ok or self.after is None:
+            return f"WSL cache drop at {self.at.isoformat()} FAILED: {self.error}"
+        b, a = self.before, self.after
+        return (
+            f"WSL cache drop at {self.at.isoformat()}: free virtual {gib(b.free_virtual)} -> {gib(a.free_virtual)}, "
+            f"free RAM {gib(b.free_ram)} -> {gib(a.free_ram)}, vmmemWSL {gib(b.vmmem_private)} -> {gib(a.vmmem_private)}"
+        )
+
+
+@dataclass(frozen=True)
+class ReclaimPolicy:
+    enabled: bool
+    samples: int
+    min_interval: timedelta
+    max_per_hour: int
+    settle_s: float

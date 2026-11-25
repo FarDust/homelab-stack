@@ -14,5 +14,5 @@ $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\conhost.exe
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $settings.Priority = 7  # BelowNormal
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Description 'Alerts on low free virtual memory or RAM; read-only. See docs/adr/memory_guard_adr.md' -Force
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Description 'Alerts on low free virtual memory or RAM; opt-in WSL cache drop (kill switch MEMORY_GUARD_RECLAIM_ENABLED=false). See docs/adr/memory_guard_adr.md' -Force
 Get-ScheduledTask -TaskName $TaskName | Select-Object TaskName, State

@@ -15,3 +15,7 @@ class StateError(GuardError):
 
 class AlertError(GuardError):
     """The alert path did not confirm delivery."""
+
+
+class ReclaimError(GuardError):
+    """The opt-in WSL cache drop failed, timed out or could not be verified."""

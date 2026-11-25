@@ -1,7 +1,7 @@
 [project]
 name = "memory-guard"
-version = "0.1.1"
-description = "Windows memory-pressure watchdog: alerts on low free virtual memory or RAM with the top private-bytes processes and the non-paged pool size. Read-only."
+version = "0.2.0"
+description = "Windows memory-pressure watchdog: alerts on low free virtual memory or RAM with the top private-bytes processes and the non-paged pool size. Opt-in WSL page-cache drop; touches no process."
 requires-python = ">=3.12"
 dependencies = [
     "psutil>=6.1",

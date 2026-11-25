@@ -40,10 +40,15 @@ def check(
     min_free_virtual_gb: Annotated[float | None, typer.Option(help="Override, for forced-threshold tests.")] = None,
     min_free_ram_gb: Annotated[float | None, typer.Option(help="Override, for forced-threshold tests.")] = None,
     state_dir: Annotated[Path | None, typer.Option(help="Override, to keep a test apart from the real state.")] = None,
+    reclaim_enabled: Annotated[bool | None, typer.Option(help="Override the WSL cache-drop kill switch.")] = None,
 ) -> None:
     """Sample memory, alert on sustained pressure, announce recovery. Exit 1 on any failure."""
     settings = _settings(
-        env_file, min_free_virtual_gb=min_free_virtual_gb, min_free_ram_gb=min_free_ram_gb, state_dir=state_dir
+        env_file,
+        min_free_virtual_gb=min_free_virtual_gb,
+        min_free_ram_gb=min_free_ram_gb,
+        state_dir=state_dir,
+        reclaim_enabled=reclaim_enabled,
     )
     try:
         result = build_check(settings)()
@@ -57,6 +62,7 @@ def check(
         "nonpaged_pool": s.nonpaged_pool,
         "alerted": [c.value for c in result.alerted],
         "recovered": [c.value for c in result.recovered],
+        "reclaim": result.reclaim.summary() if result.reclaim else None,
     }
     sys.stdout.write(json.dumps(row) + "\n")
 
