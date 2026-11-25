@@ -4021,14 +4021,6 @@ variables:
   required: true
   description: Version suffix of the Swarm secret jt_backend_change_feed_dsn-<version> (DSN of the LISTEN-only jt_realtime role).
   example: '1'
-- name: JT_FLAGS_TOKEN_SECRET
-  kind: literal
-  owner: apps/japan-trip-backend
-  used_by:
-  - apps/japan-trip-backend
-  required: true
-  description: Name of the Swarm secret that holds a read-only Unleash backend token for the backend.
-  example: your_backend_flags_token_secret_name
 - name: JT_MEALS_RATING_SOURCES
   kind: literal
   owner: apps/japan-trip-backend
