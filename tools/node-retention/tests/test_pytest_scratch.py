@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from node_retention.application.planning import Planner, Ports
 from node_retention.domain.models import Category
 from tests.fakes import (
@@ -113,3 +115,27 @@ def test_scratch_root_is_an_allowed_deletion_target(tmp_path: Path) -> None:
     settings = make_settings(tmp_path, pytest_scratch_roots=[Path(ROOT)])
     assert settings.is_allowed_target(f"{ROOT}/run-1-a")
     assert not settings.is_allowed_target(ROOT)
+
+
+def test_symlinked_run_directory_is_never_a_candidate(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    fs.add(f"{ROOT}/run-666-pqr", 900 * MB, 5 * HOUR)
+    fs.symlinks[f"{ROOT}/run-666-pqr"] = "/home/atelo"
+    plan = _plan(tmp_path, fs)
+    assert _paths(plan) == set()
+    assert "a symlink" in _reasons(plan)[f"{ROOT}/run-666-pqr"]
+
+
+def test_unreachable_cap_is_reported_and_unsafe_settings_are_rejected(tmp_path: Path) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    fs.add(f"{ROOT}/run-777-stu", 5 * GIB, 5 * MIN)
+    plan = _plan(tmp_path, fs)
+    assert _paths(plan) == set()
+    assert "over the 4 GiB cap" in _reasons(plan)[ROOT]
+    for bad in (
+        {"pytest_scratch_dead_hours": 0},
+        {"pytest_scratch_cap_min_idle_minutes": 1},
+        {"pytest_scratch_cap_gib": 0},
+    ):
+        with pytest.raises(ValueError):
+            make_settings(tmp_path, pytest_scratch_roots=[Path(ROOT)], **bad)

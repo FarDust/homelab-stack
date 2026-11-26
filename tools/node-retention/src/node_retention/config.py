@@ -121,6 +121,20 @@ class Settings(BaseSettings):
     ]
 
     @model_validator(mode="after")
+    def _pytest_scratch_is_bounded(self) -> Settings:
+        """A zero idle gate would delete a run that just failed; a non-positive cap would delete every dead run."""
+        if (
+            self.pytest_scratch_dead_hours < 0.25
+            or self.pytest_scratch_cap_min_idle_minutes < 5
+            or self.pytest_scratch_cap_gib <= 0
+        ):
+            raise ValueError(
+                "pytest_scratch_dead_hours must be at least 0.25, pytest_scratch_cap_min_idle_minutes at least 5 and "
+                "pytest_scratch_cap_gib positive"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _floor_steps_are_positive(self) -> Settings:
         if any(d <= 0 for d in self.floor_step_days):
             raise ValueError(f"floor_step_days must be positive, got {self.floor_step_days}")

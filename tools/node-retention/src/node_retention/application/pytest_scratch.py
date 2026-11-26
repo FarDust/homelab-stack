@@ -62,6 +62,11 @@ class PytestScratchPolicy:
                     Skipped(path=path, size_bytes=st.size_bytes, reason="not a pytest run directory; owner unknown")
                 )
                 continue
+            if p.fs.resolve(path) != path:
+                self._skipped.append(
+                    Skipped(path=path, size_bytes=st.size_bytes, reason="a symlink, not a run directory")
+                )
+                continue
             if p.procs.is_alive(pid):
                 self._skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason=f"pytest pid {pid} is alive"))
                 continue
@@ -70,8 +75,8 @@ class PytestScratchPolicy:
             )
             if cand is not None:
                 chosen.append(cand)
-            else:
-                waiting.append((path, st, pid))
+            elif self._skipped[-1].reason.startswith(("written", "used")):
+                waiting.append((path, st, pid))  # too recent for rule 1; a refused or protected path is not retried
         remaining = total - sum(c.size_bytes for c in chosen)
         cap = int(s.pytest_scratch_cap_gib * 1024**3)
         if remaining > cap:
@@ -91,4 +96,12 @@ class PytestScratchPolicy:
                 if cand is not None:
                     chosen.append(cand)
                     remaining -= cand.size_bytes
+            if remaining > cap:
+                self._skipped.append(
+                    Skipped(
+                        path=root,
+                        size_bytes=remaining,
+                        reason=f"over the {s.pytest_scratch_cap_gib:g} GiB cap with no dead run eligible: live, unknown or recent runs hold the rest",
+                    )
+                )
         return chosen
