@@ -8,6 +8,7 @@
   other name (owner unknown) are kept. The pytest plugin keeps a failed run's directory on purpose and a killed run never
   cleans up, so on frost-fang the 5.9 GB volume had filled with dead runs (2.3 GB of 11-21 agent-skills suite runs) and
   every new run failed with `ENOSPC`. The 10-minute `shm-gc` guard judges the roots too.
+
 ## 0.6.0
 
 - Count toward the `/` floor only candidates on the floor's own filesystem (`st_dev` of `root_mount`); Docker

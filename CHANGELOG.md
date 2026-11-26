@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `tools/node-retention` 0.7.0: sweep dead pytest scratch runs (`run-<pid>-<random>`) on fixed-size scratch volumes such as frost-fang's `/ps`: a dead pid goes after 2 h idle, and above a 4 GiB cap the oldest dead ones after 15 min idle; live pids, symlinks and other names are never touched. See `docs/adr/node_disk_retention_adr.md`.
 - `tools/memory-guard` 0.1.1: a failed alert attempt counts toward the rate limit; the run still exits 1.
 - Add `tools/memory-guard` 0.1.0: read-only Windows memory-pressure watchdog (commit limit, free RAM, non-paged pool, top 10 processes by private bytes) that alerts through agent-bridge after two low samples, one alert per condition per 30 minutes, with a recovery message. Task Scheduler launcher every 5 minutes at BelowNormal. See `docs/adr/memory_guard_adr.md`.
 - Add `tools/open-prs-feed` 0.1.0: writes the open pull request list (`open-prs.json`) that node-retention 0.6.0 reads to release job directories of merged or closed PRs, plus a detail file with head SHA, branch and update time. Fails closed and keeps the last good file on any source failure, malformed row, truncated page or empty answer. See `docs/adr/open_prs_feed_adr.md`.
