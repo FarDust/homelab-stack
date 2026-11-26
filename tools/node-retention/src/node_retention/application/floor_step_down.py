@@ -130,6 +130,7 @@ class FloorStepDown:
             *s.cache_units,
             *s.stale_file_units,
             *s.ci_scratch_roots,
+            *s.pytest_scratch_roots,
             *s.ci_job_roots,
         )
         return {p.as_posix() for p in paths}

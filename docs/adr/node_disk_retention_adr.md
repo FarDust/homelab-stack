@@ -188,7 +188,7 @@ On 2026-11-26 00:05 UTC the 5.9 GB LV `/ps` (frost-fang, `HEADLESS_PYTEST_SCRATC
 
 ### Consequences
 
-A failed run's scratch is available for two hours (longer when below the cap) and then goes; the junit and logs of the job are the durable evidence. A pid reused by a new process within the window keeps its run alive (conservative).
+A failed run's scratch is available for at most two hours: a dead run goes after two hours idle, and while the root holds more than the cap the oldest dead runs go after only 15 minutes idle, so do not rely on two hours during an incident; the junit and logs of the job are the durable evidence. A pid reused by a new process within the window keeps its run alive (conservative).
 
 ### Verification
 

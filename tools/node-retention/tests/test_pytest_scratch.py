@@ -139,3 +139,28 @@ def test_unreachable_cap_is_reported_and_unsafe_settings_are_rejected(tmp_path: 
     ):
         with pytest.raises(ValueError):
             make_settings(tmp_path, pytest_scratch_roots=[Path(ROOT)], **bad)
+
+
+def test_run_removed_between_the_scan_and_the_gate_is_not_a_skip_read_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fs = FakeFs(root_free=20 * GIB)
+    fs.add(f"{ROOT}/run-888-vwx", 900 * MB, 3 * HOUR)
+    calls = {"n": 0}
+    real_exists = fs.exists
+
+    def vanishing(path: str) -> bool:
+        calls["n"] += 1
+        return real_exists(path) and calls["n"] == 1  # the scan sees it, the gate does not
+
+    monkeypatch.setattr(fs, "exists", vanishing)
+    plan = _plan(tmp_path, fs)  # an empty skip list must not raise IndexError
+    assert _paths(plan) == set()
+
+
+def test_scratch_roots_are_reserved_from_the_root_floor_step_down(tmp_path: Path) -> None:
+    from node_retention.application.floor_step_down import FloorStepDown
+
+    settings = make_settings(tmp_path, pytest_scratch_roots=[Path(ROOT)], ci_job_roots=[Path("/h"), Path(ROOT)])
+    step = FloorStepDown(settings, None, None, 0.0, [])  # type: ignore[arg-type]
+    assert ROOT in step._reserved()

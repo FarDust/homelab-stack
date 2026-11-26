@@ -70,12 +70,13 @@ class PytestScratchPolicy:
             if p.procs.is_alive(pid):
                 self._skipped.append(Skipped(path=path, size_bytes=st.size_bytes, reason=f"pytest pid {pid} is alive"))
                 continue
+            skips_before = len(self._skipped)
             cand = self._gate(
                 path, Category.PYTEST_SCRATCH, 0.0, f"pytest pid {pid} is dead", s.pytest_scratch_dead_hours * HOUR
             )
             if cand is not None:
                 chosen.append(cand)
-            elif self._skipped[-1].reason.startswith(("written", "used")):
+            elif len(self._skipped) > skips_before and self._skipped[-1].reason.startswith(("written", "used")):
                 waiting.append((path, st, pid))  # too recent for rule 1; a refused or protected path is not retried
         remaining = total - sum(c.size_bytes for c in chosen)
         cap = int(s.pytest_scratch_cap_gib * 1024**3)

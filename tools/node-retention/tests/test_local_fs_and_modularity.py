@@ -65,3 +65,18 @@ def test_stats_count_hardlinks_once_and_ignore_symlink_and_directory_reads(tmp_p
     stats = LocalFileSystem().stats(str(root))
     assert 8192 <= stats.size_bytes < 16384 + 8192
     assert time.time() - stats.newest_atime > 29 * 86400  # listing and symlink reads did not refresh it
+
+
+def test_stats_skip_an_entry_that_cannot_be_searched(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "run"
+    (root / "locked").mkdir(parents=True)
+    (root / "ok.bin").write_bytes(b"x" * 4096)
+    real = os.lstat
+
+    def lstat(path: str, *args: object, **kw: object) -> os.stat_result:
+        if str(path).endswith("locked"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real(path, *args, **kw)
+
+    monkeypatch.setattr(os, "lstat", lstat)
+    assert LocalFileSystem().stats(str(root)).size_bytes >= 4096
