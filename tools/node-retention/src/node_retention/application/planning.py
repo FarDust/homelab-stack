@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
 from node_retention.application.floor_step_down import FloorStepDown
+from node_retention.application.pytest_scratch import PytestScratchPolicy
 from node_retention.application.safety import protected_image_violations, running_jobs, unsafe_reason
 from node_retention.application.shm_trees import ShmTreePolicy
 from node_retention.config import Settings
@@ -53,6 +54,7 @@ class Planner:
         """Plan only the tmpfs job trees (the `shm-gc` command: gate end hook and the 10-minute guard)."""
         self._prepare()
         self._shm()
+        self._pytest_scratch()
         return self._plan(free=self._p.fs.free_bytes(self._s.root_mount.as_posix()), budget_used=0)
 
     def _prepare(self) -> None:
@@ -72,6 +74,7 @@ class Planner:
         self._tarballs()
         self._tmp()
         self._shm()
+        self._pytest_scratch()
         self._ci_scratch()
         free = p.fs.free_bytes(s.root_mount.as_posix())
         # Only bytes on the floor's own filesystem count toward it: tmpfs, a separate `/tmp` volume and Docker's
@@ -237,6 +240,12 @@ class Planner:
     def _shm(self) -> None:
         """Job trees on tmpfs; the rules live in `shm_trees.py` (docs/adr/node_disk_retention_adr.md)."""
         policy = ShmTreePolicy(self._s, self._p, self._gate, self.skipped, self._now, self._open | self._mounts)
+        for cand in policy.candidates():
+            self._add(cand)
+
+    def _pytest_scratch(self) -> None:
+        """Dead pytest runs on the scratch volumes; the rules live in `pytest_scratch.py`."""
+        policy = PytestScratchPolicy(self._s, self._p, self._gate, self.skipped)
         for cand in policy.candidates():
             self._add(cand)
 

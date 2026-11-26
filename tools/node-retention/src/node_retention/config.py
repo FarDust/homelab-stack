@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     shm_dead_idle_hours: float = 1.0
     docker_build_cache_days: int = 7
 
+    # Fixed-size volumes that hold pytest owned scratch (`HEADLESS_PYTEST_SCRATCH_ROOT`, for example an LV mounted at
+    # `/ps`). Direct children named `run-<pid>-<random>` whose pid is dead go after `pytest_scratch_dead_hours`;
+    # while the root holds more than `pytest_scratch_cap_gib`, dead ones idle for `pytest_scratch_cap_min_idle_minutes`
+    # go oldest first. Children with any other name are never candidates (docs/adr/node_disk_retention_adr.md,
+    # "Pytest scratch volumes").
+    pytest_scratch_roots: list[Path] = []
+    pytest_scratch_dead_hours: float = 2.0
+    pytest_scratch_cap_gib: float = 4.0
+    pytest_scratch_cap_min_idle_minutes: float = 15.0
+
     # Names under ci_root that are removed when older than evidence_days.
     evidence_globs: list[str] = ["dashboard-*", "*-evidence", "*.bundle", "er-release-*"]
     # Names under home that are git-archive tarballs of CI runs.
@@ -111,6 +121,20 @@ class Settings(BaseSettings):
     ]
 
     @model_validator(mode="after")
+    def _pytest_scratch_is_bounded(self) -> Settings:
+        """A zero idle gate would delete a run that just failed; a non-positive cap would delete every dead run."""
+        if (
+            self.pytest_scratch_dead_hours < 0.25
+            or self.pytest_scratch_cap_min_idle_minutes < 5
+            or self.pytest_scratch_cap_gib <= 0
+        ):
+            raise ValueError(
+                "pytest_scratch_dead_hours must be at least 0.25, pytest_scratch_cap_min_idle_minutes at least 5 and "
+                "pytest_scratch_cap_gib positive"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _floor_steps_are_positive(self) -> Settings:
         if any(d <= 0 for d in self.floor_step_days):
             raise ValueError(f"floor_step_days must be positive, got {self.floor_step_days}")
@@ -148,6 +172,7 @@ class Settings(BaseSettings):
             self.ci_root / "jra",
             self.tmp_root,
             self.shm_jobs_root,
+            *self.pytest_scratch_roots,
             *self.cache_roots,
             *self.ci_scratch_roots,
             *self.ci_job_roots,
@@ -161,7 +186,16 @@ class Settings(BaseSettings):
         if path in units:
             return True
         parents = (self.home, self.ci_root, self.ci_root / "jra", self.tmp_root, self.shm_jobs_root)
-        roots = [r.as_posix() for r in (*parents, *self.cache_roots, *self.ci_scratch_roots, *self.ci_job_roots)]
+        roots = [
+            r.as_posix()
+            for r in (
+                *parents,
+                *self.pytest_scratch_roots,
+                *self.cache_roots,
+                *self.ci_scratch_roots,
+                *self.ci_job_roots,
+            )
+        ]
         return any(is_within(path, r) and path != r for r in roots)
 
     @property

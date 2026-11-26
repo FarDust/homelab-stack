@@ -16,6 +16,7 @@ class Category(StrEnum):
     CI_SCRATCH = "ci-scratch"
     TMP = "tmp-leftover"
     SHM = "shm-job"
+    PYTEST_SCRATCH = "pytest-scratch"
     CI_JOB = "ci-job-ended"
     DOCKER_IMAGES = "docker-dangling-images"
     DOCKER_BUILD_CACHE = "docker-build-cache"

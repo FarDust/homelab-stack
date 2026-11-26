@@ -85,7 +85,7 @@ class LocalFileSystem:
             current = stack.pop()
             try:
                 st = os.lstat(current)
-            except FileNotFoundError:
+            except (FileNotFoundError, PermissionError):
                 continue
             is_dir = stat.S_ISDIR(st.st_mode)
             newest_m = max(newest_m, st.st_mtime)
