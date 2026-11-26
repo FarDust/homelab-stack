@@ -168,3 +168,28 @@ The step-down can remove a finished job's checkout 3 days (at worst 1 day) after
 ### Verification
 
 `tests/test_root_floor.py` (device accounting, Docker on and off `/`, the 3-day and 1-day steps with oldest-first order, running, unknown, reserved, off-`/` and PR-tied dirs, the open-PR file), `tests/test_shm_trees.py` (waiting jobs, the placeholder lane, the `.agent-job` creator rule). Live before and after numbers on frost-fang are in the same Learning of the agent memory vault.
+
+## Pytest scratch volumes (2026-11-26, owner lira, review 2026-12-09)
+
+### Context
+
+On 2026-11-26 00:05 UTC the 5.9 GB LV `/ps` (frost-fang, `HEADLESS_PYTEST_SCRATCH_ROOT`, set on 2026-11-21 when the H1b guard moved pytest scratch off the rotational disk) was 100 % full and every CI fallback lane failed with `OSError [Errno 28]`, 370+ environmental errors blocking the merge gate of agent-skills PR 416. The pytest plugin (`headless_lane.pytest_adapter.scratch`) creates `run-<pid>-<random>` per session, removes it only on a clean exit (`retention=failed`, so a failed run keeps it on purpose) and never reaches its cleanup when the run is killed or hits `ENOSPC`. Nothing swept `/ps`: it is outside every root of the node's retention configuration. 51 `run-*` dirs held 2.3 GB of dead runs, three 11-21 agent-skills suite runs of 0.4-0.85 GB each; four xdist workers and per-test fixtures of 125 MB make one failing run take up to 0.9 GB, so six retained failures fill the volume and each further failure retains more (a feedback loop).
+
+### Decision
+
+`pytest_scratch_roots` names the volumes; `application/pytest_scratch.py` judges their direct children: `run-<pid>-<random>` with a dead pid goes after `pytest_scratch_dead_hours` (2 h) idle, and while the root holds more than `pytest_scratch_cap_gib` (4 GiB of 5.9) dead runs go oldest first after `pytest_scratch_cap_min_idle_minutes` (15). A live pid keeps its run; any other name has an unknown owner and is never a candidate. The shared gate still refuses paths a process holds, a container mounts, a running ledger job names, or that contain a socket. The 10-minute `shm-gc` guard judges the roots as well, so a full volume frees within a tick instead of waiting for the 6 h apply.
+
+### Alternatives
+
+- `HEADLESS_PYTEST_SCRATCH_RETENTION=never`: loses the evidence of failed runs and does not help a killed run.
+- A cleanup trap in the gate: the killed and `ENOSPC` paths still leak; a sweeper covers every writer.
+- A bigger LV: delays the same leak.
+- `ci_scratch_roots` with its 14-day age: far longer than the volume's turnover and keyed by age, not pid.
+
+### Consequences
+
+A failed run's scratch is available for two hours (longer when below the cap) and then goes; the junit and logs of the job are the durable evidence. A pid reused by a new process within the window keeps its run alive (conservative).
+
+### Verification
+
+`tests/test_pytest_scratch.py`: dead and recent runs, live pid, unknown names, the cap order, running ledger job, the full plan and the allowed-target check. On the node: `df /ps` before and after an apply, and no `ENOSPC` in new CI logs over the stated window.

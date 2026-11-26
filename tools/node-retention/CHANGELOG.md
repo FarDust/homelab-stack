@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Pytest scratch volumes: `pytest_scratch_roots` (for example the `/ps` LV behind `HEADLESS_PYTEST_SCRATCH_ROOT`) are
+  swept for `run-<pid>-<random>` directories. A dead pid goes after `pytest_scratch_dead_hours` (2 h) idle; while the
+  root holds more than `pytest_scratch_cap_gib` (4 GiB) dead runs go oldest first after 15 min idle; a live pid and any
+  other name (owner unknown) are kept. The pytest plugin keeps a failed run's directory on purpose and a killed run never
+  cleans up, so on frost-fang the 5.9 GB volume had filled with dead runs (2.3 GB of 11-21 agent-skills suite runs) and
+  every new run failed with `ENOSPC`. The 10-minute `shm-gc` guard judges the roots too.
 ## 0.6.0
 
 - Count toward the `/` floor only candidates on the floor's own filesystem (`st_dev` of `root_mount`); Docker
