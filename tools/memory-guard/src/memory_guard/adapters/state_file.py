@@ -22,8 +22,8 @@ class JsonStateStore:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
             state = GuardState()
             for cond in Condition:
-                if cond.value not in raw:
-                    continue  # a state file written by an older version has no row for a newer condition
+                if cond is Condition.NONPAGED and cond.value not in raw:
+                    continue  # a 0.4.0 state file has no pool row; every other missing row is a malformed file
                 row = raw[cond.value]
                 last = row["last_alert"]
                 reference = row.get("reference")  # optional by contract: only the pool condition records it

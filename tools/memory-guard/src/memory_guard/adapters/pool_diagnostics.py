@@ -22,6 +22,7 @@ STATUS_ACCESS_DENIED = 0xC0000022
 _ENTRY = struct.Struct("<4sII4xQIIQ")
 _HEADER = 8  # ULONG Count plus alignment padding
 _MAX_BUFFER = 64 * 1024 * 1024
+_MAX_ATTEMPTS = 5
 
 
 def _cim_page_reads() -> object:
@@ -74,18 +75,24 @@ def _nt_pool_tags(size: int) -> tuple[int, bytes]:
 def file_tag_objects(query: Callable[[int], tuple[int, bytes]], tag: bytes = b"File") -> int:
     """Live non-paged allocations of one pool tag. Raises ProbeError on denial, a bad status or a malformed buffer."""
     size = 1 << 22
-    while True:
+    for _attempt in range(_MAX_ATTEMPTS):
         status, data = query(size)
         if status == STATUS_INFO_LENGTH_MISMATCH:
-            size = int.from_bytes(data, "little") + (1 << 20)
-            if size > _MAX_BUFFER:
+            wanted = int.from_bytes(data, "little") + (1 << 20)
+            if wanted > _MAX_BUFFER:
                 raise ProbeError(f"pool tag table larger than {_MAX_BUFFER} bytes")
+            if wanted <= size:
+                # ReturnLength was missing or stale: retrying the same size can never succeed.
+                raise ProbeError(f"pool tag table size request {wanted} did not grow past the buffer {size}")
+            size = wanted
             continue
         if status == STATUS_ACCESS_DENIED:
             raise ProbeError("pool tags need elevation in this session (STATUS_ACCESS_DENIED)")
         if status != 0:
             raise ProbeError(f"NtQuerySystemInformation(SystemPoolTagInformation) status {status:#x}")
         break
+    else:
+        raise ProbeError(f"pool tag table kept growing after {_MAX_ATTEMPTS} attempts")
     if len(data) < _HEADER:
         raise ProbeError("pool tag buffer shorter than its header")
     (count,) = struct.unpack_from("<I", data, 0)
@@ -114,7 +121,9 @@ class WindowsPoolDiagnostics:
             return Measured(read())
         except ProbeError as exc:
             return Unknown(str(exc))
-        except OSError as exc:
+        except Exception as exc:
+            # Contract (domain/ports.py): diagnostics never raise. An unexpected failure (a missing pywin32, a
+            # ctypes error) becomes a visible Unknown(reason) so the low-memory alert is never lost with it.
             return Unknown(f"{type(exc).__name__}: {exc}")
 
     def __call__(self) -> PoolDiagnostics:

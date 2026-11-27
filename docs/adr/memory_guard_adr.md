@@ -257,8 +257,7 @@ On 2026-11-27 the desktop reported "low free RAM" about every 30 minutes and the
 `GetPerformanceInfo` `PhysicalAvailable`) was 0.25-0.7 GiB with 3k-65k page reads per second, because the kernel
 non-paged pool held 10.05 GiB (baseline 0.3-1.5 GiB), of which about 6.3 GiB were leaked `File` objects. The label "free
 RAM" was loose, the symptom repeated while the cause (the pool) stayed unchanged, and the alert gave a reader neither
-the thrash nor the leak. Evidence: the vault learning "gabriel-pc free RAM near zero is real, 10 GiB nonpaged pool
-2026-11-27".
+the thrash nor the leak. Evidence: the 2026-11-27 desktop memory investigation, whose measurements are inlined above.
 
 ### Decision
 
@@ -276,10 +275,16 @@ the thrash nor the leak. Evidence: the vault learning "gabriel-pc free RAM near 
   `MEMORY_GUARD_NONPAGED_REMINDER_H` (default 6) hours. While the pool alert is active, the pool is over its limit and it
   has not grown a step, the low-RAM alert uses the same 6 hour reminder instead of the 30 minute `alert_interval`. Low
   free virtual memory, and low RAM without an active pool, keep the 30 minute cadence. Recovery messages are unchanged
-  (one per state change).
+  (one per state change). A pool that recovers and breaches again alerts at once (the recovery clears its last-alert
+  time); the reminder paces only an unbroken breach. A growth step waits at most the 30 minute `alert_interval` after
+  the previous alert.
+- `PageReadsPersec` comes from the formatted WMI class, a rate the OS derives between its own samples, so a `0` is a
+  reading, not proof of an idle disk; the raw counter delta is a possible refinement. Pool tag buffer sizing is bounded
+  (a size request that does not grow, or more than five attempts, is an explicit `Unknown`). Any unexpected diagnostics
+  failure is printed as `unknown (<type>: <message>)` so the alert is never lost with it.
 - State: each condition row gains an optional `reference` (the pool size at its last alert). A state file written by
-  0.4.0 has no row for the new condition; the loader starts that row fresh instead of failing. A row that exists but is
-  malformed is still a `StateError`.
+  0.4.0 has no row for the new condition; the loader starts that row fresh instead of failing. A missing row for any
+  other condition, or a malformed row, is a `StateError`.
 
 ### Libraries
 

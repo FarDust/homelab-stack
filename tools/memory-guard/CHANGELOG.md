@@ -14,6 +14,9 @@
 - The state file gains an optional `reference` per condition; a 0.4.0 state file loads (the new row starts fresh).
 - `check --max-nonpaged-pct` overrides the limit for forced-threshold tests; `sample` and `check` print
   `physical_total`. See `docs/adr/memory_guard_adr.md` (addendum 2026-11-27, 0.5.0).
+- A pool that recovers and breaches again alerts at once. An unexpected diagnostics failure prints as `unknown (...)`
+  and the alert still goes out. The pool tag buffer retry is bounded. A state file missing a row other than the pool
+  row is an explicit error.
 
 ## 0.4.0
 

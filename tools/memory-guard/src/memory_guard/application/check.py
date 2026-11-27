@@ -183,4 +183,9 @@ class CheckMemory:
             )
             for c in recovered:
                 state.conditions[c].active = False  # keep last_alert: a flap stays inside the rate limit
+                if c is Condition.NONPAGED:
+                    # A pool that recovers and breaches again is a new state change: announce it at once, not after
+                    # the 6 h reminder. The 6 h window only paces repeats of one unbroken breach.
+                    state.conditions[c].last_alert = None
+                    state.conditions[c].reference = None
             self._store.save(state)

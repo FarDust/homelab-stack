@@ -207,11 +207,12 @@ def test_pool_recovery_announces_and_rearms(tmp_path: Path) -> None:
     result = run(tmp_path, sink, clock, [sample(GIB)])
     assert result.recovered == (Condition.NONPAGED,)
     assert "recovered kernel non-paged pool" in sink.sent[-1]
-    # a new breach after the recovery alerts again once the reminder window has passed
-    clock.t += timedelta(hours=7)
+    # a new breach after the recovery is a state change: it alerts at once, not after the 6 h reminder
+    clock.t += timedelta(minutes=5)
     run(tmp_path, sink, clock, [sample(10 * GIB)])
     run(tmp_path, sink, clock, [sample(10 * GIB)])
     assert len(sink.sent) == 3
+    assert "low kernel non-paged pool" in sink.sent[-1]
 
 
 def test_a_single_pool_sample_does_not_alert(tmp_path: Path) -> None:
@@ -238,6 +239,13 @@ def test_pool_reference_round_trips(tmp_path: Path) -> None:
     state.conditions[Condition.NONPAGED].reference = 10 * GIB
     store.save(state)
     assert store.load().conditions[Condition.NONPAGED].reference == 10 * GIB
+
+
+@pytest.mark.parametrize("raw", [{}, {"free_virtual": {"consecutive": 0, "active": False, "last_alert": None}}])
+def test_missing_non_pool_rows_are_an_explicit_error(tmp_path: Path, raw: dict) -> None:
+    (tmp_path / "s.json").write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(StateError):
+        JsonStateStore(tmp_path / "s.json").load()
 
 
 def test_malformed_existing_row_is_still_an_explicit_error(tmp_path: Path) -> None:
@@ -295,6 +303,30 @@ def test_file_tag_objects_runaway_size_request_fails() -> None:
         file_tag_objects(lambda size: (STATUS_INFO_LENGTH_MISMATCH, (1 << 40).to_bytes(8, "little")))
 
 
+def test_file_tag_objects_size_request_that_does_not_grow_fails_instead_of_looping() -> None:
+    calls: list[int] = []
+
+    def query(size: int) -> tuple[int, bytes]:
+        calls.append(size)
+        return STATUS_INFO_LENGTH_MISMATCH, (0).to_bytes(8, "little")  # ReturnLength never filled in
+
+    with pytest.raises(ProbeError, match="did not grow"):
+        file_tag_objects(query)
+    assert len(calls) == 1
+
+
+def test_file_tag_objects_stops_after_bounded_attempts() -> None:
+    calls: list[int] = []
+
+    def query(size: int) -> tuple[int, bytes]:
+        calls.append(size)
+        return STATUS_INFO_LENGTH_MISMATCH, (size + (1 << 20)).to_bytes(8, "little")  # always one step bigger
+
+    with pytest.raises(ProbeError, match="kept growing"):
+        file_tag_objects(query)
+    assert len(calls) == 5
+
+
 def test_file_tag_objects_denied_names_elevation() -> None:
     with pytest.raises(ProbeError, match="elevation"):
         file_tag_objects(lambda size: (STATUS_ACCESS_DENIED, b""))
@@ -336,7 +368,7 @@ def test_diagnostics_degrade_independently_and_explicitly() -> None:
     assert mixed.file_pool_objects == Measured(3)
 
 
-def test_diagnostics_os_error_becomes_unknown_but_unexpected_errors_stay_visible() -> None:
+def test_diagnostics_os_error_and_unexpected_errors_become_visible_unknowns() -> None:
     def os_fail(size: int) -> tuple[int, bytes]:
         raise OSError("ntdll unavailable")
 
@@ -346,5 +378,6 @@ def test_diagnostics_os_error_becomes_unknown_but_unexpected_errors_stay_visible
     def bug() -> object:
         raise RuntimeError("bug")
 
-    with pytest.raises(RuntimeError):
-        WindowsPoolDiagnostics(bug, ok(table((b"File", 1, 0))))()
+    d = WindowsPoolDiagnostics(bug, ok(table((b"File", 1, 0))))()
+    assert isinstance(d.page_reads_per_s, Unknown) and "RuntimeError: bug" in d.page_reads_per_s.reason
+    assert d.file_pool_objects == Measured(1)
