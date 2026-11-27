@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Lower the `llms-governance_open-webui` memory limit from 8G to 3G and add a 768M reservation (7-day peak 644 MB resident, 1,245 MB with swap). No swap setting is added; the benefit is small because the swapped pages are cold. See `docs/adr/open_webui_memory_limit_adr.md`.
 - Fix: `vault-sync` stops its cycle at the first HTTP 401/402/403/429 from the model backend instead of repeating the failing call for every vault file. With `DRY_RUN=true` the manifest never advances, so every file was re-extracted each cycle: about 8,000 `gpt-5-mini` calls a day answered 429 "no credits remaining" through LiteLLM since 2026-11-10. Extraction resumes by itself when credits return.
 - Raise the default of `LITELLM_COMMIT_GUARD_FLOOR_GIB` from 6 to 11 GiB: a cold Ollama load adds about 10 GB of commit, so a 6 GiB floor admitted loads that could exhaust the host (minimum headroom 1.1 GiB observed on 2026-11-27). Set the variable to 6 to roll back.
 - Fix: the LiteLLM commit-headroom guard no longer uses `from __future__ import annotations`; LiteLLM loads callbacks without a `sys.modules` entry and the dataclass crashed proxy startup. The test now loads the hook the same way.

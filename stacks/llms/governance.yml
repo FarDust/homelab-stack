@@ -478,9 +478,14 @@ services:
     deploy:
       replicas: ${OPEN_WEBUI_REPLICAS:-2}
       resources:
+        # 7-day peak is 644 MB resident, 1,245 MB with swap; bound growth at about
+        # 2.4x that. Swap budget: Swarm has no per-task swap knob; as decided in
+        # docs/adr/open_webui_memory_limit_adr.md
         limits:
           cpus: '4'
-          memory: 8G
+          memory: 3G
+        reservations:
+          memory: 768M
       placement:
         constraints:
           - node.labels.load.tier == heavy
