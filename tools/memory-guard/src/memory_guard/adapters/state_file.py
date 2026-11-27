@@ -29,7 +29,9 @@ class JsonStateStore:
                 )
             return state
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            raise StateError(f"state file {self._path} is unreadable or malformed ({exc!r}); delete it to reset") from exc
+            raise StateError(
+                f"state file {self._path} is unreadable or malformed ({exc!r}); delete it to reset"
+            ) from exc
 
     def save(self, state: GuardState) -> None:
         raw = {

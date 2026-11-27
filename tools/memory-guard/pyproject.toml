@@ -1,6 +1,6 @@
 [project]
 name = "memory-guard"
-version = "0.3.0"
+version = "0.4.0"
 description = "Windows memory-pressure watchdog: alerts on low free virtual memory or RAM with the top private-bytes processes and the non-paged pool size. Opt-in WSL page-cache drop; names the cause of low headroom (resident Ollama GPU model, other GPU use, guest cache); touches no process."
 requires-python = ">=3.12"
 dependencies = [

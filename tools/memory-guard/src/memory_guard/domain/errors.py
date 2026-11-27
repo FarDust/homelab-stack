@@ -19,3 +19,7 @@ class AlertError(GuardError):
 
 class ReclaimError(GuardError):
     """The opt-in WSL cache drop failed, timed out or could not be verified."""
+
+
+class PublishError(GuardError):
+    """The commit-headroom textfile could not be written into the WSL guest."""

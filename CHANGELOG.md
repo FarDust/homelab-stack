@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add the LiteLLM commit-headroom guard (`stacks/llms/configs/litellm/commit_headroom_guard.py`), dark behind the per-key flag `LITELLM_COMMIT_GUARD_KEY_ALIASES`: a cold load on the gabriel-pc Ollama gets HTTP 503 with `Retry-After` and an explicit reason when Windows free virtual memory is under `LITELLM_COMMIT_GUARD_FLOOR_GIB` (default 6); missing, stale or malformed signal fails closed. `tools/memory-guard` 0.4.0 adds `publish-headroom` (flag `MEMORY_GUARD_HEADROOM_PUBLISH_ENABLED`), which writes the headroom into the gabriel-pc-wsl node-exporter textfile collector every minute without starting WSL. See `docs/adr/litellm_commit_headroom_guard_adr.md`.
 - Set `OLLAMA_KEEP_ALIVE=45s` on `llms-governance_ollama` (default was 5 minutes) so the GPU model unloads sooner after a chat burst and the WSL VM gives its commit back; `OLLAMA_CONTEXT_LENGTH=128000` is unchanged (`docs/adr/ollama_keep_alive_45s_adr.md`).
 - `tools/node-retention` 0.7.0: sweep dead pytest scratch runs (`run-<pid>-<random>`) on fixed-size scratch volumes such as frost-fang's `/ps`: a dead pid goes after 2 h idle, and above a 4 GiB cap the oldest dead ones after 15 min idle; live pids, symlinks and other names are never touched. See `docs/adr/node_disk_retention_adr.md`.
 - `tools/memory-guard` 0.1.1: a failed alert attempt counts toward the rate limit; the run still exits 1.

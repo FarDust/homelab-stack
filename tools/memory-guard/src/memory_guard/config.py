@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # Host GPU dedicated memory at or above this, with no Ollama model resident, is reported as another GPU consumer.
     gpu_other_gb: float = Field(default=4.0, gt=0)
     wsl_distro: str = Field(default="Ubuntu", min_length=1)
+    # Commit-headroom textfile for node-exporter in the guest (docs/adr/memory_guard_adr.md, addendum 0.4.0).
+    # Feature flag, off by default: `publish-headroom` exits 0 without touching WSL while false.
+    headroom_publish_enabled: bool = False
+    headroom_host_label: str = Field(default="gabriel-pc", pattern=r"^[A-Za-z0-9_.:-]+$")
+    headroom_timeout_s: float = Field(default=30.0, gt=0)
 
     @field_validator("alert_command", mode="before")
     @classmethod

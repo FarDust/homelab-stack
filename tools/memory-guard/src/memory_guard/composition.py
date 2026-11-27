@@ -11,11 +11,13 @@ from memory_guard.adapters.ollama import OllamaPsProbe
 from memory_guard.adapters.reclaim_log import JsonlReclaimLog
 from memory_guard.adapters.state_file import JsonStateStore
 from memory_guard.adapters.windows_probe import PsutilProcessLister, PsutilVmmemProbe, WindowsMemoryProbe
-from memory_guard.adapters.wsl import WslCli
+from memory_guard.adapters.wsl import WslCli, WslTextfileWriter
 from memory_guard.application.attribution import AttributeCause
 from memory_guard.application.check import CheckMemory
+from memory_guard.application.publish_headroom import PublishHeadroom
 from memory_guard.application.reclaim import ReclaimWslCache
 from memory_guard.config import Settings
+from memory_guard.domain.headroom import TEXTFILE_PATH
 from memory_guard.domain.models import GIB, ReclaimPolicy, Thresholds
 
 
@@ -65,4 +67,15 @@ def build_check(settings: Settings) -> CheckMemory:
             clock,
             int(settings.gpu_other_gb * GIB),
         ),
+    )
+
+
+def build_publish_headroom(settings: Settings) -> PublishHeadroom:
+    return PublishHeadroom(
+        settings.headroom_publish_enabled,
+        WindowsMemoryProbe(),
+        WslCli(settings.wsl_distro, settings.headroom_timeout_s),
+        WslTextfileWriter(settings.wsl_distro, TEXTFILE_PATH, settings.headroom_timeout_s),
+        SystemClock(),
+        settings.headroom_host_label,
     )

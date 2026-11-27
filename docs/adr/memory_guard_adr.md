@@ -189,3 +189,61 @@ said nothing about the cause, so a GPU-driven alarm read as "low free RAM from c
   fake `win32pdh` (sum, no instances, counter error, missing pywin32, query closed) and one live read on Windows.
 - After deploy: a forced-threshold run (`check --min-free-virtual-gb 100000 --state-dir <temp>` with the alert command
   pointed at a print-only sink) must print the attribution line without touching WSL.
+
+## Addendum 2026-11-27: commit headroom published to Prometheus (0.4.0)
+
+### Context
+
+A LiteLLM pre-call hook must refuse or reroute Ollama requests when the desktop is short of commit headroom, because a
+model load charges host commit 1:1 for its GPU allocations (addendum 0.3.0). The hook reads Prometheus, and Prometheus
+has no Windows host signal: no `windows_exporter` runs on the desktop. The guard already measures the right value
+(free virtual memory: commit limit minus commit charge, through `GetPerformanceInfo`). The node-exporter of the cluster
+runs on the `gabriel-pc-wsl` node with `--collector.textfile.directory=/rootfs/var/lib/node_exporter/textfile_collector`
+(`stacks/main/monitoring.yml`), so a file at `/var/lib/node_exporter/textfile_collector/` inside the guest is scraped.
+
+### Decision
+
+- New command `memory-guard publish-headroom`, run by a separate Task Scheduler task `memory-guard-headroom` every
+  minute (`deploy/register-headroom-task.ps1`, hidden, BelowNormal, one-minute execution limit).
+- It writes `/var/lib/node_exporter/textfile_collector/memory_guard_commit.prom` in the distro of
+  `MEMORY_GUARD_WSL_DISTRO` with exactly two gauges, each with `# HELP` and `# TYPE ... gauge`:
+  `memory_guard_commit_headroom_bytes{host="<label>"}` (integer bytes) and
+  `memory_guard_commit_sample_timestamp_seconds{host="<label>"}` (unix seconds, float). The label comes from
+  `MEMORY_GUARD_HEADROOM_HOST_LABEL` (default `gabriel-pc`, restricted to `[A-Za-z0-9_.:-]+` so no escaping is needed).
+- The write is atomic: `wsl.exe -d <distro> -u root -- sh -c 'cat > <file>.tmp && mv <file>.tmp <file>'`, the content
+  on stdin (never in argv), 30 s timeout (`MEMORY_GUARD_HEADROOM_TIMEOUT_S`). A nonzero exit, a timeout or a missing
+  `wsl.exe` raises `PublishError`; the command exits 1 with a plain one-line reason on stderr.
+- WSL is never started: the existing `wsl --list --running --quiet` check runs first; a stopped distro exits 0 with
+  `distro_not_running`. A negative or non-integer headroom, or a non-positive timestamp, is a `ProbeError` (exit 1) and
+  nothing is written.
+- Feature flag `MEMORY_GUARD_HEADROOM_PUBLISH_ENABLED`, default false: the command prints `disabled` and exits 0 without
+  probing or touching WSL. The feature ships dark and is enabled in the private env file of the desktop.
+- The consumer owns freshness: it compares the timestamp gauge with the current time and fails closed when the metric
+  is stale or absent.
+
+### Alternatives
+
+- `windows_exporter` MSI on the desktop: a second always-on service and a host install plus a firewall route from the
+  cluster to Windows; the guard already has the value.
+- Prometheus Pushgateway: not deployed in the stack; a new service only for one host signal.
+- Prometheus remote-write receiver: not enabled, and opening a write path into Prometheus is a larger trust change.
+- Writing the file from the existing 5-minute `check` task: couples the alert cadence to the metric cadence and makes a
+  publish failure fail the watchdog; a separate task keeps both independent.
+
+### Consequences
+
+- The value is up to 60 s (task cadence) plus one scrape interval old; the consumer must tolerate that and treat older
+  samples as stale.
+- When WSL is down the file is not refreshed and the node-exporter on that node is gone too, so the metric is absent.
+  That is acceptable: Ollama runs in the same guest and is down as well.
+- One `wsl.exe --list` and, while running, one short `sh` in the guest per minute.
+
+### Verification
+
+- Tests in `tools/memory-guard/tests/test_publish_headroom.py`: flag off touches nothing, distro not running writes
+  nothing, exact textfile text, writer failure and CLI exit 1 with the reason, content passed on stdin and absent from
+  argv, `cat > tmp && mv` argument vector, nonzero exit and timeout as `PublishError`, negative and malformed headroom,
+  bad timestamp, unsafe host label.
+- After deploy: with the flag on, run `memory-guard publish-headroom --env-file <private env>` once, then query
+  `memory_guard_commit_headroom_bytes{host="gabriel-pc"}` in Prometheus and check that
+  `time() - memory_guard_commit_sample_timestamp_seconds` stays under 120 s.
