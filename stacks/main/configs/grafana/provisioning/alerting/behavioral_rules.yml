@@ -285,7 +285,7 @@ groups:
                   and on(instance, device, mountpoint)
                   (node_filesystem_avail_bytes{job="node-exporter",mountpoint="/"} >= 4e9)
                 )
-                * on(instance) group_left(nodename) (node_uname_info{job="node-exporter"} * 0 + 1)
+                * on(instance) group_left(nodename) (max by (instance, nodename) (node_uname_info{job="node-exporter"}) * 0 + 1)
               instant: true
               interval: ""
               intervalMs: 15000
@@ -347,7 +347,7 @@ groups:
                 (
                   node_filesystem_avail_bytes{job="node-exporter",mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} < 4e9
                 )
-                * on(instance) group_left(nodename) (node_uname_info{job="node-exporter"} * 0 + 1)
+                * on(instance) group_left(nodename) (max by (instance, nodename) (node_uname_info{job="node-exporter"}) * 0 + 1)
               instant: true
               interval: ""
               intervalMs: 15000
@@ -363,7 +363,7 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
+                      - -1
                     type: gt
                   operator:
                     type: and
