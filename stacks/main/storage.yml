@@ -546,8 +546,13 @@ services:
         - "traefik.swarm.network=traefik-public"
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    # Exact release plus digest (the build that was running under `latest`), and
+    # self-telemetry tables off; as decided in docs/adr/hdd_node_io_budget_adr.md
+    image: clickhouse/clickhouse-server:26.3.9.8@sha256:537014a67ce8bf1f5c79c2e2b26fb30b8285a86ffff03875bb14ed17ea35db62
     hostname: clickhouse
+    configs:
+      - source: clickhouse_system_logs
+        target: /etc/clickhouse-server/config.d/system-logs.xml
     environment:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER:-clickhouse}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD?err} # TODO: Change to CLICKHOUSE_PASSWORD_FILE
@@ -679,6 +684,9 @@ secrets:
     file: ../../secrets/qdrant/api_key
 
 configs:
+  clickhouse_system_logs:
+    name: clickhouse_system_logs-${CONFIG_VERSION:-0}
+    file: ./configs/clickhouse/system-logs.xml
   postgres_pgvector_bootstrap_sh:
     name: postgres_pgvector_bootstrap_sh-${CONFIG_VERSION:-0}
     file: ./configs/postgres/pgvector-bootstrap.sh

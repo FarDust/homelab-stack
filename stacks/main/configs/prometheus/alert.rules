@@ -191,6 +191,72 @@ groups:
       summary: "Host {{ $labels.instance }} has low swap available"
       description: "{{ $labels.instance }} has less than 25% swap free for more than 10 minutes. Check Netdata, memory-heavy workloads, recent deploys, and swap growth before changing placements or host daemons."
 
+  # A saturated disk makes every job on the node slow; investigate the consumer
+  # instead of queueing work behind it. See docs/adr/hdd_node_io_budget_adr.md.
+  - alert: HostIoPressureSustained
+    expr: rate(node_pressure_io_waiting_seconds_total[15m]) > 0.30
+    for: 30m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Host {{ $labels.instance }} under sustained I/O pressure"
+      description: "Tasks on {{ $labels.instance }} waited on I/O more than 30% of the time for 30 minutes. Name the writer from per-cgroup io.stat and remove the cause; a lock or a lower concurrency is not the fix."
+
+  - alert: HostDiskSaturated
+    expr: rate(node_disk_io_time_seconds_total{device=~"sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+"}[15m]) > 0.90
+    for: 30m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Disk {{ $labels.device }} on {{ $labels.instance }} saturated"
+      description: "{{ $labels.device }} on {{ $labels.instance }} was busy more than 90% of the time for 30 minutes. Attribute the I/O per container and fix the consumer."
+
+  # Node retention policy (tools/node-retention). See docs/adr/node_disk_retention_adr.md.
+  - alert: NodeRootFreeBelowRetentionFloor
+    expr: node_retention_root_free_bytes < node_retention_root_floor_bytes
+    for: 1h
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Root filesystem of {{ $labels.host }} stayed under its free-space floor"
+      description: "{{ $labels.host }} has had less free space on / than the retention floor for an hour although the guard prunes every 10 minutes. Read the last manifest in the retention state directory and the ledger row who=retention, then find what keeps filling the disk."
+
+  - alert: NodeRetentionStale
+    expr: time() - node_retention_last_check_timestamp_seconds > 3600
+    for: 10m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Retention guard on {{ $labels.host }} has not run"
+      description: "No retention guard or prune run was recorded for more than an hour on {{ $labels.host }}. Check the systemd user timers node-retention-guard and node-retention-apply."
+
+  - alert: NodeRetentionRunFailed
+    expr: node_retention_last_run_success == 0
+    for: 5m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Last retention prune on {{ $labels.host }} had failed entries"
+      description: "At least one entry of the last retention manifest on {{ $labels.host }} has outcome failed. Read the manifest for the path and error."
+
+  # Game server rule (2026-11-13): no hard memory limit, but never above 16 GB. Resident anonymous
+  # memory (heap, metaspace, code cache, direct buffers, native) of the Pterodactyl game container,
+  # from the Netdata cgroup chart. See docs/adr/minecraft_memory_budget_adr.md.
+  - alert: MinecraftServerMemoryNear16G
+    expr: max by (cgroup_name) (netdata_cgroup_mem_MiB_average{cgroup_name="a807fa13-7cf3-4127-8ee1-7b4ae59179eb",dimension="anon"}) > 15 * 1024
+    for: 5m
+    labels:
+      severity: warning
+      tier: maintenance
+    annotations:
+      summary: "Minecraft server resident memory above 15 GiB"
+      description: "The game server container holds {{ $value }} MiB of anonymous memory; the agreed ceiling is 16 GiB with no hard cgroup limit. Check heap, direct buffers and swap, and plan a zero-player restart with a lower -Xmx."
+
 - name: monitoring-path
   rules:
   - alert: PrometheusVipPathDivergence
@@ -210,8 +276,33 @@ groups:
   - record: volcano_node_uname_info
     expr: node_uname_info{job="node-exporter"}
 
+- name: feature-flags
+  rules:
+  # Evaluation keeps working from client caches while these fire; see docs/adr/feature_flags_service_adr.md
+  - alert: FeatureFlagServiceDown
+    expr: sum(up{job="feature-flags"}) == 0 or absent(up{job="feature-flags"})
+    for: 3m
+    labels:
+      severity: critical
+      tier: platform
+    annotations:
+      summary: "Feature-flag service has no healthy replica"
+      description: "No Unleash replica answers its metrics endpoint for 3 minutes. Clients evaluate from their last-known-good snapshot; flag changes do not reach them and the admin panel is down. Check main-feature-flags_unleash tasks and the unleash database, then the break-glass runbook in the ADR."
+
+  - alert: FeatureFlagServiceDegraded
+    expr: count(up{job="feature-flags"} == 1) < 2
+    for: 15m
+    labels:
+      severity: warning
+      tier: platform
+    annotations:
+      summary: "Feature-flag service runs on fewer than two replicas"
+      description: "Only {{ $value }} Unleash replica is healthy for 15 minutes; one more failure takes the admin panel down. Check task placement on the two stable nodes."
+
 - name: postgres-backups
   rules:
+  # Stale and Missing cover the active backup services only. authelia-db-backup runs at 0 replicas;
+  # as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
   - alert: PostgreSQLBackupStatusUnhealthy
     expr: postgres_backup_status_ok == 0
     for: 15m
@@ -223,7 +314,7 @@ groups:
       description: "Backup status metric for {{ $labels.service }} reports unhealthy reason {{ $labels.reason }} for more than 15 minutes. This is observation-only and does not restart backup services."
 
   - alert: PostgreSQLBackupMetricsStale
-    expr: label_replace((time() - node_textfile_mtime_seconds{job="node-exporter",file=~"/rootfs/var/lib/node_exporter/textfile_collector/postgres_backup_(postgres-backup|supabase-db-backup|keycloak-db-backup|authelia-db-backup)\\.prom"} > 900), "service", "$1", "file", ".*/postgres_backup_(.*)\\.prom")
+    expr: label_replace((time() - node_textfile_mtime_seconds{job="node-exporter",file=~"/rootfs/var/lib/node_exporter/textfile_collector/postgres_backup_(postgres-backup|supabase-db-backup|keycloak-db-backup)\\.prom"} > 900), "service", "$1", "file", ".*/postgres_backup_(.*)\\.prom")
     for: 10m
     labels:
       severity: warning
@@ -233,7 +324,7 @@ groups:
       description: "Textfile metrics for {{ $labels.service }} have not been refreshed for more than 15 minutes. The backup container, observer loop, status command, or node textfile path may be stuck while old green metrics remain scraped."
 
   - alert: PostgreSQLBackupMetricsMissing
-    expr: absent(postgres_backup_status_ok{service="postgres-backup"}) or absent(postgres_backup_status_ok{service="supabase-db-backup"}) or absent(postgres_backup_status_ok{service="keycloak-db-backup"}) or absent(postgres_backup_status_ok{service="authelia-db-backup"})
+    expr: absent(postgres_backup_status_ok{service="postgres-backup"}) or absent(postgres_backup_status_ok{service="supabase-db-backup"}) or absent(postgres_backup_status_ok{service="keycloak-db-backup"})
     for: 10m
     labels:
       severity: warning

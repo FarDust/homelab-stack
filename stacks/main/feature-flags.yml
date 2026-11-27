@@ -1,0 +1,130 @@
+version: '3.9'
+# Cluster feature-flag service (Unleash open-source edition), stack main-feature-flags.
+# Decision, failure modes, break-glass and rollback: docs/adr/feature_flags_service_adr.md.
+#
+# Required runtime variables (operator .env, never committed; see config/env-contract.yaml):
+#   FLAGS_UNLEASH_IMAGE        unleashorg/unleash-server:<version>@sha256:<digest> (exact tag plus digest)
+#   FLAGS_FRONTEND_HOSTNAME    host of an application that evaluates flags same-origin under /flags/api/frontend
+#   FLAGS_FRONTEND_TOKEN_HEADER Unleash frontend token injected by Traefik on that route (frontend tokens are
+#                              public-by-design client tokens; clients never carry it)
+# Required Swarm secrets (external, created from cluster-utils db create-service-db output and OpenBao):
+#   feature_flags_db_url       postgres://unleash:<password>@<host>:5432/unleash
+#   feature_flags_admin_password  initial password of the local admin account
+services:
+  unleash:
+    image: ${FLAGS_UNLEASH_IMAGE?err}
+    # The image reads DATABASE_URL_FILE itself; the admin password has no _FILE variant, so a shell wrapper exports it.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export UNLEASH_DEFAULT_ADMIN_PASSWORD="$$(cat /run/secrets/feature_flags_admin_password)" && exec docker-entrypoint.sh node dist/server.js'
+    networks: [traefik, traefik-public]
+    secrets:
+      - source: feature_flags_db_url
+        target: feature_flags_db_url
+        mode: 0400
+        uid: '1000'
+      - source: feature_flags_admin_password
+        target: feature_flags_admin_password
+        mode: 0400
+        uid: '1000'
+    environment:
+      DATABASE_URL_FILE: /run/secrets/feature_flags_db_url
+      DATABASE_SSL: ${FLAGS_DATABASE_SSL:-false}
+      DATABASE_POOL_MIN: '0'
+      DATABASE_POOL_MAX: '4'
+      UNLEASH_URL: https://flags.${LOCAL_DOMAIN?err}
+      UNLEASH_DEFAULT_ADMIN_USERNAME: admin
+      AUTH_TYPE: open-source
+      SEND_TELEMETRY: 'false'
+      CHECK_VERSION: 'false'
+      LOG_LEVEL: info
+      TZ: UTC
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4242/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    deploy:
+      # Two replicas on two stable nodes; evaluation also survives both being down (client caches).
+      replicas: 2
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+          - node.labels.node.ephemeral != true
+          - node.platform.os == linux
+      resources:
+        # Memory 512M, swap: implicit host allowance (Swarm has no per-task swap knob);
+        # as decided in docs/adr/2026-10-11-memory-swap-budgeting.md
+        reservations:
+          memory: 192M
+          cpus: '0.05'
+        limits:
+          memory: 512M
+          cpus: '0.5'
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 120s
+      # stop-first: with one replica per node on exactly two eligible nodes, start-first cannot place the new task;
+      # parallelism 1 keeps the other replica serving during the update.
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+        monitor: 60s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.services.feature-flags.loadbalancer.server.port=4242
+        # Admin UI: Keycloak through the shared oauth2-proxy; as decided in docs/adr/authelia_to_keycloak_forwardauth_adr.md
+        - traefik.http.routers.feature-flags.rule=Host(`flags.${LOCAL_DOMAIN?err}`)
+        - traefik.http.routers.feature-flags.entrypoints=websecure
+        - traefik.http.routers.feature-flags.tls=true
+        - traefik.http.routers.feature-flags.tls.certresolver=le-dns
+        - traefik.http.routers.feature-flags.service=feature-flags
+        - traefik.http.routers.feature-flags.middlewares=feature-flags-oauth2-errors@swarm,feature-flags-oauth2-forward-auth@swarm
+        - traefik.http.middlewares.feature-flags-oauth2-errors.errors.status=401
+        - traefik.http.middlewares.feature-flags-oauth2-errors.errors.service=oauth2-proxy
+        - traefik.http.middlewares.feature-flags-oauth2-errors.errors.query=/oauth2/sign_in?rd={url}
+        - traefik.http.middlewares.feature-flags-oauth2-errors.errors.statusRewrites.401=302
+        - traefik.http.middlewares.feature-flags-oauth2-forward-auth.forwardAuth.address=http://main-identity-gateway_oauth2-proxy:4180/oauth2/auth
+        - traefik.http.middlewares.feature-flags-oauth2-forward-auth.forwardAuth.authRequestHeaders=Cookie,X-Forwarded-Host,X-Forwarded-Proto,X-Forwarded-Uri,X-Forwarded-Method
+        - traefik.http.middlewares.feature-flags-oauth2-forward-auth.forwardAuth.trustForwardHeader=true
+        - traefik.http.middlewares.feature-flags-oauth2-forward-auth.forwardAuth.authResponseHeaders=X-Auth-Request-User,X-Auth-Request-Email
+        # Token API (SDKs, break-glass CLI): Unleash API tokens authenticate; reachable while oauth2-proxy is down.
+        - traefik.http.routers.feature-flags-api.rule=Host(`flags.${LOCAL_DOMAIN?err}`) && (PathPrefix(`/api/admin`) || PathPrefix(`/api/client`) || PathPrefix(`/api/frontend`)) && HeaderRegexp(`Authorization`, `.+`)
+        - traefik.http.routers.feature-flags-api.priority=200
+        - traefik.http.routers.feature-flags-api.entrypoints=websecure
+        - traefik.http.routers.feature-flags-api.tls=true
+        - traefik.http.routers.feature-flags-api.tls.certresolver=le-dns
+        - traefik.http.routers.feature-flags-api.service=feature-flags
+        - traefik.http.routers.feature-flags-api.middlewares=feature-flags-rate@swarm
+        # Same-origin frontend evaluation for an application: /flags/api/frontend -> /api/frontend, token added here.
+        - traefik.http.routers.feature-flags-frontend.rule=Host(`${FLAGS_FRONTEND_HOSTNAME?err}`) && PathPrefix(`/flags/api/frontend`)
+        - traefik.http.routers.feature-flags-frontend.priority=150
+        - traefik.http.routers.feature-flags-frontend.entrypoints=websecure
+        - traefik.http.routers.feature-flags-frontend.tls=true
+        - traefik.http.routers.feature-flags-frontend.tls.certresolver=le-dns
+        - traefik.http.routers.feature-flags-frontend.service=feature-flags
+        - traefik.http.routers.feature-flags-frontend.middlewares=feature-flags-frontend-strip@swarm,feature-flags-frontend-token@swarm,feature-flags-rate@swarm
+        - traefik.http.middlewares.feature-flags-frontend-strip.stripprefix.prefixes=/flags
+        - traefik.http.middlewares.feature-flags-frontend-token.headers.customrequestheaders.Authorization=${FLAGS_FRONTEND_TOKEN_HEADER?err}
+        - traefik.http.middlewares.feature-flags-rate.ratelimit.average=30
+        - traefik.http.middlewares.feature-flags-rate.ratelimit.burst=60
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  feature_flags_db_url:
+    # Versioned name so a rotated password ships as a new secret; see docs/adr/feature_flags_service_adr.md
+    external: true
+    name: ${FLAGS_DB_URL_SECRET:?FLAGS_DB_URL_SECRET names the Swarm secret holding the database URL}
+  feature_flags_admin_password:
+    external: true

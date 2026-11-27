@@ -1,0 +1,82 @@
+version: '3.9'
+# Decision Inbox: agents publish decision cards, the owner answers them (API + Flutter web build; the application
+# repository's docs/adr/decision_inbox_adr.md). Stack apps-decision-inbox.
+# Tailnet only: private host decision-inbox.${LOCAL_DOMAIN}; every endpoint validates Keycloak JWTs itself
+# (no oauth2-proxy: agents present cluster-services tokens, the app presents sigilcore tokens).
+#
+# Environment (.env): DECISION_INBOX_IMAGE (image with digest), LOCAL_DOMAIN.
+# Swarm secrets: decision_inbox_db_dsn_v<N> (secrets/decision-inbox/postgres_dsn, cluster-utils db write-dsn),
+#                decision_inbox_flags_token_v<N> (Unleash frontend token, secrets/decision-inbox/flags_frontend_token).
+services:
+  api:
+    image: ${DECISION_INBOX_IMAGE?err}
+    networks: [traefik, traefik-public]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    secrets:
+      - source: decision_inbox_db_dsn
+        target: decision_inbox_db_dsn
+        uid: '10001'
+        mode: 0400
+      - source: decision_inbox_flags_token
+        target: decision_inbox_flags_token
+        uid: '10001'
+        mode: 0400
+    environment:
+      DECISION_INBOX_DATABASE_DSN_FILE: /run/secrets/decision_inbox_db_dsn
+      DECISION_INBOX_ISSUERS: >-
+        [{"issuer": "https://idp.${LOCAL_DOMAIN?err}/realms/sigilcore", "audience": "decision-inbox"},
+        {"issuer": "https://idp.${LOCAL_DOMAIN?err}/realms/cluster-services", "audience": "decision-inbox"}]
+      DECISION_INBOX_FLAGS_URL: https://flags.${LOCAL_DOMAIN?err}
+      DECISION_INBOX_FLAGS_TOKEN_FILE: /run/secrets/decision_inbox_flags_token
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.load.tier == light
+          - node.labels.node.ephemeral != true
+      resources:
+        reservations:
+          memory: 96M
+        limits:
+          memory: 384M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        order: stop-first
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.swarm.lbswarm=true
+        - traefik.http.services.decision-inbox.loadbalancer.server.port=8000
+        - traefik.http.routers.decision-inbox.rule=Host(`decision-inbox.${LOCAL_DOMAIN?err}`)
+        - traefik.http.routers.decision-inbox.entrypoints=websecure
+        - traefik.http.routers.decision-inbox.tls=true
+        - traefik.http.routers.decision-inbox.tls.certresolver=le-dns
+        - traefik.http.routers.decision-inbox.service=decision-inbox
+        - traefik.http.routers.decision-inbox.middlewares=decision-inbox-rate@swarm
+        - traefik.http.middlewares.decision-inbox-rate.ratelimit.average=30
+        - traefik.http.middlewares.decision-inbox-rate.ratelimit.burst=60
+networks:
+  traefik:
+    external: true
+  traefik-public:
+    external: true
+secrets:
+  decision_inbox_db_dsn:
+    external: true
+    name: decision_inbox_db_dsn_v${DECISION_INBOX_DB_SECRET_VERSION:-1}
+  decision_inbox_flags_token:
+    external: true
+    name: decision_inbox_flags_token_v${DECISION_INBOX_FLAGS_SECRET_VERSION:-1}

@@ -1,5 +1,9 @@
 # Cluster documentation
 
+## Trust Agent
+
+- [Operational flag credential mounts](adr/trust_operational_flag_mounts_adr.md): protected sources, scoped Swarm mounts and rollback.
+
 ## Speech and model serving
 
 - [LiteLLM local text-only fallback](adr/litellm_local_text_fallback_adr.md): local Gemma 3 4B as the last hop of text-only aliases, the no-tools rule, node-local weights (no GCS egress), placement, rollback (tests in `tests/test_litellm_local_text_fallback.py`).

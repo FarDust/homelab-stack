@@ -261,6 +261,136 @@ groups:
         labels:
           tier: maintenance
           service: host-resources
+      - uid: node_root_fs_low_free_pct
+        title: Node Root Filesystem Low Free Space
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                (
+                  node_filesystem_avail_bytes{job="node-exporter",mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"}
+                  and on(instance, device, mountpoint)
+                  (node_filesystem_avail_bytes{job="node-exporter",mountpoint="/"} / node_filesystem_size_bytes{job="node-exporter",mountpoint="/"} < 0.20)
+                  and on(instance, device, mountpoint)
+                  (node_filesystem_avail_bytes{job="node-exporter",mountpoint="/"} < 50e9)
+                  and on(instance, device, mountpoint)
+                  (node_filesystem_avail_bytes{job="node-exporter",mountpoint="/"} >= 4e9)
+                )
+                * on(instance) group_left(nodename) (max by (instance, nodename) (node_uname_info{job="node-exporter"}) * 0 + 1)
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ nodename }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Root filesystem of {{ $labels.nodename }} is below 20% free"
+          description: "{{ $labels.nodename }} ({{ $labels.instance }}) has {{ humanize1024 $values.A.Value }}B free on / (under 20% and under 50 GB) for more than 10 minutes. Find the consumer with a targeted du before deleting (CI caches, logs, scratch); see docs/adr/node_root_filesystem_alerts_adr.md."
+        labels:
+          severity: warning
+          tier: core
+          service: host-resources
+      - uid: node_root_fs_critical_free_bytes
+        title: Node Root Filesystem Critically Low Free Space
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+              editorMode: code
+              expr: |-
+                (
+                  node_filesystem_avail_bytes{job="node-exporter",mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs"} < 4e9
+                )
+                * on(instance) group_left(nodename) (max by (instance, nodename) (node_uname_info{job="node-exporter"}) * 0 + 1)
+              instant: true
+              interval: ""
+              intervalMs: 15000
+              legendFormat: '{{ nodename }}'
+              maxDataPoints: 43200
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - -1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Root filesystem of {{ $labels.nodename }} has under 4 GB free"
+          description: "{{ $labels.nodename }} ({{ $labels.instance }}) has {{ humanize1024 $values.A.Value }}B free on / for more than 10 minutes. Writes will start failing: free space now through the documented cache and log retention paths; see docs/adr/node_root_filesystem_alerts_adr.md."
+        labels:
+          severity: critical
+          tier: core
+          service: host-resources
   - orgId: 1
     name: Ingress control-plane alerts
     folder: Behavioral

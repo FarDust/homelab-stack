@@ -148,6 +148,16 @@ scrape_configs:
       type: "A"
       port: 9948
 
+  # Cluster feature-flag service (both replicas); see docs/adr/feature_flags_service_adr.md
+  - job_name: "feature-flags"
+    scrape_interval: 30s
+    metrics_path: /internal-backstage/prometheus
+    dns_sd_configs:
+      - names:
+          - "tasks.main-feature-flags_unleash"
+        type: "A"
+        port: 4242
+
   - job_name: "postgres-exporter"
     scrape_interval: 15s
     dns_sd_configs:
