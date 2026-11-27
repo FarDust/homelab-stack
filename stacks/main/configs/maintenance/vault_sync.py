@@ -114,7 +114,11 @@ def read_secret(path: str) -> str:
 
 
 class ExtractionBackendRefused(Exception):
-    """The model backend refuses every request (quota, credits, auth); retrying other files cannot succeed."""
+    """The model backend refuses every request (credits, quota, rate limit, auth); the next cycle retries.
+
+    Files applied earlier in an aborted non-dry-run cycle are not recorded in the manifest and are
+    extracted again next cycle, which the idempotent MERGE statements tolerate.
+    """
 
 
 # Statuses that mean the whole backend refuses us, not one file: stop the cycle instead of

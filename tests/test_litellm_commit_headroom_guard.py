@@ -164,9 +164,15 @@ def test_below_floor_refuses_with_503_retry_after_and_reason(module):
     assert "COMMIT_HEADROOM_LOW" in caught.value.detail
     assert "qwen3.5:9b" in caught.value.detail and "1.1 GiB" in caught.value.detail
     assert (
-        "6.0 GiB floor" in caught.value.detail
+        "11.0 GiB floor" in caught.value.detail
         and "COMMIT_GUARD_KEY_ALIASES" in caught.value.detail
     )
+
+
+def test_default_floor_is_11_gib_so_a_10_gb_load_cannot_be_admitted_at_8_gib(module):
+    with pytest.raises(_HTTPException) as caught:
+        _call(_guard(module, FakeSignals(headroom=str(8 * GIB))))
+    assert "11.0 GiB floor" in caught.value.detail
 
 
 def test_above_floor_passes(module):
@@ -298,7 +304,7 @@ def test_guard_is_wired_into_the_gateway_and_dark_by_default():
     assert "/app/config/commit_headroom_guard.py" in targets
     env = litellm["environment"]
     assert "COMMIT_GUARD_KEY_ALIASES=${LITELLM_COMMIT_GUARD_KEY_ALIASES:-}" in env
-    assert "COMMIT_GUARD_FLOOR_GIB=${LITELLM_COMMIT_GUARD_FLOOR_GIB:-6}" in env
+    assert "COMMIT_GUARD_FLOOR_GIB=${LITELLM_COMMIT_GUARD_FLOOR_GIB:-11}" in env
     assert "COMMIT_GUARD_ON_UNKNOWN=closed" in env
 
 
