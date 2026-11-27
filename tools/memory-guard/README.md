@@ -24,3 +24,11 @@ Cause attribution (0.3.0): every alert carries a `cause:` line. With `MEMORY_GUA
 guard reads Ollama `GET /api/ps` and the host `\GPU Adapter Memory(*)\Dedicated Usage` counter and names a resident GPU
 model (with its size and unload time), another GPU consumer, guest page cache (an inference) or `cause unknown: <reason>`.
 The cache drop is skipped while a GPU model is resident.
+
+Commit-headroom metric (0.4.0): `memory-guard publish-headroom --env-file <private env>` writes Windows free virtual
+memory into the running WSL guest as the node-exporter textfile
+`/var/lib/node_exporter/textfile_collector/memory_guard_commit.prom` (gauges `memory_guard_commit_headroom_bytes` and
+`memory_guard_commit_sample_timestamp_seconds`, label `host`). It is off until `MEMORY_GUARD_HEADROOM_PUBLISH_ENABLED=true`,
+never starts WSL, and exits 1 when the write fails. Install: `deploy/register-headroom-task.ps1 -ProjectDir <dir>
+-EnvFile <env>` (every minute, hidden, BelowNormal). Uninstall:
+`Unregister-ScheduledTask -TaskName memory-guard-headroom -Confirm:$false`.

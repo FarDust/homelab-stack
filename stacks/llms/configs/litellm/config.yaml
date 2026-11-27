@@ -8,6 +8,8 @@ litellm_settings:
     - langfuse
     - ollama_unload_hook.proxy_handler_instance
     - text_only_fallback_guard.proxy_handler_instance
+    # Refuses cold loads on gabriel-pc Ollama under low host commit; see docs/adr/litellm_commit_headroom_guard_adr.md.
+    - commit_headroom_guard.proxy_handler_instance
     - websearch_interception
   websearch_interception_params:
     enabled_providers:

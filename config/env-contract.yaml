@@ -1466,6 +1466,24 @@ variables:
   default: '3'
   description: langfuse worker replicas setting for llms/monitoring.
   example: '3'
+- name: LITELLM_COMMIT_GUARD_FLOOR_GIB
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: false
+  default: '6'
+  description: Free virtual memory floor (GiB) on gabriel-pc below which the LiteLLM commit-headroom guard refuses cold Ollama loads; docs/adr/litellm_commit_headroom_guard_adr.md
+  example: '6'
+- name: LITELLM_COMMIT_GUARD_KEY_ALIASES
+  kind: literal
+  owner: llms/governance
+  used_by:
+  - llms/governance
+  required: false
+  default: ''
+  description: Per-key feature flag of the LiteLLM commit-headroom guard (comma-separated key aliases, * for all, empty keeps it dark)
+  example: ''
 - name: LITELLM_DB_PASSWORD
   kind: secret-file
   owner: external

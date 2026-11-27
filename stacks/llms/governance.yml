@@ -383,6 +383,15 @@ services:
       - LANGFUSE_HOST=${LANGFUSE_HOST:-https://cloud.langfuse.com}
       - LOCAL_DOMAIN=${LOCAL_DOMAIN?err}
       - MCP_GATEWAY_OIDC_CLIENT_ID=${MCP_GATEWAY_OIDC_CLIENT_ID:-litellm-mcp-gateway}
+      # Commit-headroom guard for cold loads on gabriel-pc Ollama; dark while the key-alias flag is empty.
+      # See docs/adr/litellm_commit_headroom_guard_adr.md and docs/runbooks/litellm-commit-headroom-guard.md.
+      - COMMIT_GUARD_KEY_ALIASES=${LITELLM_COMMIT_GUARD_KEY_ALIASES:-}
+      - COMMIT_GUARD_FLOOR_GIB=${LITELLM_COMMIT_GUARD_FLOOR_GIB:-6}
+      - COMMIT_GUARD_ON_UNKNOWN=closed
+      - COMMIT_GUARD_MAX_AGE_S=180
+      - COMMIT_GUARD_RETRY_AFTER_S=120
+      - COMMIT_GUARD_PROMETHEUS_URL=http://prometheus:9090
+      - COMMIT_GUARD_HOST_LABEL=gabriel-pc
     volumes:
       - litellm_chatgpt_auth:/var/lib/litellm/chatgpt
     configs:
@@ -392,6 +401,8 @@ services:
         target: /app/config/ollama_unload_hook.py
       - source: litellm_text_only_fallback_guard
         target: /app/config/text_only_fallback_guard.py
+      - source: litellm_commit_headroom_guard
+        target: /app/config/commit_headroom_guard.py
     secrets:
       - source: vertex_ai_credentials
         target: vertex_ai_credentials
@@ -584,6 +595,9 @@ configs:
   litellm_text_only_fallback_guard:
     name: litellm_text_only_fallback_guard-${CONFIG_VERSION:-0}
     file: ./configs/litellm/text_only_fallback_guard.py
+  litellm_commit_headroom_guard:
+    name: litellm_commit_headroom_guard-${CONFIG_VERSION:-0}
+    file: ./configs/litellm/commit_headroom_guard.py
   ollama_fallback_nginx:
     name: ollama_fallback_nginx-${CONFIG_VERSION:-0}
     file: ./configs/ollama/fallback-nginx.conf

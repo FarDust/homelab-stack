@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- New command `memory-guard publish-headroom [--env-file PATH]`: samples Windows free virtual memory (commit limit
+  minus commit charge, the value `check` already reads) and writes
+  `/var/lib/node_exporter/textfile_collector/memory_guard_commit.prom` inside the already running WSL distro with the
+  gauges `memory_guard_commit_headroom_bytes{host="..."}` and `memory_guard_commit_sample_timestamp_seconds{host="..."}`.
+  The write is atomic (`cat > .tmp && mv` as root, content on stdin, 30 s timeout); a failure exits 1 with the reason on
+  stderr. A stopped distro is never started (exit 0, `distro_not_running`).
+- Feature flag `MEMORY_GUARD_HEADROOM_PUBLISH_ENABLED` (default false: exit 0 without touching WSL); new settings
+  `MEMORY_GUARD_HEADROOM_HOST_LABEL` (default `gabriel-pc`) and `MEMORY_GUARD_HEADROOM_TIMEOUT_S` (default 30).
+- `deploy/register-headroom-task.ps1` registers the `memory-guard-headroom` task every minute. See
+  `docs/adr/memory_guard_adr.md` (addendum 2026-11-27, 0.4.0).
+
 ## 0.3.0
 
 - Cause attribution in every alert: when headroom is low the guard reads the host GPU dedicated usage (PDH counter

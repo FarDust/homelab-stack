@@ -1,4 +1,5 @@
-"""CLI: `check` runs one guard pass, `sample` prints the current readings. JSON on stdout, diagnostics on stderr."""
+"""CLI: `check` runs one guard pass, `sample` prints the current readings, `publish-headroom` writes the commit-headroom
+textfile into the WSL guest. JSON on stdout, diagnostics on stderr."""
 
 from __future__ import annotations
 
@@ -13,9 +14,10 @@ from rich.console import Console
 
 from memory_guard import __version__
 from memory_guard.adapters.windows_probe import WindowsMemoryProbe
-from memory_guard.composition import build_check
+from memory_guard.composition import build_check, build_publish_headroom
 from memory_guard.config import Settings
 from memory_guard.domain.errors import GuardError
+from memory_guard.domain.headroom import TEXTFILE_PATH, PublishStatus
 
 app = typer.Typer(add_completion=False, no_args_is_help=True, help=__doc__)
 err = Console(stderr=True)
@@ -81,6 +83,35 @@ def sample() -> None:
         "free_ram": s.free_ram,
         "nonpaged_pool": s.nonpaged_pool,
     }
+    sys.stdout.write(json.dumps(row) + "\n")
+
+
+@app.command("publish-headroom")
+def publish_headroom(env_file: EnvFile = None) -> None:
+    """Publish Windows commit headroom as a node-exporter textfile in the running WSL guest. Never starts WSL."""
+    settings = _settings(env_file)
+    try:
+        outcome = build_publish_headroom(settings)()
+    except GuardError as exc:
+        sys.stderr.write(f"memory-guard publish-headroom failed: {type(exc).__name__}: {exc}\n")
+        raise typer.Exit(1) from exc
+    if outcome.status is PublishStatus.DISABLED:
+        row: dict[str, object] = {
+            "status": outcome.status.value,
+            "message": "headroom publish disabled (MEMORY_GUARD_HEADROOM_PUBLISH_ENABLED=false)",
+        }
+    elif outcome.status is PublishStatus.DISTRO_NOT_RUNNING:
+        row = {"status": outcome.status.value, "message": f"distro {settings.wsl_distro!r} not running, not published"}
+    elif outcome.reading is None:
+        sys.stderr.write("memory-guard publish-headroom failed: published outcome carries no reading\n")
+        raise typer.Exit(1)
+    else:
+        row = {
+            "status": outcome.status.value,
+            "path": TEXTFILE_PATH,
+            "commit_headroom_bytes": outcome.reading.headroom_bytes,
+            "sampled_at": outcome.reading.sampled_at_unix,
+        }
     sys.stdout.write(json.dumps(row) + "\n")
 
 

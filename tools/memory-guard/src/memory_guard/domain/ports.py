@@ -82,3 +82,15 @@ class CauseAttributor(Protocol):
     def __call__(self) -> Attribution:
         """Name why headroom is low. Never raises: an unreadable signal becomes an explicit 'cause unknown'."""
         ...
+
+
+class DistroStatus(Protocol):
+    def is_running(self) -> bool:
+        """True only when the distro is already running; never starts it. Raise a GuardError if unknown."""
+        ...
+
+
+class TextfileWriter(Protocol):
+    def write(self, content: str) -> None:
+        """Atomically replace the guest textfile with `content`. Raise PublishError on failure or timeout."""
+        ...
