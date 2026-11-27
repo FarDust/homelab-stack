@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from memory_guard.adapters.command_alert import CommandAlertSink
 from memory_guard.adapters.gpu_pdh import PdhGpuMemoryProbe
 from memory_guard.adapters.ollama import OllamaPsProbe
+from memory_guard.adapters.pool_diagnostics import WindowsPoolDiagnostics
 from memory_guard.adapters.reclaim_log import JsonlReclaimLog
 from memory_guard.adapters.state_file import JsonStateStore
 from memory_guard.adapters.windows_probe import PsutilProcessLister, PsutilVmmemProbe, WindowsMemoryProbe
@@ -32,6 +33,9 @@ def build_check(settings: Settings) -> CheckMemory:
         int(settings.min_free_ram_gb * GIB),
         settings.samples,
         timedelta(minutes=settings.alert_interval_min),
+        settings.max_nonpaged_pct / 100,
+        timedelta(hours=settings.nonpaged_reminder_h),
+        int(settings.nonpaged_growth_gb * GIB),
     )
     probe = WindowsMemoryProbe()
     clock = SystemClock()
@@ -67,6 +71,7 @@ def build_check(settings: Settings) -> CheckMemory:
             clock,
             int(settings.gpu_other_gb * GIB),
         ),
+        WindowsPoolDiagnostics(),
     )
 
 

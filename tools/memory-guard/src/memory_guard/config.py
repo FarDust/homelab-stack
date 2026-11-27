@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     host: str = Field(default_factory=socket.gethostname, min_length=1)
     min_free_virtual_gb: float = Field(default=8.0, gt=0)
     min_free_ram_gb: float = Field(default=1.0, gt=0)
+    # Kernel non-paged pool as a share of physical RAM (about 6.2 GiB on 31 GB). Reminder and growth step:
+    # docs/adr/memory_guard_adr.md, addendum 2026-11-27 (0.5.0).
+    max_nonpaged_pct: float = Field(default=20.0, gt=0, le=100)
+    nonpaged_reminder_h: float = Field(default=6.0, gt=0)
+    nonpaged_growth_gb: float = Field(default=1.0, gt=0)
     samples: int = Field(default=2, ge=1)
     alert_interval_min: float = Field(default=30.0, gt=0)
     top_n: int = Field(default=10, ge=1)

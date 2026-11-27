@@ -41,6 +41,7 @@ def check(
     env_file: EnvFile = None,
     min_free_virtual_gb: Annotated[float | None, typer.Option(help="Override, for forced-threshold tests.")] = None,
     min_free_ram_gb: Annotated[float | None, typer.Option(help="Override, for forced-threshold tests.")] = None,
+    max_nonpaged_pct: Annotated[float | None, typer.Option(help="Override, for forced-threshold tests.")] = None,
     state_dir: Annotated[Path | None, typer.Option(help="Override, to keep a test apart from the real state.")] = None,
     reclaim_enabled: Annotated[bool | None, typer.Option(help="Override the WSL cache-drop kill switch.")] = None,
 ) -> None:
@@ -49,6 +50,7 @@ def check(
         env_file,
         min_free_virtual_gb=min_free_virtual_gb,
         min_free_ram_gb=min_free_ram_gb,
+        max_nonpaged_pct=max_nonpaged_pct,
         state_dir=state_dir,
         reclaim_enabled=reclaim_enabled,
     )
@@ -62,6 +64,7 @@ def check(
         "free_virtual": s.free_virtual,
         "free_ram": s.free_ram,
         "nonpaged_pool": s.nonpaged_pool,
+        "physical_total": s.physical_total,
         "alerted": [c.value for c in result.alerted],
         "recovered": [c.value for c in result.recovered],
         "reclaim": result.reclaim.summary() if result.reclaim else None,
@@ -82,6 +85,7 @@ def sample() -> None:
         "commit_limit": s.commit_limit,
         "free_ram": s.free_ram,
         "nonpaged_pool": s.nonpaged_pool,
+        "physical_total": s.physical_total,
     }
     sys.stdout.write(json.dumps(row) + "\n")
 

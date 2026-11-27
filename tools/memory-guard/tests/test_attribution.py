@@ -18,7 +18,7 @@ from memory_guard.domain.errors import ProbeError
 from memory_guard.domain.models import GIB, CauseKind, LoadedModel, MemorySample, Thresholds
 
 T0 = datetime(2026, 11, 25, 22, 0, tzinfo=UTC)
-LOW = MemorySample(73 * GIB, 78 * GIB, 6 * GIB, 9 * GIB)
+LOW = MemorySample(73 * GIB, 78 * GIB, 6 * GIB, 9 * GIB, 64 * GIB)
 MODEL = LoadedModel("qwen3.5:9b", 9 * GIB, 6 * GIB, T0 + timedelta(minutes=3, seconds=20))
 
 
@@ -282,12 +282,12 @@ def test_cpu_resident_model_is_not_blamed_on_the_gpu_or_the_cache() -> None:
 
 class RamOnlyProbe:
     def sample(self) -> MemorySample:
-        return MemorySample(10 * GIB, 78 * GIB, GIB // 2, 9 * GIB)  # plenty of commit, little physical RAM
+        return MemorySample(10 * GIB, 78 * GIB, GIB // 2, 9 * GIB, 64 * GIB)  # plenty of commit, little physical RAM
 
 
 def test_ram_only_breach_is_not_attributed_to_the_gpu(tmp_path: Path) -> None:
     sink, _ = run_guard(tmp_path, 12 * GIB, [MODEL], probe=RamOnlyProbe())
-    assert "free RAM" in sink.sent[0]
+    assert "available RAM (free + standby)" in sink.sent[0]
     assert "cause" not in sink.sent[0]
 
 

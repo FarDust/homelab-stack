@@ -247,3 +247,77 @@ runs on the `gabriel-pc-wsl` node with `--collector.textfile.directory=/rootfs/v
 - After deploy: with the flag on, run `memory-guard publish-headroom --env-file <private env>` once, then query
   `memory_guard_commit_headroom_bytes{host="gabriel-pc"}` in Prometheus and check that
   `time() - memory_guard_commit_sample_timestamp_seconds` stays under 120 s.
+
+## Addendum 2026-11-27: non-paged pool condition and alert de-duplication (0.5.0)
+
+### Context
+
+On 2026-11-27 the desktop reported "low free RAM" about every 30 minutes and the agent-bridge mailbox filled with about
+100 identical notices. The signal was real, not an artifact: available memory (free plus standby, `psutil` `available`,
+`GetPerformanceInfo` `PhysicalAvailable`) was 0.25-0.7 GiB with 3k-65k page reads per second, because the kernel
+non-paged pool held 10.05 GiB (baseline 0.3-1.5 GiB), of which about 6.3 GiB were leaked `File` objects. The label "free
+RAM" was loose, the symptom repeated while the cause (the pool) stayed unchanged, and the alert gave a reader neither
+the thrash nor the leak. Evidence: the 2026-11-27 desktop memory investigation, whose measurements are inlined above.
+
+### Decision
+
+- The RAM alert is named `available RAM (free + standby)` everywhere (alert, recovery, README).
+- New condition `nonpaged_pool`: the pool is above `MEMORY_GUARD_MAX_NONPAGED_PCT` (default 20) percent of physical RAM
+  (`GetPerformanceInfo` `PhysicalTotal`; about 6.2 GiB on 31 GiB), strictly above, in `MEMORY_GUARD_SAMPLES` consecutive
+  samples. Its alert text is `low kernel non-paged pool` with the pool, its share of physical RAM and the limit.
+- Every alert body carries `page reads/s` (WMI `Win32_PerfFormattedData_PerfOS_Memory.PageReadsPersec`, read in process
+  through pywin32 because `Get-Counter` fails on this host with error c0000bb8) and the live `File` pool tag allocations
+  (`NtQuerySystemInformation(SystemPoolTagInformation)`, allocations minus frees). A reading that cannot be taken
+  (WMI error, malformed or negative value, STATUS_ACCESS_DENIED without elevation, tag absent, buffer malformed) prints
+  `unknown (<reason>)`; it is never replaced by a number, and the alert still goes out.
+- De-duplication by state change: the pool condition alerts once when it becomes active, again only when the pool grew
+  by `MEMORY_GUARD_NONPAGED_GROWTH_GB` (default 1) since its last alert, and as a reminder every
+  `MEMORY_GUARD_NONPAGED_REMINDER_H` (default 6) hours. While the pool alert is active, the pool is over its limit and it
+  has not grown a step, the low-RAM alert uses the same 6 hour reminder instead of the 30 minute `alert_interval`. Low
+  free virtual memory, and low RAM without an active pool, keep the 30 minute cadence. Recovery messages are unchanged
+  (one per state change). A pool that recovers and breaches again alerts at once (the recovery clears its last-alert
+  time); the reminder paces only an unbroken breach. A growth step waits at most the 30 minute `alert_interval` after
+  the previous alert.
+- `PageReadsPersec` comes from the formatted WMI class, a rate the OS derives between its own samples, so a `0` is a
+  reading, not proof of an idle disk; the raw counter delta is a possible refinement. Pool tag buffer sizing is bounded
+  (a size request that does not grow, or more than five attempts, is an explicit `Unknown`). Any unexpected diagnostics
+  failure is printed as `unknown (<type>: <message>)` so the alert is never lost with it.
+- State: each condition row gains an optional `reference` (the pool size at its last alert). A state file written by
+  0.4.0 has no row for the new condition; the loader starts that row fresh instead of failing. A missing row for any
+  other condition, or a malformed row, is a `StateError`.
+
+### Libraries
+
+- `pywin32` (mhammond/pywin32, about 5k GitHub stars, already a dependency since 0.3.0, PSF licence) for WMI.
+- Pool tags use `ctypes` on `ntdll`: no maintained Python library wraps `SystemPoolTagInformation`, and `psutil` (about
+  10k stars) exposes only the totals.
+
+### Alternatives
+
+- Keep one alert and only rename it: leaves the mailbox flood and the missing cause.
+- Silence the RAM alert while the pool is active: hides a real, changing symptom; the 6 hour reminder and the growth step
+  keep it visible.
+- Read the counter with `Get-Counter` or a PowerShell subprocess: fails here (c0000bb8) and adds a process per run.
+- Use `psutil` for page reads: it has no `Page Reads/sec` rate.
+- Fixed 6.2 GiB limit: the percentage follows the machine RAM; the setting stays overridable.
+
+### Consequences
+
+- At most about two alerts a day during a steady leak (pool and RAM in one message at the reminder), plus one per
+  one-GiB growth step. A reader sees thrash (page reads) and leak (`File` objects) in the same message.
+- `File` tag counting may need elevation in some sessions; the guard then says so in the alert (`unknown (...)`), which
+  is the evidence for running the Task Scheduler entry elevated if that value is wanted.
+- The deployed copy is replaced from the repository; no re-registration of the scheduled task is needed because the
+  command line is unchanged.
+
+### Verification
+
+- `tools/memory-guard/tests/test_nonpaged.py`: boundary values around the limit, the renamed label, the combined first
+  alert, no repeat for six hours across simulated runs, the reminder at exactly six hours, growth just under and at the
+  step, low RAM alone repeating every 30 minutes, recovery and re-arm, state migration from 0.4.0, counter parsing
+  (valid, string, float, `None`, boolean, negative, text, list, bytes), pool-tag table parsing (grow-and-retry, runaway
+  size, access denied, other status, short buffer, frees above allocations, missing tag), independent degradation of the
+  two readings to `unknown (<reason>)`, and unexpected exceptions staying visible.
+- After deploy: a forced run on the installed copy with a print-only alert command and a temporary state directory
+  (`check --max-nonpaged-pct 5 --min-free-ram-gb 100000 --state-dir <temp>`, two runs) must print the new texts and real
+  `page reads/s` and `File` values or `unknown (<reason>)`, and send nothing to the bridge.

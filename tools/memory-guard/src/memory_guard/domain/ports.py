@@ -5,7 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from memory_guard.domain.models import Attribution, GuardState, LoadedModel, MemorySample, ProcessUsage, ReclaimRecord
+from memory_guard.domain.models import (
+    Attribution,
+    GuardState,
+    LoadedModel,
+    MemorySample,
+    PoolDiagnostics,
+    ProcessUsage,
+    ReclaimRecord,
+)
 
 
 class MemoryProbe(Protocol):
@@ -93,4 +101,10 @@ class DistroStatus(Protocol):
 class TextfileWriter(Protocol):
     def write(self, content: str) -> None:
         """Atomically replace the guest textfile with `content`. Raise PublishError on failure or timeout."""
+        ...
+
+
+class PoolDiagnosticsProbe(Protocol):
+    def __call__(self) -> PoolDiagnostics:
+        """Page reads per second and `File` pool tag count. Never raises: an unreadable value is `Unknown(reason)`."""
         ...

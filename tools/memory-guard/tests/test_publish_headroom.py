@@ -18,7 +18,7 @@ from memory_guard.domain.headroom import TEXTFILE_PATH, HeadroomReading, Publish
 from memory_guard.domain.models import GIB, MemorySample
 
 T0 = datetime(2026, 11, 27, 15, 0, 0, 250000, tzinfo=UTC)
-SAMPLE = MemorySample(60 * GIB, 78 * GIB, 8 * GIB, GIB)  # 18 GiB headroom
+SAMPLE = MemorySample(60 * GIB, 78 * GIB, 8 * GIB, GIB, 64 * GIB)  # 18 GiB headroom
 
 
 class FakeProbe:
@@ -98,7 +98,7 @@ def test_writer_failure_propagates() -> None:
 
 
 def test_negative_headroom_is_explicit() -> None:
-    use_case, _, _, writer = make(sample=MemorySample(80 * GIB, 78 * GIB, GIB, GIB))
+    use_case, _, _, writer = make(sample=MemorySample(80 * GIB, 78 * GIB, GIB, GIB, 64 * GIB))
     with pytest.raises(ProbeError, match="negative"):
         use_case()
     assert writer.written == []

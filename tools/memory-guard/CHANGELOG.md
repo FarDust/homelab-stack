@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+- The RAM alert is now named `available RAM (free + standby)` (it always measured free plus standby memory).
+- New condition `nonpaged_pool`: kernel non-paged pool above `MEMORY_GUARD_MAX_NONPAGED_PCT` (default 20) percent of
+  physical RAM alerts as `low kernel non-paged pool`, with its share of physical RAM and the limit.
+- Every alert carries `page reads/s` (WMI `PageReadsPersec`, read in process because `Get-Counter` fails with c0000bb8
+  on the desktop) and the live `File` pool tag allocations. A reading that cannot be taken prints
+  `unknown (<reason>)`; nothing is invented.
+- De-duplication: one alert per state change. The pool alert repeats only after `MEMORY_GUARD_NONPAGED_GROWTH_GB`
+  (default 1) of growth or as a `MEMORY_GUARD_NONPAGED_REMINDER_H` (default 6) hour reminder; low RAM follows the same
+  reminder while the pool is active and unchanged.
+- The state file gains an optional `reference` per condition; a 0.4.0 state file loads (the new row starts fresh).
+- `check --max-nonpaged-pct` overrides the limit for forced-threshold tests; `sample` and `check` print
+  `physical_total`. See `docs/adr/memory_guard_adr.md` (addendum 2026-11-27, 0.5.0).
+- A pool that recovers and breaches again alerts at once. An unexpected diagnostics failure prints as `unknown (...)`
+  and the alert still goes out. The pool tag buffer retry is bounded. A state file missing a row other than the pool
+  row is an explicit error.
+
 ## 0.4.0
 
 - New command `memory-guard publish-headroom [--env-file PATH]`: samples Windows free virtual memory (commit limit
