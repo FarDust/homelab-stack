@@ -381,6 +381,32 @@ variables:
   required: true
   description: CrowdSec enrollment key from https://app.crowdsec.net
   example: your_crowdsec_enroll_key
+- name: DECISION_INBOX_DB_SECRET_VERSION
+  kind: literal
+  owner: apps/decision-inbox
+  used_by:
+  - apps/decision-inbox
+  required: false
+  default: '1'
+  description: Version suffix of the Swarm secret decision_inbox_db_dsn_v<N> (cluster-utils db write-dsn).
+  example: '1'
+- name: DECISION_INBOX_FLAGS_SECRET_VERSION
+  kind: literal
+  owner: apps/decision-inbox
+  used_by:
+  - apps/decision-inbox
+  required: false
+  default: '1'
+  description: Version suffix of the Swarm secret decision_inbox_flags_token_v<N> (Unleash frontend token).
+  example: '1'
+- name: DECISION_INBOX_IMAGE
+  kind: literal
+  owner: apps/decision-inbox
+  used_by:
+  - apps/decision-inbox
+  required: true
+  description: Decision Inbox image (tag and digest), built and pushed by the application's release script.
+  example: your_decision_inbox_image_reference
 - name: DOMAIN_NAME
   kind: literal
   owner: main/traefik
@@ -1567,6 +1593,7 @@ variables:
   owner: main/bridges
   used_by:
   - admin/dashboards
+  - apps/decision-inbox
   - apps/japan-trip-assistant
   - apps/japan-trip-backend
   - apps/japan-trip-mcp
