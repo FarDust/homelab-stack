@@ -28,7 +28,7 @@ Status: accepted 2026-11-27. Code: `stacks/llms/configs/litellm/commit_headroom_
   2. reads `memory_guard_commit_headroom_bytes{host="gabriel-pc"}` and
      `memory_guard_commit_sample_timestamp_seconds{host="gabriel-pc"}` from Prometheus;
   3. answers HTTP 503 with `Retry-After` (default 120 s) and an explicit reason (error code, value, floor, sample age,
-     code path, flag name) when the headroom is below the floor (default 6 GiB, `LITELLM_COMMIT_GUARD_FLOOR_GIB`).
+     code path, flag name) when the headroom is below the floor (default 11 GiB, `LITELLM_COMMIT_GUARD_FLOOR_GIB`).
 - Unknown signal (absent series, stale sample older than 180 s, Prometheus failure, malformed or non-finite value)
   fails CLOSED with `COMMIT_HEADROOM_UNKNOWN`; `COMMIT_GUARD_ON_UNKNOWN=open` is the only, documented way to fail open.
 - A misconfigured numeric setting refuses only flagged callers' Ollama requests with `COMMIT_GUARD_MISCONFIGURED`;
@@ -65,9 +65,15 @@ Status: accepted 2026-11-27. Code: `stacks/llms/configs/litellm/commit_headroom_
   about 10 GB. The floor is a safety net, not a capacity plan; raise it (for example to 11 GiB) if loads from 6-10 GiB
   still reach exhaustion.
 - When WSL is down, the series disappears and guarded requests fail closed, which matches Ollama being down.
-- The default floor (6 GiB) is the value Lira set on 2026-11-27; independent review noted that a 10 GB load admitted at
-  6-10 GiB can still reach exhaustion. It stays 6 GiB until the live alarms show loads admitted in that band; then
-  `LITELLM_COMMIT_GUARD_FLOOR_GIB` goes to 11-12.
+- The default floor is 11 GiB (raised from 6 GiB on 2026-11-27, Lira follow-up). The first value, 6 GiB, admitted a
+  10 GB load at 6-10 GiB free. Evidence for the change: Prometheus `memory_guard_commit_headroom_bytes` showed a
+  minimum of 1.1 GiB on the day and a load adds about 10 GB of commit, so admitting a load needs at least that much
+  headroom plus margin. Over the first 24 h of the series the host sat below 6 GiB 25 % of the time and below 11 GiB
+  36 % of the time: the raise adds refusals in the 6-11 GiB band and no other behaviour. Rollback is the flag
+  `LITELLM_COMMIT_GUARD_FLOOR_GIB=6` plus a litellm redeploy; superseded value: 6 GiB.
+- Callers must treat the 503 as a retry signal. The n8n "Notification Forwarder" workflow sends one agent run per
+  alert webhook and has no retry on its model node; its alerts during a refusal are lost until the workflow retries
+  or falls back (see the n8n learning in the vault).
 - A refusal is raised before routing, so the configured `n8n-chat` fallbacks (low-end Ollama, cloud) do not fire; the
   caller sees the 503 directly.
 - The publisher checks that the distro runs and then calls `wsl.exe`; if WSL stops in that window `wsl.exe` could start

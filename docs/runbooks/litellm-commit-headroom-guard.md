@@ -28,7 +28,7 @@ rendered service must be compared with the previous spec (hashes, no values) bef
 ## Flag
 
 - `LITELLM_COMMIT_GUARD_KEY_ALIASES` in the manager `.env`: empty = dark, `commit-guard-qa` = QA key only,
-  `n8n` = the n8n automations key, `*` = every key. Optional `LITELLM_COMMIT_GUARD_FLOOR_GIB` (default 6).
+  `n8n` = the n8n automations key, `*` = every key. Optional `LITELLM_COMMIT_GUARD_FLOOR_GIB` (default 11).
 - Apply: `source .env && uv run cluster-utils deploy service litellm` on the manager; the service must be re-created
   for env changes (the deploy does that when the spec changes).
 

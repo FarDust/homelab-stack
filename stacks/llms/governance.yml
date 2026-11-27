@@ -386,7 +386,7 @@ services:
       # Commit-headroom guard for cold loads on gabriel-pc Ollama; dark while the key-alias flag is empty.
       # See docs/adr/litellm_commit_headroom_guard_adr.md and docs/runbooks/litellm-commit-headroom-guard.md.
       - COMMIT_GUARD_KEY_ALIASES=${LITELLM_COMMIT_GUARD_KEY_ALIASES:-}
-      - COMMIT_GUARD_FLOOR_GIB=${LITELLM_COMMIT_GUARD_FLOOR_GIB:-6}
+      - COMMIT_GUARD_FLOOR_GIB=${LITELLM_COMMIT_GUARD_FLOOR_GIB:-11}
       - COMMIT_GUARD_ON_UNKNOWN=closed
       - COMMIT_GUARD_MAX_AGE_S=180
       - COMMIT_GUARD_RETRY_AFTER_S=120
