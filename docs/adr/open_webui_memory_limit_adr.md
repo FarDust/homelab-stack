@@ -8,8 +8,9 @@ Date: 2026-11-27 (10:45 Chile, UTC-3)
 `load.tier == heavy`, stop-first updates) had a memory limit of 8 GiB. Prometheus (cAdvisor)
 over 7 days, measured 2026-11-27 about 13:30 UTC: working set peaks at 644 MB per replica and
 usage plus swap peaks at 1,245 MB. On frost-fang one replica holds about 1.0 GB of swap with a
-54 MB resident set: cold pages of an idle UI. An 8 GiB limit lets such a task grow into up to
-8 GiB of the node's swap before the cgroup limit applies.
+54 MB resident set: cold pages of an idle UI. An 8 GiB limit lets such a task grow into a large
+share of the node's swap before the cgroup limit applies (with Docker's default, swap is bounded
+by the memory limit).
 
 ## Decision
 
@@ -30,6 +31,7 @@ hard swap guarantee. `memswap` settings are deliberately not added.
 ## Consequences
 
 - The benefit is small: current swapped pages are cold and stay until the next rolling update.
+- The service sets no embedding, reranker or speech engine variable, so Open WebUI may use its in-process defaults (a small sentence-transformers embedder and torch). Whether a large ingestion or a first model load happened inside the 7-day window is not verified; the 3 GiB limit is about 2.4x the observed peak, and the first deploy checks both replicas for OOM kills (`docker service ps --no-trunc`). Rollback restores 8G.
 - A task above 3 GiB is OOM-killed and restarted by Swarm; a restart cuts in-flight chats.
 - The reservation makes the scheduler account 768 MiB per replica on the heavy nodes.
 
