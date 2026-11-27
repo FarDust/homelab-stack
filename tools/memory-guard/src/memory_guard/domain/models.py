@@ -12,14 +12,16 @@ GIB = 1024**3
 class Condition(StrEnum):
     VIRTUAL = "free_virtual"
     RAM = "free_ram"
+    NONPAGED = "nonpaged_pool"
 
 
 @dataclass(frozen=True)
 class MemorySample:
     commit_used: int
     commit_limit: int
-    free_ram: int
+    free_ram: int  # available RAM: free + standby (psutil `available`, GetPerformanceInfo PhysicalAvailable)
     nonpaged_pool: int
+    physical_total: int
 
     @property
     def free_virtual(self) -> int:
@@ -39,11 +41,22 @@ class Thresholds:
     min_free_ram: int
     samples: int
     alert_interval: timedelta
+    # Kernel non-paged pool above this share of physical RAM is a condition of its own
+    # (docs/adr/memory_guard_adr.md, addendum 2026-11-27, 0.5.0).
+    max_nonpaged_fraction: float = 0.20
+    # Reminder cadence of the pool condition, and of the RAM condition while the pool explains it.
+    nonpaged_reminder: timedelta = timedelta(hours=6)
+    # Pool growth since its last alert that counts as a state change worth a new alert.
+    nonpaged_growth: int = GIB
+
+    def nonpaged_limit(self, sample: MemorySample) -> int:
+        return int(self.max_nonpaged_fraction * sample.physical_total)
 
     def breached(self, sample: MemorySample) -> dict[Condition, bool]:
         return {
             Condition.VIRTUAL: sample.free_virtual < self.min_free_virtual,
             Condition.RAM: sample.free_ram < self.min_free_ram,
+            Condition.NONPAGED: sample.nonpaged_pool > self.nonpaged_limit(sample),
         }
 
 
@@ -52,6 +65,8 @@ class ConditionState:
     consecutive: int = 0
     active: bool = False
     last_alert: datetime | None = None
+    # Non-paged pool size (bytes) at the last alert of the pool condition; None for the other conditions.
+    reference: int | None = None
 
 
 @dataclass
@@ -132,3 +147,32 @@ class Attribution:
     @property
     def gpu_resident(self) -> bool:
         return self.kind is CauseKind.GPU_MODEL
+
+
+@dataclass(frozen=True)
+class Measured:
+    value: int
+
+
+@dataclass(frozen=True)
+class Unknown:
+    """A reading that could not be taken; the alert prints the reason instead of a number."""
+
+    reason: str
+
+
+Reading = Measured | Unknown
+
+
+def show(reading: Reading, unit: str = "") -> str:
+    if isinstance(reading, Measured):
+        return f"{reading.value:,}{unit}"
+    return f"unknown ({reading.reason})"
+
+
+@dataclass(frozen=True)
+class PoolDiagnostics:
+    """Thrash and leak evidence printed in every alert: page reads per second and live `File` pool allocations."""
+
+    page_reads_per_s: Reading
+    file_pool_objects: Reading

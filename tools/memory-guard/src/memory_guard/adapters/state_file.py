@@ -22,10 +22,16 @@ class JsonStateStore:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
             state = GuardState()
             for cond in Condition:
+                if cond.value not in raw:
+                    continue  # a state file written by an older version has no row for a newer condition
                 row = raw[cond.value]
                 last = row["last_alert"]
+                reference = row.get("reference")  # optional by contract: only the pool condition records it
                 state.conditions[cond] = ConditionState(
-                    int(row["consecutive"]), bool(row["active"]), datetime.fromisoformat(last) if last else None
+                    int(row["consecutive"]),
+                    bool(row["active"]),
+                    datetime.fromisoformat(last) if last else None,
+                    int(reference) if reference is not None else None,
                 )
             return state
         except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -39,6 +45,7 @@ class JsonStateStore:
                 "consecutive": s.consecutive,
                 "active": s.active,
                 "last_alert": s.last_alert.isoformat() if s.last_alert else None,
+                "reference": s.reference,
             }
             for c, s in state.conditions.items()
         }

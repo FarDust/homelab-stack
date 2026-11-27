@@ -20,8 +20,8 @@ from memory_guard.domain.errors import AlertError, GuardError, ProbeError, Recla
 from memory_guard.domain.models import GIB, MemorySample, ReclaimPolicy, ReclaimRecord, ReclaimSnapshot, Thresholds
 
 T0 = datetime(2026, 11, 25, 18, 0, tzinfo=UTC)
-LOW = MemorySample(73 * GIB, 78 * GIB, 6 * GIB, 9 * GIB)  # 5 GiB free virtual
-AFTER = MemorySample(68 * GIB, 78 * GIB, 10 * GIB, 9 * GIB)  # 10 GiB free virtual
+LOW = MemorySample(73 * GIB, 78 * GIB, 6 * GIB, 9 * GIB, 64 * GIB)  # 5 GiB free virtual
+AFTER = MemorySample(68 * GIB, 78 * GIB, 10 * GIB, 9 * GIB, 64 * GIB)  # 10 GiB free virtual
 POLICY = ReclaimPolicy(True, 2, timedelta(minutes=10), 6, 4.0)
 
 

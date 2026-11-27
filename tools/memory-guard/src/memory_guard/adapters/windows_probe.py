@@ -40,13 +40,19 @@ class WindowsMemoryProbe:
         if not ctypes.WinDLL("psapi", use_last_error=True).GetPerformanceInfo(ctypes.byref(info), info.cb):
             raise ProbeError(f"GetPerformanceInfo failed (winerror {ctypes.get_last_error()})")
         page = info.PageSize
-        if page <= 0 or info.CommitLimit <= 0:
-            raise ProbeError("GetPerformanceInfo returned a zero page size or commit limit")
+        if page <= 0 or info.CommitLimit <= 0 or info.PhysicalTotal <= 0:
+            raise ProbeError("GetPerformanceInfo returned a zero page size, commit limit or physical total")
         try:
             free_ram = psutil.virtual_memory().available
         except (OSError, psutil.Error) as exc:
             raise ProbeError(f"psutil could not read available RAM: {exc}") from exc
-        return MemorySample(info.CommitTotal * page, info.CommitLimit * page, free_ram, info.KernelNonpaged * page)
+        return MemorySample(
+            info.CommitTotal * page,
+            info.CommitLimit * page,
+            free_ram,
+            info.KernelNonpaged * page,
+            info.PhysicalTotal * page,
+        )
 
 
 class PsutilProcessLister:

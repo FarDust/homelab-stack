@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from memory_guard.domain.errors import GuardError
 from memory_guard.domain.models import (
@@ -14,18 +14,24 @@ from memory_guard.domain.models import (
     ReclaimRecord,
     Thresholds,
     gib,
+    show,
 )
 from memory_guard.domain.ports import (
     AlertSink,
     CauseAttributor,
     Clock,
     MemoryProbe,
+    PoolDiagnosticsProbe,
     ProcessLister,
     Reclaimer,
     StateStore,
 )
 
-LABEL = {Condition.VIRTUAL: "free virtual memory", Condition.RAM: "free RAM"}
+LABEL = {
+    Condition.VIRTUAL: "free virtual memory",
+    Condition.RAM: "available RAM (free + standby)",
+    Condition.NONPAGED: "kernel non-paged pool",
+}
 
 
 @dataclass(frozen=True)
@@ -49,18 +55,24 @@ class CheckMemory:
         top_n: int = 10,
         reclaimer: Reclaimer | None = None,
         attributor: CauseAttributor | None = None,
+        diagnostics: PoolDiagnosticsProbe | None = None,
     ) -> None:
         self._probe, self._processes, self._sink, self._store = probe, processes, sink, store
         self._clock, self._t, self._host, self._top_n = clock, thresholds, host, top_n
-        self._reclaimer, self._attributor = reclaimer, attributor
+        self._reclaimer, self._attributor, self._diagnostics = reclaimer, attributor, diagnostics
 
     def _body(self, sample: MemorySample, notes: list[str]) -> str:
         top, skipped = self._processes.top_by_private_bytes(self._top_n)
         lines = [
             f"commit {gib(sample.commit_used)} of {gib(sample.commit_limit)} (free virtual {gib(sample.free_virtual)})",
-            f"free RAM {gib(sample.free_ram)}; non-paged pool {gib(sample.nonpaged_pool)}",
-            f"top {len(top)} processes by private bytes ({skipped} unreadable):",
+            f"available RAM (free + standby) {gib(sample.free_ram)}; non-paged pool {gib(sample.nonpaged_pool)} = "
+            f"{sample.nonpaged_pool / sample.physical_total:.0%} of {gib(sample.physical_total)} physical RAM "
+            f"(limit {gib(self._t.nonpaged_limit(sample))})",
         ]
+        if self._diagnostics is not None:
+            d = self._diagnostics()
+            lines.append(f"page reads/s {show(d.page_reads_per_s)}; File pool tag objects {show(d.file_pool_objects)}")
+        lines.append(f"top {len(top)} processes by private bytes ({skipped} unreadable):")
         lines += [f"  {p.pid} {p.name} {gib(p.private_bytes)}" for p in top]
         lines += notes
         return "\n".join(lines)
@@ -82,6 +94,24 @@ class CheckMemory:
     def _drop_eligible(self, state: GuardState) -> bool:
         return self._reclaimer is not None and self._reclaimer.eligible(state.conditions[Condition.VIRTUAL].consecutive)
 
+    def _pool_unchanged(self, state: GuardState, sample: MemorySample) -> bool:
+        """The pool alert is out, the pool is still over its limit and has not grown a step since that alert."""
+        pool = state.conditions[Condition.NONPAGED]
+        if not pool.active or pool.reference is None:
+            return False
+        over = sample.nonpaged_pool > self._t.nonpaged_limit(sample)
+        return over and sample.nonpaged_pool - pool.reference < self._t.nonpaged_growth
+
+    def _interval(self, cond: Condition, state: GuardState, sample: MemorySample) -> timedelta:
+        """Repeat cadence: the pool reminds every 6 h unless it grew a step; low RAM follows it while the pool explains it."""
+        if cond is Condition.NONPAGED:
+            pool = state.conditions[cond]
+            grown = pool.reference is not None and sample.nonpaged_pool - pool.reference >= self._t.nonpaged_growth
+            return self._t.alert_interval if grown else self._t.nonpaged_reminder
+        if cond is Condition.RAM and self._pool_unchanged(state, sample):
+            return self._t.nonpaged_reminder
+        return self._t.alert_interval
+
     def _attribute(self, breached: dict[Condition, bool], due: list, eligible: bool) -> Attribution | None:
         """Attribute only low free virtual memory (host commit), and only when an alert or a drop is possible."""
         if self._attributor is None or not breached[Condition.VIRTUAL]:
@@ -101,7 +131,7 @@ class CheckMemory:
             st = state.conditions[cond]
             st.consecutive = st.consecutive + 1 if hit else 0
             if hit and st.consecutive >= self._t.samples:
-                if st.last_alert is None or now - st.last_alert >= self._t.alert_interval:
+                if st.last_alert is None or now - st.last_alert >= self._interval(cond, state, sample):
                     due.append(cond)
             elif not hit and st.active:
                 recovered.append(cond)
@@ -136,6 +166,8 @@ class CheckMemory:
             # repeat the alert every run. The failure still exits nonzero; the retry waits one interval.
             for c in due:
                 state.conditions[c].last_alert = now
+            if Condition.NONPAGED in due:
+                state.conditions[Condition.NONPAGED].reference = sample.nonpaged_pool
             self._store.save(state)
             self._sink.send(f"[memory-guard] {self._host}: low {names}\n{self._body(sample, notes)}")
             for c in due:
@@ -146,7 +178,7 @@ class CheckMemory:
             last = self._reclaimer.last_summary() if self._reclaimer else None
             self._sink.send(
                 f"[memory-guard] {self._host}: recovered {names}; free virtual {gib(sample.free_virtual)}, "
-                f"free RAM {gib(sample.free_ram)}, non-paged pool {gib(sample.nonpaged_pool)}"
+                f"available RAM (free + standby) {gib(sample.free_ram)}, non-paged pool {gib(sample.nonpaged_pool)}"
                 + (f"\n{last}" if last else "")
             )
             for c in recovered:

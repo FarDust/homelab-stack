@@ -1,7 +1,7 @@
 # memory-guard
 
-Windows memory-pressure watchdog (touches no process). Alerts when free virtual memory is under 8 GiB or free RAM under
-1 GiB in two consecutive samples, with the top 10 processes by private bytes and the non-paged pool size. See
+Windows memory-pressure watchdog (touches no process). Alerts when free virtual memory is under 8 GiB, available RAM (free + standby) under
+1 GiB, or the kernel non-paged pool is over 20 % of physical RAM, in two consecutive samples, with the top 10 processes by private bytes and the non-paged pool size. See
 `docs/adr/memory_guard_adr.md`.
 
 ```
@@ -32,3 +32,8 @@ memory into the running WSL guest as the node-exporter textfile
 never starts WSL, and exits 1 when the write fails. Install: `deploy/register-headroom-task.ps1 -ProjectDir <dir>
 -EnvFile <env>` (every minute, hidden, BelowNormal). Uninstall:
 `Unregister-ScheduledTask -TaskName memory-guard-headroom -Confirm:$false`.
+
+Non-paged pool (0.5.0): the pool is its own condition (`MEMORY_GUARD_MAX_NONPAGED_PCT`, default 20). Every alert shows
+`page reads/s` and the live `File` pool tag count, or `unknown (<reason>)` when a reading is unavailable. The pool alert
+repeats only after 1 GiB of growth or every 6 hours (`MEMORY_GUARD_NONPAGED_GROWTH_GB`, `MEMORY_GUARD_NONPAGED_REMINDER_H`),
+and the low-RAM alert follows that reminder while the pool is active and unchanged.

@@ -17,9 +17,9 @@ from memory_guard.domain.errors import AlertError, ProbeError, StateError
 from memory_guard.domain.models import GIB, Condition, MemorySample, ProcessUsage, Thresholds
 
 T0 = datetime(2026, 11, 25, 15, 0, tzinfo=UTC)
-LOW = MemorySample(70 * GIB, 78 * GIB - 1, 5 * GIB, 9 * GIB)  # free virtual just under 8 GiB
-LOW_RAM = MemorySample(10 * GIB, 78 * GIB, GIB // 2, 9 * GIB)
-OK = MemorySample(30 * GIB, 78 * GIB, 8 * GIB, 9 * GIB)
+LOW = MemorySample(70 * GIB, 78 * GIB - 1, 5 * GIB, 9 * GIB, 64 * GIB)  # free virtual just under 8 GiB
+LOW_RAM = MemorySample(10 * GIB, 78 * GIB, GIB // 2, 9 * GIB, 64 * GIB)
+OK = MemorySample(30 * GIB, 78 * GIB, 8 * GIB, 9 * GIB, 64 * GIB)
 
 
 class FakeProbe:
