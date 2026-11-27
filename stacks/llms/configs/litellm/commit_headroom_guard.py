@@ -106,7 +106,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         )
     return Settings(
         key_aliases=parse_key_aliases(env),
-        floor_bytes=_number(env, "COMMIT_GUARD_FLOOR_GIB", "6", minimum=0) * GIB,
+        floor_bytes=_number(env, "COMMIT_GUARD_FLOOR_GIB", "11", minimum=0) * GIB,
         prometheus_url=env.get(
             "COMMIT_GUARD_PROMETHEUS_URL", "http://prometheus:9090"
         ).rstrip("/"),

@@ -1472,9 +1472,9 @@ variables:
   used_by:
   - llms/governance
   required: false
-  default: '6'
+  default: '11'
   description: Free virtual memory floor (GiB) on gabriel-pc below which the LiteLLM commit-headroom guard refuses cold Ollama loads; docs/adr/litellm_commit_headroom_guard_adr.md
-  example: '6'
+  example: '11'
 - name: LITELLM_COMMIT_GUARD_KEY_ALIASES
   kind: literal
   owner: llms/governance
