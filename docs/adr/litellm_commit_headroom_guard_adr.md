@@ -62,14 +62,13 @@ Status: accepted 2026-11-27. Code: `stacks/llms/configs/litellm/commit_headroom_
 - Not covered: router-internal fallbacks into `n8n-chat` (for example from `gpt-5-chat-latest`), because the pre-call
   hook sees the original alias; the 26 h spend logs show zero such fallbacks. Open WebUI direct traffic is not covered.
 - The signal is at most about 60 s + 15 s old; a load that starts above the floor can still push headroom down by
-  about 10 GB. The floor is a safety net, not a capacity plan; raise it (for example to 11 GiB) if loads from 6-10 GiB
-  still reach exhaustion.
+  about 10 GB. The floor is a safety net, not a capacity plan (default 11 GiB, see the floor decision below).
 - When WSL is down, the series disappears and guarded requests fail closed, which matches Ollama being down.
 - The default floor is 11 GiB (raised from 6 GiB on 2026-11-27, Lira follow-up). The first value, 6 GiB, admitted a
   10 GB load at 6-10 GiB free. Evidence for the change: Prometheus `memory_guard_commit_headroom_bytes` showed a
   minimum of 1.1 GiB on the day and a load adds about 10 GB of commit, so admitting a load needs at least that much
   headroom plus margin. Over the first 24 h of the series the host sat below 6 GiB 25 % of the time and below 11 GiB
-  36 % of the time: the raise adds refusals in the 6-11 GiB band and no other behaviour. Rollback is the flag
+  36 % of the time (`avg_over_time((memory_guard_commit_headroom_bytes{host="gabriel-pc"}<bool N*2^30)[24h:1m])` with N 6 and 11): the raise adds refusals in the 6-11 GiB band and no other behaviour. Rollback is the flag
   `LITELLM_COMMIT_GUARD_FLOOR_GIB=6` plus a litellm redeploy; superseded value: 6 GiB.
 - Callers must treat the 503 as a retry signal. The n8n "Notification Forwarder" workflow sends one agent run per
   alert webhook and has no retry on its model node; its alerts during a refusal are lost until the workflow retries
