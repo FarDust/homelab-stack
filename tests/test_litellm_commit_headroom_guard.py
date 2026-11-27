@@ -35,6 +35,17 @@ ROUTES = {
     "qwen3.5:9b": WILDCARD,
     "n8n-chat-low-end": LOW_END,
     "gemini-2.5-flash": CLOUD,
+    "n8n-embedding": [
+        {"litellm_params": {"model": "ollama/nomic-embed-text", "api_base": OLLAMA}}
+    ],
+    "env-literal": [
+        {
+            "litellm_params": {
+                "model": "ollama_chat/gemma3:1b",
+                "api_base": "os.environ/COMMIT_GUARD_TEST_BASE",
+            }
+        }
+    ],
 }
 
 
@@ -103,7 +114,7 @@ class FakeSignals:
         if self.fail == "prometheus":
             raise ConnectionError("prometheus down")
         query = params["query"]
-        if query.startswith("memory_guard_commit_headroom_bytes"):
+        if "memory_guard_commit_headroom_bytes" in query:
             return (
                 self.headroom
                 if isinstance(self.headroom, dict)
@@ -290,3 +301,36 @@ def test_guard_is_wired_into_the_gateway_and_dark_by_default():
     assert "COMMIT_GUARD_KEY_ALIASES=${LITELLM_COMMIT_GUARD_KEY_ALIASES:-}" in env
     assert "COMMIT_GUARD_FLOOR_GIB=${LITELLM_COMMIT_GUARD_FLOOR_GIB:-6}" in env
     assert "COMMIT_GUARD_ON_UNKNOWN=closed" in env
+
+
+def test_untagged_model_matches_latest_in_ps(module):
+    signals = FakeSignals(headroom=str(GIB), resident=["nomic-embed-text:latest"])
+    assert (
+        _call(_guard(module, signals), model="n8n-embedding")["model"]
+        == "n8n-embedding"
+    )
+
+
+def test_os_environ_api_base_literal_is_resolved(module, monkeypatch):
+    monkeypatch.setenv("COMMIT_GUARD_TEST_BASE", OLLAMA)
+    with pytest.raises(_HTTPException):
+        _call(_guard(module, FakeSignals(headroom=str(GIB))), model="env-literal")
+
+
+def test_queries_aggregate_duplicate_series(module):
+    seen = []
+
+    async def fetch(url, params):
+        if url.endswith("/api/ps"):
+            return {"models": []}
+        seen.append(params["query"])
+        return _vector(str(12 * GIB) if "headroom" in params["query"] else str(NOW))
+
+    guard = module.CommitHeadroomGuard(
+        env=_env(), fetch_json=fetch, deployments=ROUTES.get, clock=lambda: NOW
+    )
+    assert _call(guard)["model"] == "n8n-chat"
+    assert sorted(seen) == [
+        'max(memory_guard_commit_sample_timestamp_seconds{host="gabriel-pc"})',
+        'min(memory_guard_commit_headroom_bytes{host="gabriel-pc"})',
+    ]

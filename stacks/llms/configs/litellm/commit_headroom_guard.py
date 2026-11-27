@@ -13,6 +13,7 @@ docs/runbooks/litellm-commit-headroom-guard.md.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import os
@@ -177,7 +178,17 @@ def ollama_model_name(deployment_model: str, requested: str) -> str:
         if "/" in deployment_model
         else deployment_model
     )
-    return requested if "*" in name else name
+    name = requested if "*" in name else name
+    # Ollama reports untagged models with the implicit ``:latest`` tag in /api/ps.
+    return name if ":" in name.rsplit("/", 1)[-1] else f"{name}:latest"
+
+
+def resolve_api_base(raw: object) -> str:
+    """LiteLLM resolves ``os.environ/NAME`` at load; resolve it here too so a literal never misses silently."""
+    value = str(raw or "").strip()
+    if value.startswith("os.environ/"):
+        value = os.environ.get(value.removeprefix("os.environ/"), "")
+    return value.rstrip("/")
 
 
 def guarded_ollama_models(
@@ -189,7 +200,7 @@ def guarded_ollama_models(
         params = deployment.get("litellm_params")
         if not isinstance(params, Mapping):
             continue
-        api_base = str(params.get("api_base") or "").rstrip("/")
+        api_base = resolve_api_base(params.get("api_base"))
         model = str(params.get("model") or "")
         if api_base in settings.guarded_api_bases and model.startswith(
             ("ollama/", "ollama_chat/")
@@ -258,17 +269,22 @@ class CommitHeadroomGuard(CustomLogger):
         body = await self._fetch(f"{settings.ollama_url}/api/ps", {})
         if not isinstance(body, dict) or not isinstance(body.get("models"), list):
             raise SignalUnavailable("Ollama /api/ps answer is malformed")
-        return {str(m.get("name")) for m in body["models"] if isinstance(m, dict)}
+        return {
+            str(m.get(field))
+            for m in body["models"]
+            if isinstance(m, dict)
+            for field in ("name", "model")
+            if m.get(field)
+        }
 
     async def _headroom(self, settings: Settings) -> Headroom:
         selector = f'{{host="{settings.host_label}"}}'
         url = f"{settings.prometheus_url}/api/v1/query"
+        # min/max collapse a transient duplicate series (node-exporter reschedule) into one conservative value.
         try:
-            headroom_body = await self._fetch(
-                url, {"query": HEADROOM_METRIC + selector}
-            )
-            timestamp_body = await self._fetch(
-                url, {"query": TIMESTAMP_METRIC + selector}
+            headroom_body, timestamp_body = await asyncio.gather(
+                self._fetch(url, {"query": f"min({HEADROOM_METRIC}{selector})"}),
+                self._fetch(url, {"query": f"max({TIMESTAMP_METRIC}{selector})"}),
             )
         except Exception as exc:
             raise SignalUnavailable(

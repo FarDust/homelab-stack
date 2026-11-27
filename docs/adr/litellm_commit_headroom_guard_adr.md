@@ -65,6 +65,15 @@ Status: accepted 2026-11-27. Code: `stacks/llms/configs/litellm/commit_headroom_
   about 10 GB. The floor is a safety net, not a capacity plan; raise it (for example to 11 GiB) if loads from 6-10 GiB
   still reach exhaustion.
 - When WSL is down, the series disappears and guarded requests fail closed, which matches Ollama being down.
+- The default floor (6 GiB) is the value Lira set on 2026-11-27; independent review noted that a 10 GB load admitted at
+  6-10 GiB can still reach exhaustion. It stays 6 GiB until the live alarms show loads admitted in that band; then
+  `LITELLM_COMMIT_GUARD_FLOOR_GIB` goes to 11-12.
+- A refusal is raised before routing, so the configured `n8n-chat` fallbacks (low-end Ollama, cloud) do not fire; the
+  caller sees the 503 directly.
+- The publisher checks that the distro runs and then calls `wsl.exe`; if WSL stops in that window `wsl.exe` could start
+  it. The window is milliseconds once a minute; accepted and recorded.
+- Queries use `min(...)` and `max(...)` so a transient duplicate series (node-exporter reschedule) does not fail
+  every request closed; untagged Ollama names match `:latest` in `/api/ps`.
 
 ## Verification
 
