@@ -1,5 +1,5 @@
 version: '3.9'
-# MCP server of the shared trip (the mcp/ package of the trip application and its MCP ADR): a thin adapter over the trip API
+# MCP server of the shared trip (japan-route-app mcp/, docs/adr/mcp_api_adr.md there): a thin adapter over the trip API
 # (stack apps-japan-trip-api). It holds no database credential: every tool call reaches the API with a token of the
 # caller, obtained by OAuth 2.0 token exchange at the trip realm with the confidential client japan-trip-mcp.
 # Tailnet only: the router sits on the private application host under /mcp, with its own rate limit; no public route.
@@ -17,10 +17,18 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: [/tmp]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
     secrets:
       - source: jt_mcp_client_secret
         target: jt_mcp_client_secret
+        uid: '10001'
+        mode: 0400
+      - source: feature_flags_client_token
+        target: feature_flags_client_token
         uid: '10001'
         mode: 0400
     environment:
@@ -31,6 +39,9 @@ services:
       JT_MCP_CLIENT_ID: japan-trip-mcp
       JT_MCP_CLIENT_SECRET_FILE: /run/secrets/jt_mcp_client_secret
       JT_MCP_FEATURES: ${JT_MCP_FEATURES:-}
+      FLAGS_UNLEASH_URL: https://flags.${LOCAL_DOMAIN?err}/api
+      FLAGS_UNLEASH_TOKEN_FILE: /run/secrets/feature_flags_client_token
+      FLAGS_BACKUP_DIR: /tmp/unleash
       JT_MCP_LOG_LEVEL: INFO
     deploy:
       replicas: 1
@@ -72,3 +83,5 @@ secrets:
   jt_mcp_client_secret:
     external: true
     name: jt_mcp_client_secret-${JT_MCP_SECRET_VERSION:-1}
+  feature_flags_client_token:
+    external: true
