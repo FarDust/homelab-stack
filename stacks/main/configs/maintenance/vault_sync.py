@@ -113,6 +113,16 @@ def read_secret(path: str) -> str:
     return Path(path).read_text(encoding="utf-8").strip()
 
 
+class ExtractionBackendRefused(Exception):
+    """The model backend refuses every request (quota, credits, auth); retrying other files cannot succeed."""
+
+
+# Statuses that mean the whole backend refuses us, not one file: stop the cycle instead of
+# repeating the same failing call for every vault file (8,000 429s a day on 2026-11-10..27;
+# see docs/adr/vault_sync_backend_refusal_adr.md).
+BACKEND_REFUSAL_STATUSES = frozenset({401, 402, 403, 429})
+
+
 def extract_entities(file_text: str, source_path: str) -> dict:
     api_key = read_secret(LITELLM_API_KEY_FILE)
     resp = httpx.post(
@@ -128,6 +138,11 @@ def extract_entities(file_text: str, source_path: str) -> dict:
         },
         timeout=60.0,
     )
+    if resp.status_code in BACKEND_REFUSAL_STATUSES:
+        raise ExtractionBackendRefused(
+            f"model backend answered HTTP {resp.status_code} for {source_path}; "
+            f"stopping this cycle and retrying after {SYNC_INTERVAL_SECONDS}s"
+        )
     resp.raise_for_status()
     content = resp.json()["choices"][0]["message"]["content"]
     return json.loads(content)
@@ -238,6 +253,9 @@ def sync_once(driver) -> None:
             continue
         try:
             extraction = extract_entities(text, rel)
+        except ExtractionBackendRefused as exc:
+            log(f"extraction aborted: {exc}")
+            return
         except Exception as exc:
             log(f"extraction failed for {rel}: {exc}")
             continue
