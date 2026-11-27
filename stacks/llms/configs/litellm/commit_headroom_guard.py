@@ -11,8 +11,6 @@ every key). Decision record: docs/adr/litellm_commit_headroom_guard_adr.md; runb
 docs/runbooks/litellm-commit-headroom-guard.md.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import math

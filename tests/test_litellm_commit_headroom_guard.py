@@ -74,9 +74,8 @@ def module(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setitem(sys.modules, name, mod)
     spec = importlib.util.spec_from_file_location("commit_headroom_guard", GUARD)
     loaded = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(
-        sys.modules, "commit_headroom_guard", loaded
-    )  # dataclasses resolve their module
+    # Load exactly like litellm.proxy.types_utils.utils.get_instance_fn: no sys.modules entry, so a
+    # module-level construct that needs one (dataclasses with string annotations) fails here too.
     spec.loader.exec_module(loaded)
     return loaded
 

@@ -11,6 +11,20 @@ Decision: `docs/adr/litellm_commit_headroom_guard_adr.md`. Code: `stacks/llms/co
   `time() - memory_guard_commit_sample_timestamp_seconds{host="gabriel-pc"}` (should stay under 90 s).
 - File in the guest: `/var/lib/node_exporter/textfile_collector/memory_guard_commit.prom`.
 
+## Pre-deploy gate
+
+Load the hook with LiteLLM's own loader in the pinned image before every deploy (the 2026-11-27 first deploy
+crash-looped because `from __future__ import annotations` plus a dataclass needs a `sys.modules` entry that
+`get_instance_fn` never creates):
+
+```
+docker run --rm --entrypoint python3 -e OLLAMA_API_BASE=https://ollama.example -v <dir with the hook>:/gate:ro   <litellm image@digest> -c "from litellm.proxy.types_utils.utils import get_instance_fn;   print(get_instance_fn(value='commit_headroom_guard.proxy_handler_instance', config_file_path='/gate/config.yaml'))"
+```
+
+Deploy only from a checkout whose `.env` command substitutions resolve: `.env` reads secrets by relative paths, so a
+worktree needs the canonical `secrets/` subdirectories and `stacks/llms/secrets/` linked in, and the env of the
+rendered service must be compared with the previous spec (hashes, no values) before it converges.
+
 ## Flag
 
 - `LITELLM_COMMIT_GUARD_KEY_ALIASES` in the manager `.env`: empty = dark, `commit-guard-qa` = QA key only,
